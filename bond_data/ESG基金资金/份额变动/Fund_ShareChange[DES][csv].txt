@@ -1,0 +1,12 @@
+Symbol [基金代码] - 
+ReportTypeID [定期报告类别编码] - 1－第一季度；2－第二季度；3－第三季度；4－第四季度；5－半年度；6－年度；7－其他周期
+EndDate [截止日期] - 
+FundID [基金ID] - 10+自增长序列
+FundClassID [基金份额类别ID] - 202+9位递增长序列
+StartDate [开始日期] - 
+EstablishDateShares [基金合同生效日总份额] - 转换时注意单位
+TotalBeginningFundShare [本期期初份额] - 
+TotalPurchaseFundShare [本期申购份额] - 
+TotalRedemptionFundShare [本期赎回份额] - 
+FundSplitChangeShare [本期基金拆分变动份额] - 
+EndDateShares [期末总份额] - 

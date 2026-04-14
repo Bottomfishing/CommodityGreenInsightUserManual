@@ -1,0 +1,6 @@
+started_at=2026-04-13 14:48:47
+base_path=C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\web_runs\run_20260413_144847_top10\_data\OilData
+top_n=10
+epochs=200
+early_stopping=True
+pid=47752

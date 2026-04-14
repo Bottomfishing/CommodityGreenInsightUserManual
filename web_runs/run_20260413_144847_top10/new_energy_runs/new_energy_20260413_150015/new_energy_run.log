@@ -1,0 +1,9 @@
+[web:new_energy] started_at=2026-04-13 15:00:15 pid=42212
+Traceback (most recent call last):
+  File "C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\run_new_energy_forecast_integrated_0325.py", line 376, in <module>
+    main()
+  File "C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\run_new_energy_forecast_integrated_0325.py", line 341, in main
+    df_ret = build_returns_for_series(series=series, desktop_base=desktop_base, scale=args.scale)
+  File "C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\run_new_energy_forecast_integrated_0325.py", line 127, in build_returns_for_series
+    raise FileNotFoundError(f"未在桌面目录下找到新能源 zip（digits={zip_digits}）")
+FileNotFoundError: 未在桌面目录下找到新能源 zip（digits=['143136736', '143542603', '143658220']）

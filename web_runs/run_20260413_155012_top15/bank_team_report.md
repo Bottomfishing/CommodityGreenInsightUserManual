@@ -1,0 +1,55 @@
+# 油价预测分析报告（企业银行团队版）
+
+- 生成时间：2026-04-13 15:55:26
+- 预测步长：H=1（天），窗口：LOOKBACK=30
+- 特征选择：RandomForest Top-N=15
+
+## 1. 预测效果（Test）
+- MAE：10.8200
+- RMSE：11.1705
+- MAPE：14.96%
+- R2：-4.3872
+- 方向预测准确率（排除平盘）：0.5066
+
+## 2. 主要驱动因子（示例 Top-10）
+```
+              feature  spearman_corr_with_return  rf_importance
+     WTI_Futures_Lag2                  -0.167443       0.075154
+     WTI_Futures_Lag1                  -0.151081       0.104952
+     WTI_Futures_MA_5                  -0.145036       0.092317
+          WTI_Futures                  -0.143415       0.348298
+    WTI_Futures_MA_10                  -0.124335       0.082290
+Inventory_Price_Ratio                   0.121029       0.102503
+                 MACD                  -0.109492       0.000360
+             WTI_Spot                  -0.094792       0.000986
+          BB_Upper_20                  -0.093748       0.000270
+    WTI_Futures_MA_20                  -0.091962       0.016540
+```
+
+- 图表：`top_drivers_spearman.png`、`top_drivers_rf_importance.png`
+
+## 3. 风险区间与信号
+- 风险区间：按 |预测收益| 分位数划分（LOW/MEDIUM/HIGH）
+- 信号：LONG / SHORT / FLAT（阈值来自预测收益幅度）
+- 图表：`direction_confusion_matrix.png`
+
+## 4. 简单回测（信号驱动）
+```
+ Strategy_TotalReturn  BuyHold_TotalReturn  Strategy_MaxDrawdown  Strategy_WinRate  Signal_Threshold
+            -0.048673            -0.018714             -0.243083          0.481013          0.069981
+```
+
+- 图表：`backtest_nav_curve.png`
+
+## 5. 风险提示（概要）
+- 模型预测用于短期风险识别与情景提示，不构成投资建议。
+- 当风险区间为 HIGH 且信号为 LONG/SHORT 时，建议结合库存/宏观/地缘事件进行人工复核。
+- 建议与基准（随机游走/简单技术指标）并行监控，避免过拟合与结构性突变风险。
+
+## 6. 输出文件清单
+- `prediction_results.csv`：对齐后的预测/真实/收益
+- `daily_predictions_vs_actual.csv`：每日预测 vs 真实（含误差）
+- `driver_factor_analysis.csv`：驱动因子量化（相关性+RF重要性）
+- `risk_signal_classification.csv`：风险区间+信号分类
+- `backtest_results.csv`、`backtest_metrics.csv`：回测结果与指标
+- 图：`gru_predictions.png`、`gru_returns.png`、`direction_prediction.png`、`top_drivers_*.png`、`direction_confusion_matrix.png`、`backtest_nav_curve.png`

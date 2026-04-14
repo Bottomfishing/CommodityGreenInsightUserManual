@@ -1,0 +1,11 @@
+streamlit
+pandas
+tabulate
+markdown
+numpy
+matplotlib
+scikit-learn
+tensorflow
+scipy
+lightgbm
+seaborn
