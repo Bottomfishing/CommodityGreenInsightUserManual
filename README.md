@@ -20,3 +20,7 @@
 [bond_data](bond_data)  -绿色债券相关dataset
 
 [assets](assets)    -web图片dataset
+
+启动命令：
+web :streamlit run streamlit_app_0325.py
+oilprice :python oil_price_prediction_main_0309.py
