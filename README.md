@@ -21,8 +21,16 @@
 
 [assets](assets)    -web图片dataset
 
+[backend_api.py](backend_api.py)    -（新增）fastapi后端
+
+[FRONTEND_API_MAPPING.md](FRONTEND_API_MAPPING.md)  -（新增）后端api说明表，供前端将api功能对其旧的streamlit_web
+
 启动命令：
 web :streamlit run streamlit_app_0325.py
 oilprice :python oil_price_prediction_main_0309.py
+fastapi:uvicorn backend_api:app --host 127.0.0.1 --port 8000 --reload
 
 网址：http://47.110.235.34:8501
+
+fastapi联调总控页：http://127.0.0.1:8000/docs#/
+
