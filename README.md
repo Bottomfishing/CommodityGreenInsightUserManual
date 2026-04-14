@@ -24,3 +24,5 @@
 启动命令：
 web :streamlit run streamlit_app_0325.py
 oilprice :python oil_price_prediction_main_0309.py
+
+网址：http://47.110.235.34:8501
