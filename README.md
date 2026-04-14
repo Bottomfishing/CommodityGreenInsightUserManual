@@ -1,2 +1,22 @@
-# CommodityGreenInsightUserManual
+# 大宗绿测_基于油价因子的绿色金融产品预测与风险分析源代码
 大宗绿测_基于油价因子的绿色金融产品预测与风险分析git源代码
+
+[oil_price_prediction_main_0309.py](oil_price_prediction_main_0309.py)  -为深度学习主程序，油价预测程序，采用随机森林进行特征选择（选择topo15为最佳方案），同时进行了细致的特征工程，后采用gru为模型预测，用前20天的数据预测后一天的数据
+
+[predict_new_energy_from_gru.py](predict_new_energy_from_gru.py)    -为绿色股票预测部分，采用油价输出的结果csv和绿色股票自身时间序列csv作为特征，结合推导多篇论文的动力学公式，其中构造了油价意外利率、油价意外波动率，油价预期利率、油价预期波动率、略色股票滞后等多个特征进行预测
+
+[predict_bond_from_gru.py](predict_bond_from_gru.py)    -为绿色债券预测，也是以石油输出的csv为输入，和绿色股票预测部分相似
+
+[streamlit_app_0325.py](streamlit_app_0325.py)  -web，由streamlit前后端一体搭建
+
+[ai_expert_panel.py](ai_expert_panel.py)    -植入的ai api,api key直接写在里边了
+
+[web_runs](web_runs)    -web中的历史记录，每次web训练的结果都在里边
+
+[OilData](OilData)  -油价相关dataset
+
+[绿色股票指数](%E7%BB%BF%E8%89%B2%E8%82%A1%E7%A5%A8%E6%8C%87%E6%95%B0)    -绿色股票相关dataset
+
+[bond_data](bond_data)  -绿色债券相关dataset
+
+[assets](assets)    -web图片dataset
