@@ -2,6 +2,8 @@ streamlit
 fastapi
 uvicorn
 python-multipart
+sqlalchemy
+pymysql
 pandas
 tabulate
 markdown

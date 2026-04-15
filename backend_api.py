@@ -1,21 +1,33 @@
 import io
+import hashlib
+import hmac
 import json
 import os
 import re
+import secrets
 import shutil
 import signal
 import subprocess
 import threading
 import urllib.request
 import zipfile
+from base64 import urlsafe_b64decode, urlsafe_b64encode
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
-from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+
+try:
+    from sqlalchemy import DateTime, Integer, String, Text, create_engine
+    from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
+
+    _SQLALCHEMY_AVAILABLE = True
+except Exception:
+    _SQLALCHEMY_AVAILABLE = False
 
 
 APP_DIR = Path(__file__).resolve().parent
@@ -32,9 +44,59 @@ ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 AI_BASE_URL = os.environ.get("YIBU_BASE_URL", "https://yibuapi.com/v1")
 AI_API_KEY = os.environ.get("YIBU_API_KEY", "")
 AI_MODEL = os.environ.get("YIBU_MODEL", "gpt-4o")
+MYSQL_URL = os.environ.get("MYSQL_URL", "").strip()
+DB_ENABLED = bool(_SQLALCHEMY_AVAILABLE and MYSQL_URL)
+AUTH_SECRET = os.environ.get("AUTH_SECRET", "change-this-auth-secret")
 
 _GLOBAL_MUTEX = threading.Lock()
 _PROCESS_POOL: dict[str, subprocess.Popen[str]] = {}
+
+if DB_ENABLED:
+    engine = create_engine(MYSQL_URL, pool_pre_ping=True, pool_recycle=3600)
+    SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+
+    class Base(DeclarativeBase):
+        pass
+
+    class OilRunRecord(Base):
+        __tablename__ = "oil_runs"
+        run_id: Mapped[str] = mapped_column(String(80), primary_key=True)
+        kind: Mapped[str] = mapped_column(String(32), default="oil")
+        status: Mapped[str] = mapped_column(String(32), default="unknown")
+        pid: Mapped[int | None] = mapped_column(Integer, nullable=True)
+        return_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
+        output_dir: Mapped[str] = mapped_column(Text)
+        top_n: Mapped[int | None] = mapped_column(Integer, nullable=True)
+        epochs: Mapped[int | None] = mapped_column(Integer, nullable=True)
+        forecast_steps: Mapped[int | None] = mapped_column(Integer, nullable=True)
+        cutoff_date: Mapped[str | None] = mapped_column(String(32), nullable=True)
+        error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+        created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+        updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+        started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+        finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    class UserRecord(Base):
+        __tablename__ = "users"
+        id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+        username: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+        password_salt: Mapped[str] = mapped_column(String(64))
+        password_hash: Mapped[str] = mapped_column(String(128))
+        created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+
+    class RunOwnerRecord(Base):
+        __tablename__ = "run_owners"
+        run_id: Mapped[str] = mapped_column(String(80), primary_key=True)
+        user_id: Mapped[int] = mapped_column(Integer, index=True)
+        created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+
+else:
+    engine = None
+    SessionLocal = None
+    Base = object
+    OilRunRecord = None
+    UserRecord = None
+    RunOwnerRecord = None
 
 
 app = FastAPI(
@@ -52,6 +114,278 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+def _startup_db() -> None:
+    _db_init()
+
+
+def _db_init() -> None:
+    if not DB_ENABLED:
+        return
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception:
+        pass
+
+
+def _db_get_session() -> Session | None:
+    if not DB_ENABLED or SessionLocal is None:
+        return None
+    try:
+        return SessionLocal()
+    except Exception:
+        return None
+
+
+def _db_upsert_run(run_id: str, **fields: Any) -> None:
+    session = _db_get_session()
+    if session is None or OilRunRecord is None:
+        return
+    try:
+        rec = session.get(OilRunRecord, run_id)
+        now = datetime.now()
+        if rec is None:
+            rec = OilRunRecord(run_id=run_id, output_dir=str(fields.get("output_dir", "")), created_at=now, updated_at=now)
+            session.add(rec)
+        for k, v in fields.items():
+            if hasattr(rec, k):
+                setattr(rec, k, v)
+        rec.updated_at = now
+        session.commit()
+    except Exception:
+        try:
+            session.rollback()
+        except Exception:
+            pass
+    finally:
+        session.close()
+
+
+def _db_get_run(run_id: str) -> dict[str, Any] | None:
+    session = _db_get_session()
+    if session is None or OilRunRecord is None:
+        return None
+    try:
+        rec = session.get(OilRunRecord, run_id)
+        if rec is None:
+            return None
+        return {
+            "run_id": rec.run_id,
+            "kind": rec.kind,
+            "status": rec.status,
+            "pid": rec.pid,
+            "return_code": rec.return_code,
+            "output_dir": rec.output_dir,
+            "top_n": rec.top_n,
+            "epochs": rec.epochs,
+            "forecast_steps": rec.forecast_steps,
+            "cutoff_date": rec.cutoff_date,
+            "error_message": rec.error_message,
+            "created_at": rec.created_at.isoformat() if rec.created_at else None,
+            "updated_at": rec.updated_at.isoformat() if rec.updated_at else None,
+            "started_at": rec.started_at.isoformat() if rec.started_at else None,
+            "finished_at": rec.finished_at.isoformat() if rec.finished_at else None,
+        }
+    except Exception:
+        return None
+    finally:
+        session.close()
+
+
+def _db_list_runs(limit: int = 20) -> list[dict[str, Any]]:
+    session = _db_get_session()
+    if session is None or OilRunRecord is None:
+        return []
+    try:
+        rows = (
+            session.query(OilRunRecord)
+            .filter(OilRunRecord.kind == "oil")
+            .order_by(OilRunRecord.created_at.desc())
+            .limit(int(limit))
+            .all()
+        )
+        out: list[dict[str, Any]] = []
+        for rec in rows:
+            out.append(
+                {
+                    "run_id": rec.run_id,
+                    "status": rec.status,
+                    "return_code": rec.return_code,
+                    "output_dir": rec.output_dir,
+                    "pid": rec.pid,
+                    "created_at": rec.created_at.isoformat() if rec.created_at else None,
+                    "updated_at": rec.updated_at.isoformat() if rec.updated_at else None,
+                }
+            )
+        return out
+    except Exception:
+        return []
+    finally:
+        session.close()
+
+
+def _password_hash(password: str, salt_hex: str) -> str:
+    raw = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), bytes.fromhex(salt_hex), 200_000)
+    return raw.hex()
+
+
+def _db_create_user(username: str, password: str) -> int | None:
+    session = _db_get_session()
+    if session is None or UserRecord is None:
+        return None
+    try:
+        exists = session.query(UserRecord).filter(UserRecord.username == username).first()
+        if exists is not None:
+            return None
+        salt_hex = secrets.token_hex(16)
+        rec = UserRecord(
+            username=username,
+            password_salt=salt_hex,
+            password_hash=_password_hash(password, salt_hex),
+            created_at=datetime.now(),
+        )
+        session.add(rec)
+        session.commit()
+        session.refresh(rec)
+        return int(rec.id)
+    except Exception:
+        try:
+            session.rollback()
+        except Exception:
+            pass
+        return None
+    finally:
+        session.close()
+
+
+def _db_auth_user(username: str, password: str) -> dict[str, Any] | None:
+    session = _db_get_session()
+    if session is None or UserRecord is None:
+        return None
+    try:
+        rec = session.query(UserRecord).filter(UserRecord.username == username).first()
+        if rec is None:
+            return None
+        if _password_hash(password, rec.password_salt) != rec.password_hash:
+            return None
+        return {"id": int(rec.id), "username": rec.username}
+    except Exception:
+        return None
+    finally:
+        session.close()
+
+
+def _make_token(user_id: int, username: str) -> str:
+    payload = {"uid": int(user_id), "usr": username, "iat": int(datetime.now().timestamp())}
+    raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    sig = hmac.new(AUTH_SECRET.encode("utf-8"), raw, digestmod=hashlib.sha256).hexdigest().encode("ascii")
+    return urlsafe_b64encode(raw).decode("ascii") + "." + sig.decode("ascii")
+
+
+def _parse_token(token: str) -> dict[str, Any] | None:
+    try:
+        part_raw, part_sig = token.split(".", 1)
+        raw = urlsafe_b64decode(part_raw.encode("ascii"))
+        expect_sig = hmac.new(AUTH_SECRET.encode("utf-8"), raw, digestmod=hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(expect_sig, part_sig):
+            return None
+        payload = json.loads(raw.decode("utf-8"))
+        if not isinstance(payload, dict):
+            return None
+        return payload
+    except Exception:
+        return None
+
+
+def _require_auth_user(authorization: str | None = Header(default=None)) -> dict[str, Any]:
+    if not DB_ENABLED:
+        raise HTTPException(status_code=503, detail="MySQL 未启用，用户系统不可用")
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="缺少 Bearer Token")
+    token = authorization.split(" ", 1)[1].strip()
+    payload = _parse_token(token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Token 无效")
+    uid = payload.get("uid")
+    usr = payload.get("usr")
+    if not isinstance(uid, int) or not isinstance(usr, str):
+        raise HTTPException(status_code=401, detail="Token 非法")
+    return {"id": uid, "username": usr}
+
+
+def _db_bind_run_owner(run_id: str, user_id: int) -> None:
+    session = _db_get_session()
+    if session is None or RunOwnerRecord is None:
+        return
+    try:
+        rec = session.get(RunOwnerRecord, run_id)
+        if rec is None:
+            rec = RunOwnerRecord(run_id=run_id, user_id=int(user_id), created_at=datetime.now())
+            session.add(rec)
+        else:
+            rec.user_id = int(user_id)
+        session.commit()
+    except Exception:
+        try:
+            session.rollback()
+        except Exception:
+            pass
+    finally:
+        session.close()
+
+
+def _db_get_run_owner(run_id: str) -> int | None:
+    session = _db_get_session()
+    if session is None or RunOwnerRecord is None:
+        return None
+    try:
+        rec = session.get(RunOwnerRecord, run_id)
+        return int(rec.user_id) if rec is not None else None
+    except Exception:
+        return None
+    finally:
+        session.close()
+
+
+def _db_list_user_runs(user_id: int, limit: int = 20) -> list[dict[str, Any]]:
+    session = _db_get_session()
+    if session is None or RunOwnerRecord is None or OilRunRecord is None:
+        return []
+    try:
+        rows = (
+            session.query(OilRunRecord)
+            .join(RunOwnerRecord, RunOwnerRecord.run_id == OilRunRecord.run_id)
+            .filter(OilRunRecord.kind == "oil", RunOwnerRecord.user_id == int(user_id))
+            .order_by(OilRunRecord.created_at.desc())
+            .limit(int(limit))
+            .all()
+        )
+        return [
+            {
+                "run_id": r.run_id,
+                "status": r.status,
+                "return_code": r.return_code,
+                "output_dir": r.output_dir,
+                "pid": r.pid,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+                "updated_at": r.updated_at.isoformat() if r.updated_at else None,
+            }
+            for r in rows
+        ]
+    except Exception:
+        return []
+    finally:
+        session.close()
+
+
+def _assert_run_access(run_id: str, user_id: int) -> None:
+    owner = _db_get_run_owner(run_id)
+    if owner is None:
+        raise HTTPException(status_code=404, detail="run_id 不存在或未绑定用户")
+    if int(owner) != int(user_id):
+        raise HTTPException(status_code=403, detail="无权访问该运行记录")
 
 
 def _safe_json_extract_content(data: dict[str, Any]) -> str | None:
@@ -96,6 +430,69 @@ def root() -> dict[str, Any]:
         "health": "/health",
         "api_example": "/api/oil/runs",
     }
+
+
+@app.get("/login", response_class=HTMLResponse, summary="登录页")
+def login_page() -> str:
+    return """<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>登录</title></head>
+<body style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:40px auto;">
+  <h2>大宗绿测登录</h2>
+  <input id="u" placeholder="用户名" style="width:100%;padding:8px;margin:6px 0;">
+  <input id="p" placeholder="密码" type="password" style="width:100%;padding:8px;margin:6px 0;">
+  <div style="display:flex;gap:8px;">
+    <button onclick="reg()">注册</button>
+    <button onclick="login()">登录</button>
+  </div>
+  <pre id="out" style="white-space:pre-wrap;background:#f6f8fa;padding:10px;margin-top:12px;"></pre>
+<script>
+async function reg(){
+  const r = await fetch('/api/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({username:document.getElementById('u').value,password:document.getElementById('p').value})});
+  document.getElementById('out').textContent = await r.text();
+}
+async function login(){
+  const r = await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({username:document.getElementById('u').value,password:document.getElementById('p').value})});
+  const t = await r.text();
+  document.getElementById('out').textContent = t;
+}
+</script></body></html>"""
+
+
+@app.post("/api/auth/register", summary="用户注册")
+def auth_register(body: dict[str, Any]) -> dict[str, Any]:
+    if not DB_ENABLED:
+        raise HTTPException(status_code=503, detail="MySQL 未启用，无法注册")
+    username = str(body.get("username", "")).strip()
+    password = str(body.get("password", ""))
+    if not re.match(r"^[A-Za-z0-9_]{3,32}$", username):
+        raise HTTPException(status_code=400, detail="用户名仅允许字母数字下划线，长度 3-32")
+    if len(password) < 6:
+        raise HTTPException(status_code=400, detail="密码至少 6 位")
+    uid = _db_create_user(username, password)
+    if uid is None:
+        raise HTTPException(status_code=409, detail="用户名已存在或创建失败")
+    token = _make_token(uid, username)
+    return {"message": "注册成功", "user_id": uid, "username": username, "token": token}
+
+
+@app.post("/api/auth/login", summary="用户登录")
+def auth_login(body: dict[str, Any]) -> dict[str, Any]:
+    if not DB_ENABLED:
+        raise HTTPException(status_code=503, detail="MySQL 未启用，无法登录")
+    username = str(body.get("username", "")).strip()
+    password = str(body.get("password", ""))
+    user = _db_auth_user(username, password)
+    if not user:
+        raise HTTPException(status_code=401, detail="用户名或密码错误")
+    token = _make_token(int(user["id"]), str(user["username"]))
+    return {"message": "登录成功", "user_id": user["id"], "username": user["username"], "token": token}
+
+
+@app.get("/api/auth/me", summary="当前用户信息")
+def auth_me(user: dict[str, Any] = Depends(_require_auth_user)) -> dict[str, Any]:
+    return {"user_id": user["id"], "username": user["username"]}
 
 
 def _strip_ansi(text: str) -> str:
@@ -308,6 +705,17 @@ def _start_background_cmd(
         lock = _read_global_lock() or {}
         lock["kind"] = lock_kind
         GLOBAL_LOCK_PATH.write_text(json.dumps(lock, ensure_ascii=False), encoding="utf-8")
+        _db_upsert_run(
+            lock_run_id,
+            kind=str(lock_kind),
+            status="running",
+            pid=int(proc.pid),
+            return_code=None,
+            output_dir=str(output_dir.resolve()),
+            started_at=datetime.now(),
+            finished_at=None,
+            error_message=None,
+        )
 
     log_path = output_dir / log_filename
     marker_path = output_dir / started_marker_filename
@@ -330,6 +738,15 @@ def _start_background_cmd(
             except Exception:
                 pass
             _clear_global_lock_if_pid(proc.pid)
+            _db_upsert_run(
+                lock_run_id,
+                kind=str(lock_kind),
+                status="success" if proc.returncode == 0 else "failed",
+                return_code=proc.returncode,
+                pid=int(proc.pid),
+                finished_at=datetime.now(),
+                error_message=None if proc.returncode == 0 else f"{lock_kind} 进程返回非0退出码",
+            )
 
     threading.Thread(target=_pump, daemon=True).start()
     return proc.pid, str(output_dir.resolve())
@@ -506,6 +923,9 @@ def get_system_status() -> dict[str, Any]:
         "global_lock": busy,
         "run_count": len(runs),
         "latest_run_id": runs[0].name if runs else None,
+        "mysql_enabled": DB_ENABLED,
+        "mysql_url_configured": bool(MYSQL_URL),
+        "sqlalchemy_available": _SQLALCHEMY_AVAILABLE,
     }
 
 
@@ -514,8 +934,15 @@ def resolve_monitor_dir(
     mode: str = Query("latest", description="running|active_by_log|selected|latest|manual"),
     selected_run_id: str | None = Query(None),
     manual_dir: str | None = Query(None),
+    user: dict[str, Any] = Depends(_require_auth_user),
 ) -> dict[str, Any]:
-    run_dirs = _list_run_dirs()
+    run_dirs = []
+    for p in _list_run_dirs():
+        try:
+            _assert_run_access(p.name, int(user["id"]))
+            run_dirs.append(p)
+        except HTTPException:
+            continue
     running_lock = _global_busy()
     running_dir = Path(str(running_lock.get("output_dir"))) if running_lock else None
     active_dir = _pick_most_recent_active_run_dir(run_dirs)
@@ -553,6 +980,7 @@ async def create_oil_run(
     cutoff_date: str | None = Form(None),
     enable_early_stopping: bool = Form(True),
     auto_bond_after_oil: bool = Form(False),
+    user: dict[str, Any] = Depends(_require_auth_user),
 ) -> dict[str, Any]:
     if not zip_file.filename or not zip_file.filename.lower().endswith(".zip"):
         raise HTTPException(status_code=400, detail="仅支持 zip 数据包")
@@ -639,6 +1067,22 @@ async def create_oil_run(
         )
         _PROCESS_POOL[run_id] = proc
         _write_global_lock(proc.pid, run_id=run_id, output_dir=str(run_dir.resolve()))
+        _db_upsert_run(
+            run_id,
+            kind="oil",
+            status="running",
+            pid=int(proc.pid),
+            return_code=None,
+            output_dir=str(run_dir.resolve()),
+            top_n=int(top_n),
+            epochs=int(epochs),
+            forecast_steps=int(forecast_steps),
+            cutoff_date=cutoff_date,
+            started_at=datetime.now(),
+            finished_at=None,
+            error_message=None,
+        )
+        _db_bind_run_owner(run_id, int(user["id"]))
 
         def _pump() -> None:
             try:
@@ -654,6 +1098,14 @@ async def create_oil_run(
                 except Exception:
                     pass
                 _clear_global_lock_if_pid(proc.pid)
+                _db_upsert_run(
+                    run_id,
+                    status="success" if proc.returncode == 0 else "failed",
+                    return_code=proc.returncode,
+                    pid=int(proc.pid),
+                    finished_at=datetime.now(),
+                    error_message=None if proc.returncode == 0 else "训练进程返回非0退出码",
+                )
                 # 与 streamlit 行为对齐：油价成功后可自动触发绿债预测
                 try:
                     if bool(auto_bond_after_oil) and proc.returncode == 0:
@@ -740,7 +1192,20 @@ async def create_oil_run(
 
 
 @app.get("/api/oil/runs")
-def list_oil_runs(limit: int = Query(20, ge=1, le=200)) -> dict[str, Any]:
+def list_oil_runs(limit: int = Query(20, ge=1, le=200), user: dict[str, Any] = Depends(_require_auth_user)) -> dict[str, Any]:
+    db_items = _db_list_user_runs(user_id=int(user["id"]), limit=limit)
+    if db_items:
+        enriched: list[dict[str, Any]] = []
+        for item in db_items:
+            run_id = str(item.get("run_id", ""))
+            run_dir = WEB_RUNS_DIR / run_id
+            if run_dir.is_dir():
+                st = _run_status(run_dir)
+                st["db"] = item
+                enriched.append(st)
+            else:
+                enriched.append(item)
+        return {"items": enriched}
     if not WEB_RUNS_DIR.is_dir():
         return {"items": []}
     runs = [p for p in WEB_RUNS_DIR.iterdir() if p.is_dir() and p.name.startswith("run_")]
@@ -749,17 +1214,26 @@ def list_oil_runs(limit: int = Query(20, ge=1, le=200)) -> dict[str, Any]:
 
 
 @app.get("/api/oil/runs/{run_id}")
-def get_oil_run(run_id: str) -> dict[str, Any]:
+def get_oil_run(run_id: str, user: dict[str, Any] = Depends(_require_auth_user)) -> dict[str, Any]:
+    _assert_run_access(run_id, int(user["id"]))
+    db_run = _db_get_run(run_id)
     run_dir = WEB_RUNS_DIR / run_id
-    if not run_dir.is_dir():
+    if not run_dir.is_dir() and not db_run:
         raise HTTPException(status_code=404, detail="run_id 不存在")
-    payload = _run_status(run_dir)
-    payload["files"] = sorted([p.name for p in run_dir.iterdir() if p.is_file()])
+    if run_dir.is_dir():
+        payload = _run_status(run_dir)
+        payload["files"] = sorted([p.name for p in run_dir.iterdir() if p.is_file()])
+    else:
+        payload = {"run_id": run_id, "status": db_run.get("status", "unknown"), "output_dir": db_run.get("output_dir", "")}
+        payload["files"] = []
+    if db_run:
+        payload["db"] = db_run
     return payload
 
 
 @app.get("/api/oil/runs/{run_id}/overview", summary="结果总览", description="聚合训练监控、结果预览、下载页核心信息")
-def get_oil_run_overview(run_id: str) -> dict[str, Any]:
+def get_oil_run_overview(run_id: str, user: dict[str, Any] = Depends(_require_auth_user)) -> dict[str, Any]:
+    _assert_run_access(run_id, int(user["id"]))
     run_dir = WEB_RUNS_DIR / run_id
     if not run_dir.is_dir():
         raise HTTPException(status_code=404, detail="run_id 不存在")
@@ -796,7 +1270,12 @@ def get_oil_run_overview(run_id: str) -> dict[str, Any]:
 
 
 @app.get("/api/oil/runs/{run_id}/training-dashboard", summary="训练监控图表数据")
-def get_training_dashboard_data(run_id: str, rows: int = Query(2000, ge=10, le=20000)) -> dict[str, Any]:
+def get_training_dashboard_data(
+    run_id: str,
+    rows: int = Query(2000, ge=10, le=20000),
+    user: dict[str, Any] = Depends(_require_auth_user),
+) -> dict[str, Any]:
+    _assert_run_access(run_id, int(user["id"]))
     run_dir = WEB_RUNS_DIR / run_id
     if not run_dir.is_dir():
         raise HTTPException(status_code=404, detail="run_id 不存在")
@@ -845,7 +1324,12 @@ def get_training_dashboard_data(run_id: str, rows: int = Query(2000, ge=10, le=2
 
 
 @app.get("/api/oil/runs/{run_id}/log")
-def get_oil_run_log(run_id: str, lines: int = Query(200, ge=20, le=2000)) -> dict[str, Any]:
+def get_oil_run_log(
+    run_id: str,
+    lines: int = Query(200, ge=20, le=2000),
+    user: dict[str, Any] = Depends(_require_auth_user),
+) -> dict[str, Any]:
+    _assert_run_access(run_id, int(user["id"]))
     run_dir = WEB_RUNS_DIR / run_id
     if not run_dir.is_dir():
         raise HTTPException(status_code=404, detail="run_id 不存在")
@@ -854,7 +1338,12 @@ def get_oil_run_log(run_id: str, lines: int = Query(200, ge=20, le=2000)) -> dic
 
 
 @app.get("/api/oil/runs/{run_id}/prediction-preview")
-def get_prediction_preview(run_id: str, rows: int = Query(30, ge=1, le=500)) -> dict[str, Any]:
+def get_prediction_preview(
+    run_id: str,
+    rows: int = Query(30, ge=1, le=500),
+    user: dict[str, Any] = Depends(_require_auth_user),
+) -> dict[str, Any]:
+    _assert_run_access(run_id, int(user["id"]))
     run_dir = WEB_RUNS_DIR / run_id
     pred_csv = run_dir / "prediction_results.csv"
     if not pred_csv.is_file():
@@ -871,7 +1360,9 @@ def get_csv_preview(
     run_id: str,
     name: str = Query(..., description="文件名，例如 prediction_results.csv"),
     rows: int = Query(50, ge=1, le=500),
+    user: dict[str, Any] = Depends(_require_auth_user),
 ) -> dict[str, Any]:
+    _assert_run_access(run_id, int(user["id"]))
     run_dir = WEB_RUNS_DIR / run_id
     if not run_dir.is_dir():
         raise HTTPException(status_code=404, detail="run_id 不存在")
@@ -887,7 +1378,8 @@ def get_csv_preview(
 
 
 @app.post("/api/oil/runs/{run_id}/stop")
-def stop_oil_run(run_id: str) -> dict[str, Any]:
+def stop_oil_run(run_id: str, user: dict[str, Any] = Depends(_require_auth_user)) -> dict[str, Any]:
+    _assert_run_access(run_id, int(user["id"]))
     run_dir = WEB_RUNS_DIR / run_id
     if not run_dir.is_dir():
         raise HTTPException(status_code=404, detail="run_id 不存在")
@@ -903,13 +1395,16 @@ def stop_oil_run(run_id: str) -> dict[str, Any]:
     if not pid:
         raise HTTPException(status_code=409, detail="未找到可停止的运行进程")
 
+    _db_upsert_run(run_id, status="stopping", pid=int(pid), finished_at=None)
     _terminate_pid_tree(pid)
     _clear_global_lock_if_pid(pid)
+    _db_upsert_run(run_id, status="stopped", pid=int(pid), finished_at=datetime.now())
     return {"message": "已发送停止信号", "run_id": run_id, "pid": pid}
 
 
 @app.get("/api/oil/runs/{run_id}/files")
-def get_oil_run_files(run_id: str) -> dict[str, Any]:
+def get_oil_run_files(run_id: str, user: dict[str, Any] = Depends(_require_auth_user)) -> dict[str, Any]:
+    _assert_run_access(run_id, int(user["id"]))
     run_dir = WEB_RUNS_DIR / run_id
     if not run_dir.is_dir():
         raise HTTPException(status_code=404, detail="run_id 不存在")
@@ -921,7 +1416,12 @@ def get_oil_run_files(run_id: str) -> dict[str, Any]:
 
 
 @app.get("/api/oil/runs/{run_id}/download", summary="下载 run 目录文件")
-def download_oil_run_file(run_id: str, name: str = Query(..., description="文件名")) -> FileResponse:
+def download_oil_run_file(
+    run_id: str,
+    name: str = Query(..., description="文件名"),
+    user: dict[str, Any] = Depends(_require_auth_user),
+) -> FileResponse:
+    _assert_run_access(run_id, int(user["id"]))
     run_dir = WEB_RUNS_DIR / run_id
     if not run_dir.is_dir():
         raise HTTPException(status_code=404, detail="run_id 不存在")
@@ -934,7 +1434,8 @@ def download_oil_run_file(run_id: str, name: str = Query(..., description="文�
 
 
 @app.get("/api/oil/runs/{run_id}/export.zip", summary="导出 run 目录为 zip")
-def export_oil_run_zip(run_id: str) -> StreamingResponse:
+def export_oil_run_zip(run_id: str, user: dict[str, Any] = Depends(_require_auth_user)) -> StreamingResponse:
+    _assert_run_access(run_id, int(user["id"]))
     run_dir = WEB_RUNS_DIR / run_id
     if not run_dir.is_dir():
         raise HTTPException(status_code=404, detail="run_id 不存在")
@@ -957,7 +1458,9 @@ async def start_new_energy_run(
     scale_oil_return: float = Form(100.0),
     make_viz: bool = Form(True),
     rebuild_returns: bool = Form(False),
+    user: dict[str, Any] = Depends(_require_auth_user),
 ) -> dict[str, Any]:
+    _assert_run_access(run_id, int(user["id"]))
     run_dir = WEB_RUNS_DIR / run_id
     if not run_dir.is_dir():
         raise HTTPException(status_code=404, detail="run_id 不存在")
@@ -1011,7 +1514,12 @@ async def start_new_energy_run(
 
 
 @app.get("/api/oil/runs/{run_id}/new-energy/latest", summary="查看最近一次新能源整合预测结果")
-def get_latest_new_energy_result(run_id: str, rows: int = Query(50, ge=1, le=500)) -> dict[str, Any]:
+def get_latest_new_energy_result(
+    run_id: str,
+    rows: int = Query(50, ge=1, le=500),
+    user: dict[str, Any] = Depends(_require_auth_user),
+) -> dict[str, Any]:
+    _assert_run_access(run_id, int(user["id"]))
     run_dir = WEB_RUNS_DIR / run_id
     ne_root = run_dir / "new_energy_runs"
     if not ne_root.is_dir():
@@ -1038,7 +1546,9 @@ def get_latest_new_energy_result(run_id: str, rows: int = Query(50, ge=1, le=500
 async def start_bond_run(
     run_id: str,
     bond_zip_file: UploadFile | None = File(default=None, description="可选：上传绿债数据 zip"),
+    user: dict[str, Any] = Depends(_require_auth_user),
 ) -> dict[str, Any]:
+    _assert_run_access(run_id, int(user["id"]))
     run_dir = WEB_RUNS_DIR / run_id
     if not run_dir.is_dir():
         raise HTTPException(status_code=404, detail="run_id 不存在")
@@ -1112,7 +1622,12 @@ async def start_bond_run(
 
 
 @app.get("/api/oil/runs/{run_id}/bond/latest", summary="查看最近一次绿债预测结果")
-def get_latest_bond_result(run_id: str, rows: int = Query(50, ge=1, le=500)) -> dict[str, Any]:
+def get_latest_bond_result(
+    run_id: str,
+    rows: int = Query(50, ge=1, le=500),
+    user: dict[str, Any] = Depends(_require_auth_user),
+) -> dict[str, Any]:
+    _assert_run_access(run_id, int(user["id"]))
     run_dir = WEB_RUNS_DIR / run_id
     if not run_dir.is_dir():
         raise HTTPException(status_code=404, detail="run_id 不存在")
@@ -1146,7 +1661,8 @@ def get_latest_bond_result(run_id: str, rows: int = Query(50, ge=1, le=500)) -> 
 
 
 @app.get("/api/oil/runs/{run_id}/analytics", summary="结果页统计指标聚合")
-def get_run_analytics(run_id: str) -> dict[str, Any]:
+def get_run_analytics(run_id: str, user: dict[str, Any] = Depends(_require_auth_user)) -> dict[str, Any]:
+    _assert_run_access(run_id, int(user["id"]))
     run_dir = WEB_RUNS_DIR / run_id
     if not run_dir.is_dir():
         raise HTTPException(status_code=404, detail="run_id 不存在")
@@ -1213,7 +1729,12 @@ def get_run_analytics(run_id: str) -> dict[str, Any]:
 
 
 @app.post("/api/oil/runs/{run_id}/ai-report", summary="生成企业银行团队 AI 报告")
-def build_ai_report(run_id: str, force: bool = Query(False)) -> dict[str, Any]:
+def build_ai_report(
+    run_id: str,
+    force: bool = Query(False),
+    user: dict[str, Any] = Depends(_require_auth_user),
+) -> dict[str, Any]:
+    _assert_run_access(run_id, int(user["id"]))
     run_dir = WEB_RUNS_DIR / run_id
     if not run_dir.is_dir():
         raise HTTPException(status_code=404, detail="run_id 不存在")
@@ -1231,12 +1752,14 @@ def ai_chat(
     mode: str = Query("oil", description="oil 或 new_energy"),
     prompt: str = Query(..., description="用户问题"),
     run_id: str | None = Query(None, description="可选：油价 run_id，用于注入上下文"),
+    user: dict[str, Any] = Depends(_require_auth_user),
 ) -> dict[str, Any]:
     mode = (mode or "").strip().lower()
     if mode not in {"oil", "new_energy"}:
         raise HTTPException(status_code=400, detail="mode 仅支持 oil / new_energy")
     context = ""
     if mode == "oil" and run_id:
+        _assert_run_access(run_id, int(user["id"]))
         run_dir = WEB_RUNS_DIR / run_id
         pred_csv = run_dir / "prediction_results.csv"
         if pred_csv.is_file():
