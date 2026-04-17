@@ -8,7 +8,7 @@
 
 基于 Vue 3 + Vite 构建，对接后端 FastAPI 服务，实现油价预测（GRU）、新能源股票预测、绿债预测、AI 报告生成等核心功能。
 
-- **后端 API 地址**：`https://roni-unfed-mirtha.ngrok-free.dev`
+- **后端 API 地址**：`http://127.0.0.1:8000`
 - **本地代理**：`/api` → 后端（Vite 配置）
 - **技术栈**：Vue 3 + Vite，Composition API
 
@@ -177,7 +177,7 @@ npm install
 npm run dev
 ```
 
-默认端口 `5174`，`/api` 代理到 `https://roni-unfed-mirtha.ngrok-free.dev`。
+默认端口 `5174`，`/api` 代理到 `http://127.0.0.1:8000`。
 
 ### 6.2 新增视图页面
 

@@ -1,6 +1,6 @@
 /**
  * 大宗绿测前端 API 封装
- * 后端地址：https://roni-unfed-mirtha.ngrok-free.dev
+ * 后端地址：http://127.0.0.1:8000
  * 本地代理：/api -> 后端（vite.config.js 中配置）
  */
 
@@ -37,7 +37,6 @@ async function request(method, path, body, isFormData = false, params = null) {
   const opts = {
     method,
     headers: {
-      'ngrok-skip-browser-warning': 'true',
       ...authHeaders(),
     },
   }
@@ -72,8 +71,9 @@ export async function register({ username, password }) {
 /** POST /api/auth/login */
 export async function login({ username, password }) {
   const data = await request('POST', '/auth/login', { username, password })
-  if (data.access_token) {
-    setToken(data.access_token)
+  const token = data?.access_token || data?.token || null
+  if (token) {
+    setToken(token)
   }
   return data
 }
@@ -94,7 +94,16 @@ export function logout() {
 
 /** GET /api/system/status */
 export async function fetchSystemStatus() {
-  return request('GET', '/api/system/status')
+  const raw = await request('GET', '/api/system/status')
+  const lock = raw?.global_lock || null
+  return {
+    ...raw,
+    // 后端当前返回 global_lock.run_id，这里统一成前端已使用的 current_run_id
+    current_run_id: raw?.current_run_id || lock?.run_id || raw?.latest_run_id || null,
+    started_at: raw?.started_at || lock?.started_at || null,
+    // 兜底：如果 lock 存在则视为运行中（兼容不同后端字段）
+    global_busy: typeof raw?.global_busy === 'boolean' ? raw.global_busy : !!lock,
+  }
 }
 
 // ──────────────────────────────────────────
