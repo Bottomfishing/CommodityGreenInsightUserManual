@@ -25,14 +25,14 @@ function App() {
           <CanvasText
             text="大宗绿测"
             className="text-6xl md:text-8xl font-extrabold tracking-tight drop-shadow-[0_2px_10px_rgba(0,0,0,0.45)]"
-            backgroundClassName="bg-blue-700"
-            colors={["#60a5fa", "#3b82f6", "#2563eb", "#1d4ed8", "#38bdf8", "#0ea5e9", "#1e40af"]}
-            lineGap={7}
+            backgroundClassName="bg-emerald-700"
+            colors={["#bbf7d0", "#86efac", "#4ade80", "#34d399", "#22c55e", "#16a34a", "#15803d"]}
+            lineGap={10}
             lineWidth={1.8}
-            curveIntensity={110}
+            curveIntensity={230}
             animationDuration={5}
           />
-          <p className="absolute left-[70%] top-[130%] w-max text-2xl md:text-4xl font-bold tracking-tight text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.45)]">
+          <p className="absolute left-[70%] top-[130%] w-max text-2xl md:text-4xl font-bold tracking-tight text-white drop-shadow-[0_6px_18px_rgba(0,0,0,0.85)]">
             - 基于机器学习的油价预测与绿色金融平台
           </p>
         </div>
