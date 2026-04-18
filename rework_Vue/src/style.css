@@ -1,0 +1,112 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+}
+
+#app {
+  min-height: 100vh;
+}
+
+.home-layout {
+  width: 100%;
+  min-height: 100vh;
+  padding: 52px 56px 56px;
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.title-area {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+.actions-area {
+  margin-top: auto;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.home-title {
+  margin: 0;
+  line-height: 1.35;
+  font-size: clamp(42px, 6vw, 72px);
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: 0.5px;
+  text-shadow: 0 3px 16px rgba(0, 0, 0, 0.35);
+  text-align: left;
+}
+
+.home-title small {
+  font-size: 0.44em;
+  font-weight: 600;
+  color: #d1d5db;
+}
+
+.actions {
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.btn {
+  border: none;
+  border-radius: 12px;
+  padding: 16px 32px;
+  font-size: 22px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 180px;
+}
+
+.btn-primary {
+  background: #0080bf;
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(0, 128, 191, 0.28);
+}
+
+.btn-primary:hover {
+  background: #0a90d4;
+  transform: translateY(-1px);
+}
+
+.btn-outline {
+  background: #fff;
+  color: #006a9e;
+  border: 1.5px solid #bcd7ea;
+}
+
+.btn-outline:hover {
+  border-color: #0080bf;
+  color: #0080bf;
+}
+
+@media (max-width: 768px) {
+  .home-layout {
+    padding: 28px 20px 32px;
+  }
+  .home-title {
+    font-size: clamp(30px, 9vw, 44px);
+  }
+  .btn {
+    width: 100%;
+    max-width: 260px;
+    font-size: 18px;
+    padding: 14px 20px;
+  }
+}
