@@ -2151,10 +2151,16 @@ def main(base_path='.', top_n=RF_TOP_N_DEFAULT, output_dir='.', no_plots=False,
                     print(f"[警告] 实盘预测缺少特征列：{missing[:5]}{'...' if len(missing) > 5 else ''}")
                     break
 
-                # 取截止到 next_date 的最后 timesteps 行做输入窗口
-                x_df = feats_clean[selected_features].dropna().copy()
+                # 取截止到 next_date 的最后 timesteps 行做输入窗口。
+                # 注意：多步递推时，新增未来行在复杂滚动特征下容易出现局部 NaN，
+                # 若直接 dropna() 会把新行丢掉，导致每一步都重复用同一段历史窗口。
+                x_df = feats_clean[selected_features].copy()
+                x_df = x_df.ffill().bfill()
+                if x_df.tail(predictor.timesteps).isna().any().any():
+                    print("[警告] 实盘预测窗口仍存在 NaN，无法继续递推。")
+                    break
                 if len(x_df) < predictor.timesteps:
-                    print("[警告] 实盘预测窗口不足（dropna 后行数过少）。")
+                    print("[警告] 实盘预测窗口不足（特征行数过少）。")
                     break
 
                 x_window = x_df.iloc[-predictor.timesteps:].values

@@ -137,7 +137,7 @@
     <!-- ─── 主内容区（用 margin-left 推开侧边栏 + 拖拽把手） ─── -->
     <div
       class="main-content"
-      :style="{ marginLeft: (sidebarCollapsed ? 64 : sidebarWidth) + 'px' }"
+      :style="mainContentStyle"
     >
       <!-- Tab 导航栏（tabs 左 + 工具按钮右，同一行） -->
       <nav class="tab-bar">
@@ -387,6 +387,12 @@ watch(sidebarCollapsed, (val) => localStorage.setItem('sidebarCollapsed', val))
 // ── 侧边栏宽度拖拽 ──
 const sidebarWidth = ref(parseInt(localStorage.getItem('sidebarWidth')) || 280)
 const isResizing = ref(false)
+
+const sidebarW = computed(() => (sidebarCollapsed.value ? 64 : sidebarWidth.value))
+const mainContentStyle = computed(() => ({
+  marginLeft: sidebarW.value + 'px',
+  width: `calc(100vw - ${sidebarW.value}px)`,
+}))
 
 function startResize(e) {
   isResizing.value = true

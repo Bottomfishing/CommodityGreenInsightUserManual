@@ -24,15 +24,20 @@ function authHeaders() {
   return token ? { 'Authorization': `Bearer ${token}` } : {}
 }
 
-// ── 基础请求 ──────────────────────────────
-async function request(method, path, body, isFormData = false, params = null) {
+function buildUrl(path, params) {
   let url = BASE + path
   if (params) {
     const qs = new URLSearchParams(
       Object.entries(params).filter(([, v]) => v !== undefined && v !== null)
     ).toString()
-    if (qs) url += '?' + qs
+    if (qs) url += (url.includes('?') ? '&' : '?') + qs
   }
+  return url
+}
+
+// ── 基础请求 ──────────────────────────────
+async function request(method, path, body, isFormData = false, params = null) {
+  const url = buildUrl(path, params)
 
   const opts = {
     method,
@@ -57,6 +62,33 @@ async function request(method, path, body, isFormData = false, params = null) {
   const ct = res.headers.get('content-type') || ''
   if (ct.includes('application/json')) return res.json()
   return res.text()
+}
+
+async function requestBlob(path, params = null) {
+  const url = buildUrl(path, params)
+  const res = await fetch(url, { headers: { ...authHeaders() } })
+  if (!res.ok) {
+    const txt = await res.text().catch(() => '')
+    throw new Error(`HTTP ${res.status}: ${txt}`)
+  }
+  return res.blob()
+}
+
+export async function downloadOilRunFile(runId, name) {
+  const blob = await requestBlob(`/oil/runs/${runId}/download`, { name })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = name
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+export async function getOilRunFileObjectUrl(runId, name) {
+  const blob = await requestBlob(`/oil/runs/${runId}/download`, { name })
+  return URL.createObjectURL(blob)
 }
 
 // ──────────────────────────────────────────
@@ -94,7 +126,7 @@ export function logout() {
 
 /** GET /api/system/status */
 export async function fetchSystemStatus() {
-  const raw = await request('GET', '/api/system/status')
+  const raw = await request('GET', '/system/status')
   const lock = raw?.global_lock || null
   return {
     ...raw,
@@ -112,7 +144,10 @@ export async function fetchSystemStatus() {
 
 /** GET /api/oil/runs */
 export async function fetchRunList() {
-  return request('GET', '/oil/runs')
+  const res = await request('GET', '/oil/runs')
+  // 兼容后端返回 {items:[...]} 或直接数组
+  if (Array.isArray(res)) return res
+  return res?.items || []
 }
 
 /**

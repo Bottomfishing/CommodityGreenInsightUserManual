@@ -711,13 +711,14 @@ html[data-theme="dark"] .sidebar-btn:hover {
    主内容区
    ──────────────────────────────────────────────────────────── */
 .main-content {
-  margin-left: 248px;
   flex: 1;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   position: relative;
   z-index: 1;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 /* ══════════════════════════════════════════
@@ -1644,6 +1645,28 @@ html[data-theme="dark"] .forecast-card--report .fc-prose h3 { color: var(--brand
 .forecast-card--report .fc-prose ol {
   margin: 0.4rem 0 0.4rem 1.2rem;
   padding: 0;
+}
+.forecast-card--report .fc-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.6rem 0;
+  font-size: 0.92rem;
+  background: var(--bg-card-solid);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.forecast-card--report .fc-prose th,
+.forecast-card--report .fc-prose td {
+  border: 1px solid var(--border);
+  padding: 0.45rem 0.6rem;
+  text-align: left;
+  vertical-align: top;
+  word-break: break-word;
+}
+.forecast-card--report .fc-prose thead th {
+  background: var(--bg-glass);
+  font-weight: 700;
 }
 
 /* ── 指标网格 ── */

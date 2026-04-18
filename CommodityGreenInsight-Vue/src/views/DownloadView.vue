@@ -36,25 +36,20 @@
             <div class="file-name">{{ file.name }}</div>
             <div class="file-size">{{ formatSize(file.size) }}</div>
           </div>
-          <a
-            :href="getDownloadUrl(file.name)"
-            :download="file.name"
+          <button
             class="btn btn-secondary"
             style="padding:0.3rem 0.75rem;font-size:0.82rem;"
+            @click="handleDownload(file.name)"
           >
             下载
-          </a>
+          </button>
         </div>
 
         <hr class="divider" />
 
         <!-- ZIP 整包导出 -->
         <div style="display:flex;align-items:center;gap:1rem;">
-          <a
-            :href="getZipUrl()"
-            class="btn btn-primary"
-            :download="selectedRunId + '.zip'"
-          >
+          <a :href="getZipUrl()" class="btn btn-primary" :download="selectedRunId + '.zip'">
             📦 导出整包 ZIP
           </a>
           <span style="font-size:0.82rem;color:var(--text-muted);">
@@ -68,7 +63,7 @@
 
 <script setup>
 import { ref, watch, onMounted } from 'vue'
-import { fetchFiles } from '../api/index.js'
+import { fetchFiles, downloadOilRunFile } from '../api/index.js'
 
 const props = defineProps({
   selectedRunId: String,
@@ -98,8 +93,11 @@ function formatSize(bytes) {
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
 }
 
-function getDownloadUrl(filename) {
-  return `/api/oil/runs/${props.selectedRunId}/download?filename=${encodeURIComponent(filename)}`
+async function handleDownload(name) {
+  if (!props.selectedRunId) return
+  try {
+    await downloadOilRunFile(props.selectedRunId, name)
+  } catch (e) {}
 }
 
 function getZipUrl() {

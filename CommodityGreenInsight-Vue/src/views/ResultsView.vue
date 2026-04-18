@@ -108,7 +108,7 @@
         <div style="margin-top:0.75rem;">
           <button class="btn btn-primary" :disabled="generatingReport" @click="genAIReport">
             <span v-if="generatingReport"><span class="spinner"></span> 正在生成…</span>
-            <span v-else">生成企业银行 AI 报告</span>
+            <span v-else>生成企业银行 AI 报告</span>
           </button>
         </div>
 
@@ -480,10 +480,12 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { marked } from 'marked'
 import {
   fetchAnalytics,
   fetchFiles,
   fetchDownloadUrl,
+  fetchCsvPreview,
   startNewEnergy,
   fetchNewEnergyLatest,
   startBond,
@@ -491,6 +493,7 @@ import {
   generateAIReport,
   sendAIChat,
   fetchRunLog,
+  getOilRunFileObjectUrl,
 } from '../api/index.js'
 
 const props = defineProps({
@@ -528,13 +531,14 @@ const backtestImgs = ref([])
 const bankReport = ref('')
 const bankReportHtml = computed(() => {
   if (!bankReport.value) return ''
-  // 简单 md -> html
-  return bankReport.value
-    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\n/g, '<br/>')
+  try {
+    return marked.parse(bankReport.value, {
+      gfm: true,
+      breaks: true,
+    }) || ''
+  } catch (e) {
+    return bankReport.value.replace(/\n/g, '<br/>')
+  }
 })
 const generatingReport = ref(false)
 const hasPredResults = ref(false)
@@ -595,44 +599,40 @@ async function loadAnalytics() {
       futureRow.value = null
     }
 
-    // daily
-    if (data.daily_predictions) {
-      dailyRows.value = data.daily_predictions
-      dailyCols.value = Object.keys(data.daily_predictions[0] || {})
+    // daily（后端 analytics 不返回；优先用 csv-preview）
+    dailyRows.value = []
+    dailyCols.value = []
+    try {
+      const pv = await fetchCsvPreview(props.selectedRunId, 'daily_predictions_vs_actual.csv', 200)
+      dailyRows.value = pv?.rows || []
+      dailyCols.value = pv?.columns || Object.keys(dailyRows.value[0] || {})
+    } catch (e) {}
+
+    // pred（后端 analytics 不返回；用 csv-preview）
+    predRows.value = []
+    predCols.value = []
+    try {
+      const pv = await fetchCsvPreview(props.selectedRunId, 'prediction_results.csv', 300)
+      predRows.value = pv?.rows || []
+      predCols.value = pv?.columns || Object.keys(predRows.value[0] || {})
+      hasPredResults.value = predRows.value.length > 0
+    } catch (e) {
+      hasPredResults.value = false
     }
 
-    // pred
-    if (data.prediction_results) {
-      predRows.value = data.prediction_results
-      predCols.value = Object.keys(data.prediction_results[0] || {})
-      hasPredResults.value = true
-    }
+    // driver（后端字段是 driver_top20）
+    driverRows.value = Array.isArray(data.driver_top20) ? data.driver_top20 : []
+    driverCols.value = ['feature', 'spearman_corr_with_return', 'rf_importance', 'spearman_pvalue']
+      .filter(c => c in (driverRows.value[0] || {}))
 
-    // driver
-    if (data.driver_factors) {
-      driverRows.value = data.driver_factors
-      driverCols.value = ['feature', 'spearman_corr_with_return', 'rf_importance', 'spearman_pvalue']
-        .filter(c => c in (data.driver_factors[0] || {}))
-    }
-
-    // risk
-    if (data.risk_signals) {
-      riskRows.value = data.risk_signals
-      riskCols.value = Object.keys(data.risk_signals[0] || {})
-      // RiskLevel 分布
-      const dist = {}
-      data.risk_signals.forEach(r => {
-        const l = r.RiskLevel
-        if (l !== undefined) dist[l] = (dist[l] || 0) + 1
-      })
-      riskLevelDist.value = dist
-      // 方向准确率
-      const withDir = data.risk_signals.filter(r => r.TrueDirection !== undefined && r.PredDirection !== undefined)
-      if (withDir.length) {
-        const correct = withDir.filter(r => r.TrueDirection === r.PredDirection).length
-        directionAcc.value = (correct / withDir.length * 100).toFixed(1) + '%'
-      }
-    }
+    // risk（后端字段是 risk.sample / risk_level_counts / signal_counts / direction_accuracy）
+    const riskSample = data?.risk?.sample
+    riskRows.value = Array.isArray(riskSample) ? riskSample : []
+    riskCols.value = Object.keys(riskRows.value[0] || {})
+    riskLevelDist.value = data?.risk?.risk_level_counts || {}
+    directionAcc.value = (typeof data?.risk?.direction_accuracy === 'number')
+      ? (data.risk.direction_accuracy * 100).toFixed(1) + '%'
+      : null
 
     // backtest metrics
     if (data.backtest_metrics) {
@@ -645,19 +645,27 @@ async function loadAnalytics() {
       }
     }
 
-    // backtest results
-    if (data.backtest_results) {
-      btRows.value = data.backtest_results.slice(-50)
-      btCols.value = Object.keys(data.backtest_results[0] || {})
+    // backtest results（后端字段是 backtest_tail50）
+    if (Array.isArray(data.backtest_tail50)) {
+      btRows.value = data.backtest_tail50
+      btCols.value = Object.keys(data.backtest_tail50[0] || {})
     }
 
     // 图片
+    revokeImgUrls(predImgs.value)
+    revokeImgUrls(explainImgs.value)
+    revokeImgUrls(backtestImgs.value)
     predImgs.value = buildImgList(data.images, ['future_forecast.png', 'gru_predictions.png', 'gru_returns.png'], props.selectedRunId)
     explainImgs.value = buildImgList(data.images, ['direction_confusion_matrix.png', 'top_drivers_spearman.png', 'top_drivers_rf_importance.png'], props.selectedRunId)
     backtestImgs.value = buildImgList(data.images, ['backtest_nav_curve.png'], props.selectedRunId)
+    await Promise.all([
+      hydrateOilImgUrls(props.selectedRunId, predImgs),
+      hydrateOilImgUrls(props.selectedRunId, explainImgs),
+      hydrateOilImgUrls(props.selectedRunId, backtestImgs),
+    ])
 
-    // 银行报告
-    bankReport.value = data.bank_report || ''
+    // 银行报告（后端字段：bank_report_ai / bank_report_draft）
+    bankReport.value = data.bank_report_ai || data.bank_report_draft || ''
 
     // run.log
     hasOilPred.value = !!data.has_oil_pred
@@ -665,7 +673,7 @@ async function loadAnalytics() {
     // 拉日志
     try {
       const log = await fetchRunLog(props.selectedRunId)
-      runLogContent.value = typeof log === 'string' ? log : (log?.content || '')
+      runLogContent.value = typeof log === 'string' ? log : (log?.log_tail || log?.content || '')
     } catch(e) {}
 
     // 拉新能源结果
@@ -686,19 +694,27 @@ function fmtPct(v) {
 }
 
 function buildImgList(images, names, runId) {
-  if (!images) {
-    // 直接用下载 URL
-    return names.map(n => ({
-      name: n,
-      url: `/api/oil/runs/${runId}/download?filename=${n}`
-    }))
+  const list = !images ? names : names.filter(n => images.includes(n))
+  return list.map(n => ({ name: n, url: '' }))
+}
+
+function revokeImgUrls(list) {
+  for (const it of list || []) {
+    if (it?.url && typeof it.url === 'string' && it.url.startsWith('blob:')) {
+      try { URL.revokeObjectURL(it.url) } catch (e) {}
+    }
   }
-  return names
-    .filter(n => images.includes(n))
-    .map(n => ({
-      name: n,
-      url: `/api/oil/runs/${runId}/download?filename=${n}`
-    }))
+}
+
+async function hydrateOilImgUrls(runId, listRef) {
+  const list = listRef.value || []
+  await Promise.all(list.map(async (it) => {
+    try {
+      it.url = await getOilRunFileObjectUrl(runId, it.name)
+    } catch (e) {
+      it.url = ''
+    }
+  }))
 }
 
 // ── AI 报告 ──
@@ -748,7 +764,7 @@ async function checkNe() {
       clearInterval(neTimer)
       neImgs.value = (data.images || []).map(n => ({
         name: n,
-        url: `/api/oil/runs/${props.selectedRunId}/new-energy/download?filename=${n}`
+        url: `/api/oil/runs/${props.selectedRunId}/new-energy/download?name=${encodeURIComponent(n)}`
       }))
       neLoaded.value = true
     }
@@ -761,7 +777,7 @@ async function loadNeLatest() {
     if (data.images && data.images.length) {
       neImgs.value = data.images.map(n => ({
         name: n,
-        url: `/api/oil/runs/${props.selectedRunId}/new-energy/latest/download?filename=${n}`
+        url: `/api/oil/runs/${props.selectedRunId}/new-energy/latest/download?name=${encodeURIComponent(n)}`
       }))
       neLoaded.value = true
     }
@@ -799,7 +815,7 @@ async function checkBond() {
       }
       bondImgs.value = (data.images || []).map(n => ({
         name: n,
-        url: `/api/oil/runs/${props.selectedRunId}/bond/latest/download?filename=${n}`
+        url: `/api/oil/runs/${props.selectedRunId}/bond/latest/download?name=${encodeURIComponent(n)}`
       }))
       bondLoaded.value = true
     }
@@ -815,7 +831,7 @@ async function loadBondLatest() {
         .filter(c => c in (data.rows[0] || {}))
       bondImgs.value = (data.images || []).map(n => ({
         name: n,
-        url: `/api/oil/runs/${props.selectedRunId}/bond/latest/download?filename=${n}`
+        url: `/api/oil/runs/${props.selectedRunId}/bond/latest/download?name=${encodeURIComponent(n)}`
       }))
       bondLoaded.value = true
     }

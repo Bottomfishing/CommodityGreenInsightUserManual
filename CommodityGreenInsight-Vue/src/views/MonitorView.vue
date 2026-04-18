@@ -183,29 +183,20 @@ async function loadDashboard() {
   if (!activeRunId.value) return
   try {
     const data = await fetchTrainingDashboard(activeRunId.value)
-    // training_log
-    if (data.training_log && data.training_log.length > 0) {
-      lossData.value = data.training_log
-    } else {
-      lossData.value = []
+    // 后端字段：loss_series / price_series / return_series / run_log_tail / is_log_active
+    lossData.value = Array.isArray(data.loss_series) ? data.loss_series : []
+    priceData.value = Array.isArray(data.price_series) ? data.price_series : []
+    returnData.value = Array.isArray(data.return_series) ? data.return_series : []
+    logContent.value = data.run_log_tail || ''
+
+    // 文件状态：后端不再返回 file_statuses，这里用“是否有数据”做最小提示
+    fileStatuses.value = {
+      trainingLog: lossData.value.length ? '已生成' : '未找到/为空',
+      predResults: (priceData.value.length || returnData.value.length) ? '已生成' : '未找到/为空',
+      runLog: logContent.value ? '已生成' : '未找到/为空',
     }
-    // prediction_results
-    if (data.prediction_results && data.prediction_results.length > 0) {
-      priceData.value = data.prediction_results
-      returnData.value = data.prediction_results
-    } else {
-      priceData.value = []
-      returnData.value = []
-    }
-    // file_statuses
-    if (data.file_statuses) {
-      fileStatuses.value = {
-        trainingLog: data.file_statuses.training_log || '不存在',
-        predResults: data.file_statuses.prediction_results || '不存在',
-        runLog:      data.file_statuses.run_log || '不存在',
-      }
-    }
-    isActive.value = !!data.is_active
+
+    isActive.value = !!data.is_log_active
     await nextTick()
     renderCharts()
   } catch(e) { /* 静默 */ }
@@ -214,7 +205,8 @@ async function loadDashboard() {
   if (!lossData.value.length) {
     try {
       const log = await fetchRunLog(activeRunId.value)
-      logContent.value = typeof log === 'string' ? log : (log?.content || '')
+      // 后端字段是 log_tail
+      logContent.value = typeof log === 'string' ? log : (log?.log_tail || log?.content || '')
     } catch(e) { /* 静默 */ }
   }
 }
