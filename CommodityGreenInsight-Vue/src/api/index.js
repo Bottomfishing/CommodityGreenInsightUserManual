@@ -94,7 +94,7 @@ export function logout() {
 
 /** GET /api/system/status */
 export async function fetchSystemStatus() {
-  return request('GET', '/api/system/status')
+  return request('GET', '/system/status')
 }
 
 // ──────────────────────────────────────────
