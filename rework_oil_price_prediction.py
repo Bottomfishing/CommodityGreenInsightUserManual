@@ -1,8 +1,8 @@
 
 """
 多变量油价预测主函数（按时间序列最佳实践重构）
-整合 raw_data 和 能源基本面与下游产业 数据
-使用 LSTM 和 GRU 模型进行预测
+整合 raw_data 与能源基本面数据；GRU 多尺度编码，预测远期对数收益并还原价格，
+配合方向感知损失与涨跌辅助头，改善方向一致性。
 """
 
 import pandas as pd
@@ -19,14 +19,18 @@ from sklearn.model_selection import TimeSeriesSplit
 from sklearn.ensemble import RandomForestRegressor
 
 import tensorflow as tf
+import json
 import os
 import random
 import argparse
+import ast
+import threading
+import time
 from pathlib import Path
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, GRU, Dense, Dropout
+from tensorflow.keras.models import Sequential, Model
+from tensorflow.keras.layers import LSTM, GRU, Dense, Dropout, Input, Concatenate, Conv1D, GaussianNoise
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau, CSVLogger
+from tensorflow.keras.callbacks import Callback, CSVLogger, EarlyStopping, ReduceLROnPlateau
 from tensorflow.keras.losses import Huber
 
 from scipy.stats import spearmanr, zscore, kurtosis as scipy_kurtosis
@@ -38,6 +42,11 @@ try:
     USE_LIGHTGBM = True
 except ImportError:
     USE_LIGHTGBM = False
+
+try:
+    import optuna
+except Exception:
+    optuna = None
 
 os.environ["PYTHONHASHSEED"] = "42"
 random.seed(42)
@@ -52,7 +61,11 @@ plt.rcParams['font.sans-serif'] = ['SimHei']
 plt.rcParams['axes.unicode_minus'] = False
 
 # ==================== 默认参数（按截图建议） ====================
-LOOKBACK_L = 30   # 1日预测用较短窗口更敏感，60/90 可做对比
+# 多尺度窗口：短/中/长（与 GRU 三支路一致）；序列长度取长窗口
+WINDOW_SHORT = 5
+WINDOW_MID = 20
+WINDOW_LONG = 60
+LOOKBACK_L = WINDOW_LONG  # 与最长窗口一致，供 CLI/报告兼容
 HORIZON_H = 1    # 预测未来第 H 天（例如 20）
 MISSING_RATE_THRESHOLD = 0.3  # 缺失率阈值
 COLLINEARITY_THRESHOLD = 0.95  # 共线性阈值
@@ -74,7 +87,369 @@ RF_FIT_SCOPE = 'train'
 # 显式按日期划分 Train / Val / Test（可根据需要调整）
 TRAIN_END_DATE = '2020-12-31'
 VAL_END_DATE = '2022-12-31'  # (TRAIN_END_DATE, VAL_END_DATE] 为验证集，其余为测试集
-TARGET_COL = 'WTI_Price_t_plus_H'  # 预测目标列名，需在特征选择前创建
+# 预测目标：远期对数收益 log(P_{t+H}/P_t)，避免直接回归裸价（随机游走）
+TARGET_COL = 'WTI_Fwd_LogReturn_H'
+# RF 强制保留的趋势/时序类特征（存在则必入，避免 RF 砍掉长程依赖）
+MANDATORY_RF_FEATURES = [
+    'WTI_Futures',  # 原价列：评估与价格还原必需；未进 Top-N 也会强制留在表中
+    'WTI_Futures_Return',
+    'WTI_Futures_Change',
+    'WTI_Futures_Momentum_3d',
+    'WTI_Futures_Momentum_5d',
+    'WTI_Futures_Momentum_20d',
+    'WTI_Futures_RollRet_5',
+    'WTI_Futures_RollRet_20',
+    'WTI_Futures_RollRet_60',
+    'Volatility_5d',
+    'Volatility_20d',
+    'DXY_Return',
+    'RSI_14',
+    'MACD',
+]
+# 方向感知损失中 Huber 与方向项的权重
+DIRECTION_LOSS_LAMBDA = 0.35
+MULTITASK_CLS_WEIGHT = 0.4
+USE_CNN_FRONT = True  # TCN/CNN 局部趋势编码后再接 GRU（仅长窗口支路）
+
+# ===== 正则与训练期序列增强（缓解 Train↓Val↑ 过拟合）=====
+DROPOUT_GRU_STACK = 0.22
+RECURRENT_DROPOUT_GRU = 0.14
+GAUSSIAN_NOISE_INPUT = 0.05  # MinMax 后特征约 [0,1]；仅训练阶段生效
+# 训练集：除原始窗外再拼接多份「加高斯噪声」的副本，等效大幅扩增样本量
+TRAIN_SEQ_AUG_COPIES = 4
+TRAIN_SEQ_AUG_NOISE_STD = 0.09
+TRAIN_SEQ_AUG_SEED = 42
+
+LIVE_LOSS_JSON = "training_loss_live.json"
+
+
+class LiveLossJsonCallback(Callback):
+    """每个 epoch 结束将 train/val 总 loss 写入 JSON，供简易 Web 轮询刷新。"""
+
+    def __init__(self, json_path: str):
+        super().__init__()
+        self.json_path = json_path
+        self.epochs = []
+        self.train_loss = []
+        self.val_loss = []
+
+    def on_train_begin(self, logs=None):
+        self.epochs.clear()
+        self.train_loss.clear()
+        self.val_loss.clear()
+        self._flush(
+            {
+                "epochs": [],
+                "train_loss": [],
+                "val_loss": [],
+                "status": "training",
+                "updated_at": datetime.now().isoformat(timespec="seconds"),
+            }
+        )
+
+    def on_epoch_end(self, epoch, logs=None):
+        logs = logs or {}
+        self.epochs.append(int(epoch) + 1)
+        tl, vl = logs.get("loss"), logs.get("val_loss")
+        self.train_loss.append(None if tl is None else float(tl))
+        self.val_loss.append(None if vl is None else float(vl))
+        self._flush(
+            {
+                "epochs": self.epochs.copy(),
+                "train_loss": self.train_loss.copy(),
+                "val_loss": self.val_loss.copy(),
+                "status": "training",
+                "updated_at": datetime.now().isoformat(timespec="seconds"),
+            }
+        )
+
+    def on_train_end(self, logs=None):
+        payload = {
+            "epochs": self.epochs.copy(),
+            "train_loss": self.train_loss.copy(),
+            "val_loss": self.val_loss.copy(),
+            "status": "done",
+            "updated_at": datetime.now().isoformat(timespec="seconds"),
+        }
+        self._flush(payload)
+
+    def _flush(self, payload: dict) -> None:
+        path = self.json_path
+        tmp = path + ".tmp"
+        try:
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(payload, f, ensure_ascii=False)
+            os.replace(tmp, path)
+        except OSError:
+            pass
+
+
+class OptunaPruningCallback(Callback):
+    """将 Keras val_loss 报告给 Optuna，用于 MedianPruner 等剪枝。"""
+
+    def __init__(self, trial, monitor: str = "val_loss"):
+        super().__init__()
+        self.trial = trial
+        self.monitor = monitor
+
+    def on_epoch_end(self, epoch, logs=None):
+        logs = logs or {}
+        value = logs.get(self.monitor)
+        if value is None:
+            return
+        self.trial.report(float(value), step=int(epoch))
+        if self.trial.should_prune():
+            raise optuna.TrialPruned()
+
+
+def _val_metrics_gru(model, data_dict, scaler_y):
+    """
+    验证集：回归 MAE（缩放空间）、分类头准确率、回归头方向准确率（还原到远期对数收益后再比符号）。
+    """
+    Xv = [
+        np.asarray(data_dict["X_val_5"], dtype=np.float32),
+        np.asarray(data_dict["X_val_20"], dtype=np.float32),
+        np.asarray(data_dict["X_val_60"], dtype=np.float32),
+    ]
+    reg_pred, cls_pred = model.predict(Xv, verbose=0)
+    reg_pred = np.asarray(reg_pred).ravel()
+    cls_prob = np.asarray(cls_pred).ravel()
+    yreg = np.asarray(data_dict["y_val_reg"], dtype=np.float32).ravel()
+    ycls = np.asarray(data_dict["y_val_cls"], dtype=np.float32).ravel()
+    mae = float(np.mean(np.abs(reg_pred - yreg)))
+    cls_acc = float(np.mean((cls_prob > 0.5).astype(float) == ycls))
+    true_raw = scaler_y.inverse_transform(yreg.reshape(-1, 1)).ravel()
+    pred_raw = scaler_y.inverse_transform(reg_pred.reshape(-1, 1)).ravel()
+    thr = 1e-6
+    true_d = np.where(true_raw > thr, 1, np.where(true_raw < -thr, -1, 0))
+    pred_d = np.where(pred_raw > thr, 1, np.where(pred_raw < -thr, -1, 0))
+    mask = true_d != 0
+    if not np.any(mask):
+        dir_acc = float("nan")
+    else:
+        dir_acc = float(np.mean(true_d[mask] == pred_d[mask]))
+    return mae, cls_acc, dir_acc
+
+
+def _optuna_composite_loss(mae, cls_acc, dir_acc, y_val_reg, w_cls: float, w_dir: float):
+    """
+    最小化：回归误差（归一化） + 对分类/方向未达标部分的惩罚。
+    cls/dir 约 0.5 为随机；提升 cls_acc、dir_acc 会减小 (1-acc) 项。
+    """
+    scale = float(np.std(np.asarray(y_val_reg, dtype=np.float32).ravel()) + 1e-8)
+    mae_norm = float(mae) / scale
+    ca = float(cls_acc) if cls_acc is not None and not (isinstance(cls_acc, float) and np.isnan(cls_acc)) else 0.5
+    da = float(dir_acc) if dir_acc is not None and not (isinstance(dir_acc, float) and np.isnan(dir_acc)) else 0.5
+    return mae_norm + w_cls * (1.0 - ca) + w_dir * (1.0 - da)
+
+
+def _optuna_sample_trial_params(trial):
+    """Optuna trial → build_gru_model / train_model 参数字典。"""
+    unit_choices = [16, 24, 32, 48, 64, 96, 128]
+
+    def sample_units(prefix, n_layers):
+        vals = []
+        for i in range(int(n_layers)):
+            vals.append(trial.suggest_categorical(f"{prefix}_u{i+1}", unit_choices))
+        return tuple(vals)
+
+    nl5 = trial.suggest_int("num_layers_5", 1, 3)
+    nl20 = trial.suggest_int("num_layers_20", 1, 3)
+    nl60 = trial.suggest_int("num_layers_60", 1, 3)
+    return {
+        "units_5": sample_units("b5", nl5),
+        "units_20": sample_units("b20", nl20),
+        "units_60": sample_units("b60", nl60),
+        "dense_units": (
+            trial.suggest_int("dense1", 64, 256, step=32),
+            trial.suggest_int("dense2", 32, 128, step=16),
+        ),
+        "dropout": trial.suggest_float("dropout", 0.10, 0.50),
+        "learning_rate": trial.suggest_float("learning_rate", 1e-4, 5e-3, log=True),
+        "recurrent_dropout": trial.suggest_float("recurrent_dropout", 0.0, 0.30),
+        "input_noise_std": trial.suggest_float("input_noise_std", 0.0, 0.15),
+        "use_cnn_front": trial.suggest_categorical("use_cnn_front", [True, False]),
+        "cls_weight": trial.suggest_float("cls_weight", 0.1, 1.2),
+        "direction_lambda": trial.suggest_float("direction_lambda", 0.0, 0.9),
+        "huber_delta": trial.suggest_float("huber_delta", 0.3, 2.0),
+        "aug_copies": trial.suggest_int("aug_copies", 0, 6),
+        "aug_noise_std": trial.suggest_float("aug_noise_std", 0.02, 0.16),
+        "batch_size": trial.suggest_categorical("batch_size", [16, 32, 64]),
+    }
+
+
+def _optuna_sample_fe_params(trial):
+    """特征工程侧：随机森林 Top-N / 树棵数 / Winsorize 分位 / RF 拟合数据范围。"""
+    return {
+        "rf_top_n": trial.suggest_int("rf_top_n", 18, 48),
+        "rf_n_estimators": trial.suggest_int("rf_n_estimators", 75, 350, step=25),
+        "winsor_lower": trial.suggest_float("winsor_lower", 0.0, 0.04),
+        "winsor_upper": trial.suggest_float("winsor_upper", 0.96, 0.999),
+        "rf_fit_scope": trial.suggest_categorical("rf_fit_scope", ["train", "all"]),
+    }
+
+
+def _optuna_best_params_from_trial(bt):
+    """从 study.best_trial 还原与 load_gru_params_from_csv 一致的参数字典（含可选特征工程键）。"""
+    p = bt.params
+    d = {
+        "units_5": tuple(p[f"b5_u{i+1}"] for i in range(p["num_layers_5"])),
+        "units_20": tuple(p[f"b20_u{i+1}"] for i in range(p["num_layers_20"])),
+        "units_60": tuple(p[f"b60_u{i+1}"] for i in range(p["num_layers_60"])),
+        "dense_units": (p["dense1"], p["dense2"]),
+        "dropout": p["dropout"],
+        "learning_rate": p["learning_rate"],
+        "recurrent_dropout": p["recurrent_dropout"],
+        "input_noise_std": p["input_noise_std"],
+        "use_cnn_front": p["use_cnn_front"],
+        "cls_weight": p["cls_weight"],
+        "direction_lambda": p["direction_lambda"],
+        "huber_delta": p["huber_delta"],
+        "aug_copies": p["aug_copies"],
+        "aug_noise_std": p["aug_noise_std"],
+        "batch_size": p["batch_size"],
+        "aug_seed": int(RF_RANDOM_STATE),
+    }
+    if "rf_top_n" in p:
+        d["rf_top_n"] = int(p["rf_top_n"])
+        d["rf_n_estimators"] = int(p["rf_n_estimators"])
+        d["winsor_lower"] = float(p["winsor_lower"])
+        d["winsor_upper"] = float(p["winsor_upper"])
+        d["rf_fit_scope"] = p["rf_fit_scope"]
+    return d
+
+
+_LOSS_MONITOR_PAGE = """<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>训练 Loss 监控</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 16px; background: #111827; color: #e5e7eb; }
+    h1 { font-size: 1.1rem; font-weight: 600; }
+    #meta { font-size: 0.85rem; color: #9ca3af; margin-bottom: 12px; }
+    .chart-wrap { background: #1f2937; border-radius: 8px; padding: 12px; max-width: 960px; }
+  </style>
+</head>
+<body>
+  <h1>Train / Val Loss（随训练更新）</h1>
+  <div id="meta">轮询中…</div>
+  <div class="chart-wrap"><canvas id="lossChart" height="100"></canvas></div>
+  <script>
+    const ctx = document.getElementById('lossChart');
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [
+          { label: 'Train loss', data: [], borderColor: '#60a5fa', tension: 0.1, pointRadius: 2 },
+          { label: 'Val loss', data: [], borderColor: '#f97316', tension: 0.1, pointRadius: 2 }
+        ]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          x: { title: { display: true, text: 'Epoch' }, ticks: { color: '#9ca3af' } },
+          y: { title: { display: true, text: 'Loss' }, ticks: { color: '#9ca3af' } }
+        },
+        plugins: { legend: { labels: { color: '#e5e7eb' } } }
+      }
+    });
+    async function poll() {
+      try {
+        const r = await fetch('/api/loss', { cache: 'no-store' });
+        const j = await r.json();
+        document.getElementById('meta').textContent =
+          '状态: ' + (j.status || '-') + ' | 更新: ' + (j.updated_at || '-') +
+          ' | Epochs: ' + (j.epochs ? j.epochs.length : 0);
+        chart.data.labels = j.epochs || [];
+        chart.data.datasets[0].data = j.train_loss || [];
+        chart.data.datasets[1].data = j.val_loss || [];
+        chart.update('none');
+      } catch (e) {
+        document.getElementById('meta').textContent = '请求失败: ' + e;
+      }
+    }
+    setInterval(poll, 1000);
+    poll();
+  </script>
+</body>
+</html>
+"""
+
+
+def _start_loss_monitor_web_server(output_dir_abs: str, json_name: str, port: int) -> bool:
+    """在后台线程启动 Flask，提供 / 与 /api/loss。失败返回 False。"""
+    try:
+        from flask import Flask, Response
+    except ImportError:
+        print("[提示] 实时 Loss 网页需要安装 Flask: pip install flask")
+        return False
+
+    json_path = os.path.join(output_dir_abs, json_name)
+
+    app = Flask(__name__)
+
+    @app.route("/")
+    def _index():
+        return Response(_LOSS_MONITOR_PAGE, mimetype="text/html; charset=utf-8")
+
+    @app.route("/api/loss")
+    def _api_loss():
+        try:
+            if os.path.isfile(json_path):
+                with open(json_path, "r", encoding="utf-8") as f:
+                    return Response(f.read(), mimetype="application/json; charset=utf-8")
+        except OSError:
+            pass
+        body = json.dumps(
+            {
+                "epochs": [],
+                "train_loss": [],
+                "val_loss": [],
+                "status": "waiting",
+                "updated_at": None,
+            },
+            ensure_ascii=False,
+        )
+        return Response(body, mimetype="application/json; charset=utf-8")
+
+    def _run():
+        import logging
+
+        logging.getLogger("werkzeug").setLevel(logging.ERROR)
+        app.run(host="127.0.0.1", port=int(port), threaded=True, use_reloader=False)
+
+    t = threading.Thread(target=_run, name="loss-monitor", daemon=True)
+    t.start()
+    time.sleep(0.35)
+    print(f"\n>>> Loss 实时监控: http://127.0.0.1:{int(port)}/  （JSON: {json_path}）\n")
+    return True
+
+
+def _save_loss_curve_png(history, save_path: str, show: bool) -> None:
+    """训练结束后保存 train/val loss 静态图。"""
+    if history is None or not getattr(history, "history", None):
+        return
+    h = history.history
+    if "loss" not in h or "val_loss" not in h:
+        return
+    plt.figure(figsize=(10, 5))
+    plt.plot(h["loss"], label="Train loss", color="#2563eb")
+    plt.plot(h["val_loss"], label="Val loss", color="#ea580c")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.title("Train / Val Loss")
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=150, bbox_inches="tight")
+    if show:
+        plt.show()
+    else:
+        plt.close()
 
 
 def _dataframe_to_markdown_safe(df: pd.DataFrame, *, index: bool = False) -> str:
@@ -419,8 +794,11 @@ class FeatureEngineer:
         
         # 1.2b 短期累计收益（高信号特征，用于缓解欠拟合）
         if price_col in df.columns and f'{price_col}_Return' in df.columns:
-            for d in [1, 3, 5]:
+            for d in [1, 3, 5, 20]:
                 df[f'{price_col}_Momentum_{d}d'] = df[f'{price_col}_Return'].rolling(d).sum().shift(1)
+            # 显式多尺度滚动累计收益（供 RF 强制保留与 GRU 趋势输入）
+            for w in [5, 20, 60]:
+                df[f'{price_col}_RollRet_{w}'] = df[f'{price_col}_Return'].rolling(w).sum().shift(1)
         
         # 1.2c 价格加速度（二阶变化）
         if price_col in df.columns and f'{price_col}_Change' in df.columns:
@@ -888,53 +1266,8 @@ class FeatureEngineer:
         return categories
 
 
-# ==================== 使用示例 ====================
-if __name__ == "__main__":
-    # 创建示例数据（实际使用时替换为真实数据）
-    dates = pd.date_range('2010-01-01', '2023-12-31', freq='D')
-    n_days = len(dates)
-    
-    example_data = pd.DataFrame({
-        'Date': dates,
-        'WTI_Futures': np.random.randn(n_days).cumsum() + 70,  # 模拟油价
-        'WTI_Spot': np.random.randn(n_days).cumsum() + 69,
-        'DXY': np.random.randn(n_days).cumsum() + 90,
-        'SP500': np.random.randn(n_days).cumsum() + 3000,
-        'VIX': np.abs(np.random.randn(n_days)) * 10 + 15,
-        'OVX': np.abs(np.random.randn(n_days)) * 5 + 25,
-        'US10Y': np.random.randn(n_days) * 0.5 + 3.0,
-        'Stocks': np.random.randn(n_days).cumsum() + 500,
-        'Production': np.random.randn(n_days).cumsum() + 12000,
-        'Oil_Trends': np.random.rand(n_days) * 100,
-        'Gas_Trends': np.random.rand(n_days) * 100,
-        'Brent': np.random.randn(n_days).cumsum() + 75,  # Brent价格
-    })
-    
-    example_data = example_data.set_index('Date')
-    
-    # 初始化特征工程器（类名为 FeatureEngineer）
-    feature_engineer = FeatureEngineer(lookback_windows=[5, 10, 20, 60])
-    
-    # 创建所有特征
-    data_with_features = feature_engineer.create_all_features(
-        example_data, 
-        target_price_col='WTI_Futures'
-    )
-    
-    # 获取特征分类
-    categories = feature_engineer.get_feature_categories(data_with_features)
-    
-    # 显示结果
-    print(f"\n原始数据形状: {example_data.shape}")
-    print(f"特征工程后数据形状: {data_with_features.shape}")
-    print(f"新增特征数量: {data_with_features.shape[1] - example_data.shape[1]}")
-    
-    # 查看前几行
-    print("\n前5行数据（部分列）:")
-    cols_to_show = ['WTI_Futures', 'WTI_Futures_Return', 'DXY_Return', 
-                    'Stocks_Change', 'RSI_14', 'Volatility_20d', 'Month']
-    available_cols = [c for c in cols_to_show if c in data_with_features.columns]
-    print(data_with_features[available_cols].head())
+# 真实数据读取与训练入口：见文件末尾 `if __name__ == '__main__'` → main()
+# （OilPriceDataLoader.load_all_data → FeatureEngineer.create_all_features）
 
 
 class DataPreprocessor:
@@ -1009,8 +1342,8 @@ class DataPreprocessor:
                         force_include=None):
         """
         特征选择：按与目标变量的相关性/重要性选择特征。
-        重要：target_col 必须与模型预测目标一致（如 WTI_Price_t_plus_H），
-        否则会选出与当前价格相关但与未来价格无关的特征，导致欠拟合。
+        重要：target_col 必须与模型预测目标一致（如远期对数收益 WTI_Fwd_LogReturn_H），
+        否则会选出与当前价格相关但与未来收益无关的特征，导致欠拟合。
         
         method:
             'all'         - 使用全部数值特征
@@ -1194,6 +1527,10 @@ class DataPreprocessor:
         top_n = min(int(top_n), len(feature_cols))
         top_idx = np.argsort(importances)[::-1][:top_n]
         selected_features = [feature_cols[i] for i in top_idx]
+        # 强制追加趋势/时序关键列（RF 排序之外，保障长程依赖）
+        for col in keep_also_cols:
+            if col in feature_cols and col not in selected_features:
+                selected_features.append(col)
 
         print(f"  选中特征数: {len(selected_features)}")
         print("  Top 特征:")
@@ -1372,96 +1709,216 @@ class DataPreprocessor:
         return selected
 
 
+_huber_loss = Huber(delta=1.0)
+
+
+def direction_aware_huber_loss_fn(y_true, y_pred):
+    """复合损失：Huber + 软符号方向惩罚（优先对齐涨跌方向）。"""
+    h = _huber_loss(y_true, y_pred)
+    eps = tf.constant(1e-6, dtype=tf.keras.backend.dtype(y_pred))
+    yt = y_true / (tf.abs(y_true) + eps)
+    yp = y_pred / (tf.abs(y_pred) + eps)
+    dir_pen = tf.reduce_mean(tf.nn.relu(-yt * yp))
+    return h + tf.cast(DIRECTION_LOSS_LAMBDA, h.dtype) * dir_pen
+
+
+def make_direction_aware_huber_loss(direction_lambda: float, huber_delta: float):
+    huber = Huber(delta=float(huber_delta))
+
+    def _loss(y_true, y_pred):
+        h = huber(y_true, y_pred)
+        eps = tf.constant(1e-6, dtype=tf.keras.backend.dtype(y_pred))
+        yt = y_true / (tf.abs(y_true) + eps)
+        yp = y_pred / (tf.abs(y_pred) + eps)
+        dir_pen = tf.reduce_mean(tf.nn.relu(-yt * yp))
+        return h + tf.cast(direction_lambda, h.dtype) * dir_pen
+
+    return _loss
+
+
+def _stack_gru_branch(x, units_list, kwargs):
+    n = len(units_list)
+    out = x
+    for i, u in enumerate(units_list):
+        out = GRU(int(u), return_sequences=(i < n - 1), **kwargs)(out)
+    return out
+
+
+def augment_train_sequences(
+    X5: np.ndarray,
+    X20: np.ndarray,
+    X60: np.ndarray,
+    y_reg: np.ndarray,
+    y_cls: np.ndarray,
+    n_extra_copies: int,
+    noise_std: float,
+    rng: np.random.Generator,
+    clip01: bool = True,
+):
+    """
+    训练序列大幅扩增：保留原始样本，再拼接 n_extra_copies 份对特征加高斯噪声的副本（标签不变）。
+    特征已 MinMax 到约 [0,1]，默认 clip 回 [0,1]。
+    """
+    if n_extra_copies <= 0:
+        return X5, X20, X60, y_reg, y_cls
+    xs5, xs20, xs60 = [np.asarray(X5, dtype=np.float32)], [np.asarray(X20, dtype=np.float32)], [np.asarray(X60, dtype=np.float32)]
+    yr_list = [np.asarray(y_reg, dtype=np.float32)]
+    yc_list = [np.asarray(y_cls, dtype=np.float32)]
+    for _ in range(int(n_extra_copies)):
+        n5 = rng.normal(0.0, noise_std, X5.shape).astype(np.float32)
+        n20 = rng.normal(0.0, noise_std, X20.shape).astype(np.float32)
+        n60 = rng.normal(0.0, noise_std, X60.shape).astype(np.float32)
+        a5 = (X5.astype(np.float32) + n5)
+        a20 = (X20.astype(np.float32) + n20)
+        a60 = (X60.astype(np.float32) + n60)
+        if clip01:
+            a5 = np.clip(a5, 0.0, 1.0)
+            a20 = np.clip(a20, 0.0, 1.0)
+            a60 = np.clip(a60, 0.0, 1.0)
+        xs5.append(a5)
+        xs20.append(a20)
+        xs60.append(a60)
+        yr_list.append(np.asarray(y_reg, dtype=np.float32).copy())
+        yc_list.append(np.asarray(y_cls, dtype=np.float32).copy())
+    return (
+        np.concatenate(xs5, axis=0),
+        np.concatenate(xs20, axis=0),
+        np.concatenate(xs60, axis=0),
+        np.concatenate(yr_list, axis=0),
+        np.concatenate(yc_list, axis=0),
+    )
+
+
 class OilPricePredictor:
-    def __init__(self, timesteps=LOOKBACK_L, horizon=HORIZON_H):
-        self.timesteps = timesteps
+    def __init__(
+        self,
+        timesteps=LOOKBACK_L,
+        horizon=HORIZON_H,
+        w_short=WINDOW_SHORT,
+        w_mid=WINDOW_MID,
+        w_long=WINDOW_LONG,
+    ):
+        self.timesteps = int(timesteps)
         self.horizon = horizon
-    
-    def create_target_price(self, data, price_col='WTI_Futures', target_col='WTI_Price_t_plus_H'):
-        """创建目标：未来价格 y_t = P_{t+h}（直接在价格上回归）"""
+        self.w_short = int(w_short)
+        self.w_mid = int(w_mid)
+        self.w_long = int(w_long)
+
+    def create_target_forward_return(
+        self, data, price_col='WTI_Futures', target_col=TARGET_COL
+    ):
+        """远期对数收益 log(P_{t+H}/P_t)，平稳目标，利于方向学习。"""
         if price_col not in data.columns:
             return data
         data = data.copy()
-        data[target_col] = data[price_col].shift(-self.horizon)
+        p = data[price_col]
+        data[target_col] = np.log(p.shift(-self.horizon) / p)
         return data
-    
-    def prepare_data(self, data_train, data_val, data_test, feature_cols, target_col='WTI_Return'):
-        """准备序列数据"""
-        # 只保留建模所需列，并确保没有 NaN（前面已做 ffill + dropna，这里再兜底一次）
+
+    def create_target_price(self, data, price_col='WTI_Futures', target_col=TARGET_COL):
+        """兼容旧名：与 create_target_forward_return 一致。"""
+        return self.create_target_forward_return(data, price_col=price_col, target_col=target_col)
+
+    def prepare_data(self, data_train, data_val, data_test, feature_cols, target_col=TARGET_COL):
+        """多尺度窗口序列 + 回归/分类双标签（分类标签由未缩放远期收益符号生成）。"""
         needed_cols = list(dict.fromkeys(feature_cols + [target_col, 'WTI_Futures']))
         data_train = data_train[needed_cols].dropna().copy()
         data_val = data_val[needed_cols].dropna().copy()
         data_test = data_test[needed_cols].dropna().copy()
 
-        # 提取特征和目标
         X_train = data_train[feature_cols].values
-        y_train = data_train[target_col].values
+        y_train_raw = data_train[target_col].values
         X_val = data_val[feature_cols].values
-        y_val = data_val[target_col].values
+        y_val_raw = data_val[target_col].values
         X_test = data_test[feature_cols].values
-        y_test = data_test[target_col].values
-        
-        # scaler 只 fit 在 Train
+        y_test_raw = data_test[target_col].values
+
         scaler_X = MinMaxScaler(feature_range=(0, 1))
         scaler_y = MinMaxScaler(feature_range=(0, 1))
         X_train_scaled = scaler_X.fit_transform(X_train)
         X_val_scaled = scaler_X.transform(X_val)
         X_test_scaled = scaler_X.transform(X_test)
-        y_train_scaled = scaler_y.fit_transform(y_train.reshape(-1, 1))
-        y_val_scaled = scaler_y.transform(y_val.reshape(-1, 1))
-        y_test_scaled = scaler_y.transform(y_test.reshape(-1, 1))
-        
-        # 构造序列（Train / Val）
-        X_train_seq, y_train_seq = self._create_sequences(X_train_scaled, y_train_scaled)
-        X_val_seq, y_val_seq = self._create_sequences(X_val_scaled, y_val_scaled)
-        
-        # 测试序列：只使用测试集自身的历史（不跨越 Train/Val 边界）
-        X_test_seq, y_test_seq = self._create_sequences(X_test_scaled, y_test_scaled)
-        
-        # 保存原始价格用于评估（还原收益到价格）
-        # 注意：序列创建时考虑了 horizon，所以价格也需要相应调整
-        price_train = data_train['WTI_Futures'].values[self.timesteps:]
-        price_val = data_val['WTI_Futures'].values[self.timesteps:]
-        
-        # 测试集：仅基于 data_test 的价格对齐 base / target
-        # price_test[k] 的索引与 X_test_scaled 的行一一对应
-        price_test = data_test[['WTI_Futures']].iloc[:, 0].values
+        y_train_scaled = scaler_y.fit_transform(y_train_raw.reshape(-1, 1))
+        y_val_scaled = scaler_y.transform(y_val_raw.reshape(-1, 1))
+        y_test_scaled = scaler_y.transform(y_test_raw.reshape(-1, 1))
+
+        wl = self.w_long
+        (
+            Xtr5,
+            Xtr20,
+            Xtr60,
+            ytr_r,
+            ytr_c,
+        ) = self._create_sequences_multiscale(X_train_scaled, y_train_scaled, y_train_raw)
+        Xva5, Xva20, Xva60, yva_r, yva_c = self._create_sequences_multiscale(
+            X_val_scaled, y_val_scaled, y_val_raw
+        )
+        Xte5, Xte20, Xte60, yte_r, yte_c = self._create_sequences_multiscale(
+            X_test_scaled, y_test_scaled, y_test_raw
+        )
+
+        price_test = data_test['WTI_Futures'].values
         test_index = data_test.index
-
-        # 与 _create_sequences 中相同的 i 范围
-        i_start = self.timesteps
+        i_start = wl
         i_end = len(X_test_scaled) - self.horizon + 1
-        indices = np.arange(i_start, i_end)  # 窗口右端索引 i，对应时刻 t = i-1
-
+        indices = np.arange(i_start, i_end)
         base_idx = indices - 1
         target_idx = base_idx + self.horizon
-
         price_test_base = price_test[base_idx]
         price_test_target = price_test[target_idx]
         date_test_base = test_index[base_idx]
         date_test_target = test_index[target_idx]
-        
+
         return {
-            'X_train': X_train_seq, 'y_train': y_train_seq,
-            'X_val': X_val_seq, 'y_val': y_val_seq,
-            'X_test': X_test_seq, 'y_test': y_test_seq,
-            'scaler_X': scaler_X, 'scaler_y': scaler_y,
-            'price_train': price_train, 'price_val': price_val, 
-            'price_test_base': price_test_base, 'price_test_target': price_test_target,
-            'date_test_base': date_test_base, 'date_test_target': date_test_target,
-            'feature_cols': feature_cols
+            'X_train_5': Xtr5,
+            'X_train_20': Xtr20,
+            'X_train_60': Xtr60,
+            'y_train_reg': ytr_r,
+            'y_train_cls': ytr_c,
+            'X_val_5': Xva5,
+            'X_val_20': Xva20,
+            'X_val_60': Xva60,
+            'y_val_reg': yva_r,
+            'y_val_cls': yva_c,
+            'X_test_5': Xte5,
+            'X_test_20': Xte20,
+            'X_test_60': Xte60,
+            'y_test_reg': yte_r,
+            'y_test_cls': yte_c,
+            'y_test': yte_r,
+            'scaler_X': scaler_X,
+            'scaler_y': scaler_y,
+            'price_test_base': price_test_base,
+            'price_test_target': price_test_target,
+            'date_test_base': date_test_base,
+            'date_test_target': date_test_target,
+            'feature_cols': feature_cols,
         }
 
+    def _create_sequences_multiscale(self, X, y_scaled, y_raw_return):
+        """多尺度窗口；标签对齐时刻 t=i-1 的远期收益。"""
+        ws, wm, wl = self.w_short, self.w_mid, self.w_long
+        X5, X20, X60, y_reg, y_cls = [], [], [], [], []
+        for i in range(wl, len(X) - self.horizon + 1):
+            X5.append(X[i - ws : i])
+            X20.append(X[i - wm : i])
+            X60.append(X[i - wl : i])
+            y_reg.append(y_scaled[i - 1, 0])
+            yr = y_raw_return[i - 1]
+            y_cls.append(1.0 if yr > 0.0 else 0.0)
+        return (
+            np.asarray(X5, dtype=np.float32),
+            np.asarray(X20, dtype=np.float32),
+            np.asarray(X60, dtype=np.float32),
+            np.asarray(y_reg, dtype=np.float32),
+            np.asarray(y_cls, dtype=np.float32),
+        )
+
     def _create_sequences(self, X, y):
-        """创建序列（考虑 horizon）"""
+        """单窗口序列（遗留接口；多尺度请用 _create_sequences_multiscale）。"""
         X_seq, y_seq = [], []
-        # 重要：y 已经在 create_target_return 中定义为 return[t] = log(P[t+h]/P[t])
-        # 因此当窗口为 X[i-timesteps : i]（末端时刻 t=i-1）时，标签应取 y[t]=y[i-1]
-        # 不要再额外把 y 往未来推 (h-1)，否则会造成“平移预测”的假象
-        # 同时：只生成那些确实存在 P[t+h] 的样本（避免样本数与 base/target price 不一致）
-        # t = i-1，因此需要 i-1+h < len(y)  =>  i <= len(y) - h
         for i in range(self.timesteps, len(X) - self.horizon + 1):
-            X_seq.append(X[i - self.timesteps:i])
+            X_seq.append(X[i - self.timesteps : i])
             y_seq.append(y[i - 1, 0])
         return np.array(X_seq), np.array(y_seq)
 
@@ -1481,73 +1938,205 @@ class OilPricePredictor:
         model.compile(optimizer=Adam(learning_rate=learning_rate), loss=Huber(), metrics=['mae'])
         return model
 
-    def build_gru_model(self, input_shape, units=[256, 128, 64], dropout=0.08, learning_rate=3e-3):
-        model = Sequential()
-        for i, unit in enumerate(units):
-            return_sequences = (i < len(units) - 1)
+    def build_gru_model(
+        self,
+        n_features,
+        dropout=None,
+        learning_rate=3e-3,
+        recurrent_dropout=None,
+        input_noise_std=None,
+        units_5=None,
+        units_20=None,
+        units_60=None,
+        dense_units=None,
+        use_cnn_front=None,
+        cls_weight=None,
+        direction_lambda=None,
+        huber_delta=None,
+    ):
+        """
+        多尺度三支路（5/20/60）+ 可选 Conv1D 局部编码 + 融合 GRU；
+        双输出：reg_head=远期收益（缩放空间）、cls_head=涨/跌概率。
+        units_* 为每支路 GRU 隐单元元组（可多叠层）；默认与历史单隐层结构一致。
+        Concatenate 之后为任务专属塔（回归 / 分类各一套 Dense→Dropout），减轻多任务负迁移。
+        """
+        if dropout is None:
+            dropout = DROPOUT_GRU_STACK
+        if recurrent_dropout is None:
+            recurrent_dropout = RECURRENT_DROPOUT_GRU
+        if input_noise_std is None:
+            input_noise_std = GAUSSIAN_NOISE_INPUT
+        if units_5 is None:
+            units_5 = (48,)
+        if units_20 is None:
+            units_20 = (96,)
+        if units_60 is None:
+            units_60 = (128,)
+        if dense_units is None:
+            dense_units = (128, 64)
+        if use_cnn_front is None:
+            use_cnn_front = USE_CNN_FRONT
+        if cls_weight is None:
+            cls_weight = MULTITASK_CLS_WEIGHT
+        if direction_lambda is None:
+            direction_lambda = DIRECTION_LOSS_LAMBDA
+        if huber_delta is None:
+            huber_delta = 1.0
 
-            if i == 0:
-                model.add(GRU(
-                    units=unit,
-                    return_sequences=return_sequences,
-                    activation='tanh',
-                    recurrent_activation='sigmoid',
-                    recurrent_dropout=0.0,
-                    reset_after=True,
-                    input_shape=input_shape
-                ))
-            else:
-                model.add(GRU(
-                    units=unit,
-                    return_sequences=return_sequences,
-                    activation='tanh',
-                    recurrent_activation='sigmoid',
-                    recurrent_dropout=0.0,
-                    reset_after=True
-                ))
+        kwargs = dict(
+            activation='tanh',
+            recurrent_activation='sigmoid',
+            recurrent_dropout=float(recurrent_dropout),
+            reset_after=True,
+        )
+        inp5 = Input(shape=(self.w_short, n_features), name='in5')
+        inp20 = Input(shape=(self.w_mid, n_features), name='in20')
+        inp60 = Input(shape=(self.w_long, n_features), name='in60')
+        if float(input_noise_std) > 0:
+            x5 = GaussianNoise(float(input_noise_std), name='noise5')(inp5)
+            x20 = GaussianNoise(float(input_noise_std), name='noise20')(inp20)
+            x60 = GaussianNoise(float(input_noise_std), name='noise60')(inp60)
+        else:
+            x5, x20, x60 = inp5, inp20, inp60
+        if use_cnn_front:
+            c = Conv1D(32, 3, padding='same', activation='relu')(x60)
+            c = Conv1D(32, 3, padding='same', activation='relu')(c)
+            g60 = _stack_gru_branch(c, units_60, kwargs)
+        else:
+            g60 = _stack_gru_branch(x60, units_60, kwargs)
+        g5 = _stack_gru_branch(x5, units_5, kwargs)
+        g20 = _stack_gru_branch(x20, units_20, kwargs)
+        merged = Concatenate(name='merged')([g5, g20, g60])
 
-            model.add(Dropout(dropout))
+        # 回归专属塔（容量由 dense_units 控制）
+        d_reg = Dense(int(dense_units[0]), activation='relu', name='reg_dense1')(merged)
+        d_reg = Dropout(float(dropout), name='reg_drop1')(d_reg)
+        d_reg = Dense(int(dense_units[1]), activation='relu', name='reg_dense2')(d_reg)
+        d_reg = Dropout(float(dropout), name='reg_drop2')(d_reg)
+        reg_head = Dense(1, activation='linear', name='reg_head')(d_reg)
 
-        model.add(Dense(64, activation='relu'))
-        model.add(Dropout(dropout))
-        model.add(Dense(32, activation='relu'))
-        model.add(Dropout(dropout))
-        model.add(Dense(1))
-
+        # 分类专属塔（每层略宽，便于拟合涨跌边界）
+        cls_w0 = int(dense_units[0]) + 32
+        cls_w1 = int(dense_units[1]) + 32
+        d_cls = Dense(cls_w0, activation='relu', name='cls_dense1')(merged)
+        d_cls = Dropout(float(dropout), name='cls_drop1')(d_cls)
+        d_cls = Dense(cls_w1, activation='relu', name='cls_dense2')(d_cls)
+        d_cls = Dropout(float(dropout), name='cls_drop2')(d_cls)
+        cls_head = Dense(1, activation='sigmoid', name='cls_head')(d_cls)
+        model = Model(inputs=[inp5, inp20, inp60], outputs=[reg_head, cls_head])
+        reg_loss = make_direction_aware_huber_loss(float(direction_lambda), float(huber_delta))
         model.compile(
             optimizer=Adam(learning_rate=learning_rate),
-            loss=Huber(),
-            metrics=['mae']
+            loss={
+                'reg_head': reg_loss,
+                'cls_head': 'binary_crossentropy',
+            },
+            loss_weights={'reg_head': 1.0, 'cls_head': float(cls_weight)},
+            metrics={'reg_head': ['mae'], 'cls_head': ['accuracy']},
         )
-
         return model
 
-    def train_model(self, model, X_train, y_train, X_val, y_val,
-                    epochs=200, batch_size=32, verbose=1,
-                    log_path='training_log.csv'):
-        """训练模型：更多 epoch、早停防过拟合、学习率衰减，以更好拟合"""
-        callbacks = [
-            ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=15, min_lr=1e-7, verbose=1),
-            CSVLogger(log_path, append=False)
+    def train_model(
+        self,
+        model,
+        data_dict,
+        epochs=200,
+        batch_size=32,
+        verbose=1,
+        log_path='training_log.csv',
+        live_loss_json_path=None,
+        aug_copies=None,
+        aug_noise_std=None,
+        aug_seed=None,
+        trial=None,
+    ):
+        """多输入 / 双输出训练：学习率衰减 + CSV 日志；可选每 epoch 写 JSON 供 Web 轮询。
+        trial 非空时：静默训练、EarlyStopping、Optuna 剪枝，不写 CSV 日志（避免 trial 互相覆盖）。"""
+        copies = int(TRAIN_SEQ_AUG_COPIES if aug_copies is None else aug_copies)
+        noise_std = float(TRAIN_SEQ_AUG_NOISE_STD if aug_noise_std is None else aug_noise_std)
+        seed = int(TRAIN_SEQ_AUG_SEED if aug_seed is None else aug_seed)
+
+        X5 = np.asarray(data_dict['X_train_5'], dtype=np.float32)
+        X20 = np.asarray(data_dict['X_train_20'], dtype=np.float32)
+        X60 = np.asarray(data_dict['X_train_60'], dtype=np.float32)
+        yr0 = np.asarray(data_dict['y_train_reg'], dtype=np.float32)
+        yc0 = np.asarray(data_dict['y_train_cls'], dtype=np.float32)
+        n_orig = int(len(yr0))
+        if copies > 0:
+            rng = np.random.default_rng(seed)
+            X5, X20, X60, yr0, yc0 = augment_train_sequences(
+                X5,
+                X20,
+                X60,
+                yr0,
+                yc0,
+                copies,
+                noise_std,
+                rng,
+                clip01=True,
+            )
+            if verbose:
+                print(
+                    f"  训练序列增强: {n_orig} -> {len(yr0)} 条 "
+                    f"(+{copies} 份噪声副本, noise_std={noise_std})"
+                )
+        X_train = [X5, X20, X60]
+        y_train = {'reg_head': yr0, 'cls_head': yc0}
+        fit_shuffle = bool(copies > 0)
+        X_val = [
+            data_dict['X_val_5'],
+            data_dict['X_val_20'],
+            data_dict['X_val_60'],
         ]
+        y_val = {
+            'reg_head': data_dict['y_val_reg'],
+            'cls_head': data_dict['y_val_cls'],
+        }
+        callbacks = [
+            ReduceLROnPlateau(
+                monitor='val_loss',
+                factor=0.5,
+                patience=15,
+                min_lr=1e-7,
+                verbose=0 if trial is not None else 1,
+            ),
+        ]
+        if log_path:
+            callbacks.append(CSVLogger(log_path, append=False))
+        if live_loss_json_path:
+            callbacks.insert(0, LiveLossJsonCallback(live_loss_json_path))
+        if trial is not None:
+            callbacks.append(
+                EarlyStopping(
+                    monitor='val_loss',
+                    patience=12,
+                    restore_best_weights=True,
+                    verbose=0,
+                )
+            )
+            callbacks.append(OptunaPruningCallback(trial, monitor='val_loss'))
         history = model.fit(
-            X_train, y_train,
+            X_train,
+            y_train,
             validation_data=(X_val, y_val),
             epochs=epochs,
             batch_size=batch_size,
             callbacks=callbacks,
-            verbose=verbose,
-            shuffle=False
+            verbose=0 if trial is not None else verbose,
+            shuffle=fit_shuffle,
         )
         return history
 
-    def predict(self, model, X_test):
-        """预测（返回归一化后的值）"""
-        return model.predict(X_test)
-    
-    def predict_price(self, pred_price_scaled, scaler_y):
-        """将归一化后的价格预测还原为实际价格"""
-        return scaler_y.inverse_transform(pred_price_scaled.reshape(-1, 1)).flatten()
+    def predict(self, model, X_list):
+        """多输入预测；返回 (reg_scaled, cls_prob)。"""
+        out = model.predict(X_list, verbose=0)
+        if isinstance(out, (list, tuple)):
+            return out[0], out[1]
+        return out, None
+
+    def predict_price(self, pred_target_scaled, scaler_y):
+        """将归一化后的远期收益还原到原始收益尺度（非绝对价格）。"""
+        return scaler_y.inverse_transform(pred_target_scaled.reshape(-1, 1)).flatten()
     
     def evaluate(self, y_true_price, y_pred_price, model_name='Model'):
         """评估（在价格上）"""
@@ -1594,8 +2183,277 @@ class OilPricePredictor:
             plt.close()
 
 
+def _csv_cell_bool(v) -> bool:
+    if isinstance(v, str):
+        return v.strip().lower() in ("true", "1", "yes")
+    return bool(v)
+
+
+def _default_fe_params(top_n: int) -> dict:
+    """与主线默认 RF（未显式传 n_estimators 时方法内默认 300）及 Winsorize 一致。"""
+    return {
+        "rf_top_n": int(top_n),
+        "rf_n_estimators": 300,
+        "winsor_lower": 0.01,
+        "winsor_upper": 0.99,
+        "rf_fit_scope": "train",
+    }
+
+
+def _apply_feature_pipeline(
+    preprocessor,
+    predictor,
+    data_train,
+    data_val,
+    data_test,
+    fe_params: dict,
+    mandatory_ok,
+    target_col: str,
+):
+    """
+    随机森林 Top-N 特征选择 + 仅在训练集 Winsorize（与 main Step 4 一致）→ prepare_data。
+    rf_fit_scope='all' 时用 Train+Val+Test 拼接数据拟合 RF 重要性（与 RF_FIT_SCOPE='all' 思想一致，有信息泄露风险）。
+    """
+    scope = str(fe_params.get("rf_fit_scope", "train"))
+    if scope == "all":
+        fit_data = pd.concat([data_train, data_val, data_test], axis=0).sort_index()
+    else:
+        fit_data = data_train
+    data_train_sel, data_val_sel, data_test_sel, feature_cols = preprocessor.rf_feature_selection_top_n(
+        data_train,
+        data_val,
+        data_test,
+        target_col=target_col,
+        top_n=int(fe_params["rf_top_n"]),
+        n_estimators=int(fe_params["rf_n_estimators"]),
+        random_state=RF_RANDOM_STATE,
+        keep_also_cols=mandatory_ok,
+        fit_data=fit_data,
+    )
+    wl = float(fe_params.get("winsor_lower", 0.01))
+    wu = float(fe_params.get("winsor_upper", 0.99))
+    data_train_sel = preprocessor.winsorize_outliers(data_train_sel, lower=wl, upper=wu)
+    data_train_sel = data_train_sel.dropna().copy()
+    data_val_sel = data_val_sel.dropna().copy()
+    data_test_sel = data_test_sel.dropna().copy()
+    data_dict = predictor.prepare_data(
+        data_train_sel, data_val_sel, data_test_sel, feature_cols, target_col=target_col
+    )
+    n_feat = int(data_dict["X_train_60"].shape[2])
+    return data_dict, feature_cols, n_feat, data_train_sel, data_val_sel, data_test_sel
+
+
+def _write_feature_export_csvs(
+    out_path,
+    data_train_sel,
+    data_val_sel,
+    data_test_sel,
+    final_features,
+    target_col: str,
+):
+    """all_features_data.csv + model_input_data.csv（与 main 原逻辑一致）。"""
+    all_feature_cols = data_train_sel.columns.tolist()
+    full_train = data_train_sel[all_feature_cols].copy()
+    full_train["Split"] = "train"
+    full_val = data_val_sel[all_feature_cols].copy()
+    full_val["Split"] = "val"
+    full_test = data_test_sel[all_feature_cols].copy()
+    full_test["Split"] = "test"
+    full_all = pd.concat([full_train, full_val, full_test]).sort_index()
+    full_all.reset_index(inplace=True)
+    full_all.rename(columns={"index": "Date"}, inplace=True)
+    full_all.to_csv(out_path("all_features_data.csv"), index=False)
+    print(
+        f"\n已保存所有特征总表到 {out_path('all_features_data.csv')}，行数={len(full_all)}，列数={full_all.shape[1]}"
+    )
+    print(f"\n最终特征数: {len(final_features)}")
+    cols_for_model = list(dict.fromkeys(final_features + [target_col, "WTI_Futures"]))
+    data_train_filtered = data_train_sel
+    data_val_filtered = data_val_sel
+    data_test_filtered = data_test_sel
+    model_train = data_train_filtered[cols_for_model].dropna().copy()
+    model_train["Split"] = "train"
+    model_val = data_val_filtered[cols_for_model].dropna().copy()
+    model_val["Split"] = "val"
+    model_test = data_test_filtered[cols_for_model].dropna().copy()
+    model_test["Split"] = "test"
+    model_all = pd.concat([model_train, model_val, model_test]).sort_index()
+    model_all.reset_index(inplace=True)
+    model_all.rename(columns={"index": "Date"}, inplace=True)
+    model_all.to_csv(out_path("model_input_data.csv"), index=False)
+    print(
+        f"\n已保存模型输入总表到 {out_path('model_input_data.csv')}，行数={len(model_all)}，列数={model_all.shape[1]}"
+    )
+
+
+def load_gru_params_from_csv(csv_path: str) -> dict:
+    """读取 noise_optuna_best_params.csv 风格的一行超参（与 noise_binary_test 导出格式一致）。"""
+    path = Path(csv_path)
+    if not path.is_file():
+        raise FileNotFoundError(f"找不到参数文件: {path.resolve()}")
+    df = pd.read_csv(path, nrows=1)
+    if df.empty:
+        raise ValueError(f"空 CSV: {path}")
+    row = df.iloc[0]
+
+    def tup(key: str):
+        v = row[key]
+        return ast.literal_eval(str(v).strip())
+
+    out = {
+        "units_5": tup("units_5"),
+        "units_20": tup("units_20"),
+        "units_60": tup("units_60"),
+        "dense_units": tup("dense_units"),
+        "dropout": float(row["dropout"]),
+        "learning_rate": float(row["learning_rate"]),
+        "recurrent_dropout": float(row["recurrent_dropout"]),
+        "input_noise_std": float(row["input_noise_std"]),
+        "use_cnn_front": _csv_cell_bool(row["use_cnn_front"]),
+        "cls_weight": float(row["cls_weight"]),
+        "direction_lambda": float(row["direction_lambda"]),
+        "huber_delta": float(row["huber_delta"]),
+        "aug_copies": int(row["aug_copies"]),
+        "aug_noise_std": float(row["aug_noise_std"]),
+        "aug_seed": int(row["aug_seed"]),
+        "batch_size": int(row["batch_size"]),
+    }
+    for fe_key in ("rf_top_n", "rf_n_estimators", "winsor_lower", "winsor_upper", "rf_fit_scope"):
+        if fe_key in row.index and pd.notna(row[fe_key]):
+            if fe_key == "rf_fit_scope":
+                out[fe_key] = str(row[fe_key]).strip()
+            elif fe_key in ("rf_top_n", "rf_n_estimators"):
+                out[fe_key] = int(row[fe_key])
+            else:
+                out[fe_key] = float(row[fe_key])
+    return out
+
+
+def run_optuna_gru_study(
+    predictor,
+    preprocessor,
+    data_train,
+    data_val,
+    data_test,
+    mandatory_ok,
+    out_csv_path: str,
+    n_trials: int,
+    optuna_epochs: int,
+    optuna_timeout: int,
+    w_cls: float,
+    w_dir: float,
+    seed: int,
+    tune_fe: bool,
+    target_col: str,
+    data_dict=None,
+    n_feat: int = None,
+):
+    """
+    Optuna 最小化 composite：val_mae/std + w_cls*(1-cls_acc) + w_dir*(1-dir_acc)。
+    tune_fe=True：每个 trial 先搜 RF/Winsorize/拟合范围，再搜 GRU，再 prepare_data（较慢、更全面）。
+    tune_fe=False：在固定 data_dict 上只搜 GRU（与旧版一致）。
+    """
+    if optuna is None:
+        raise ImportError("未安装 optuna，请先 pip install optuna")
+    if not tune_fe:
+        if data_dict is None or n_feat is None:
+            raise ValueError("tune_fe=False 时必须传入已构造的 data_dict 与 n_feat")
+
+    def objective(trial):
+        tf.keras.backend.clear_session()
+        hp = _optuna_sample_trial_params(trial)
+        if tune_fe:
+            fe = _optuna_sample_fe_params(trial)
+            dd, _, nf, _, _, _ = _apply_feature_pipeline(
+                preprocessor,
+                predictor,
+                data_train,
+                data_val,
+                data_test,
+                fe,
+                mandatory_ok,
+                target_col,
+            )
+        else:
+            dd = data_dict
+            nf = int(n_feat)
+        model = predictor.build_gru_model(
+            nf,
+            dropout=hp["dropout"],
+            learning_rate=hp["learning_rate"],
+            recurrent_dropout=hp["recurrent_dropout"],
+            input_noise_std=hp["input_noise_std"],
+            units_5=hp["units_5"],
+            units_20=hp["units_20"],
+            units_60=hp["units_60"],
+            dense_units=hp["dense_units"],
+            use_cnn_front=hp["use_cnn_front"],
+            cls_weight=hp["cls_weight"],
+            direction_lambda=hp["direction_lambda"],
+            huber_delta=hp["huber_delta"],
+        )
+        predictor.train_model(
+            model,
+            dd,
+            epochs=int(optuna_epochs),
+            batch_size=int(hp["batch_size"]),
+            aug_copies=int(hp["aug_copies"]),
+            aug_noise_std=float(hp["aug_noise_std"]),
+            aug_seed=int(RF_RANDOM_STATE),
+            log_path=None,
+            live_loss_json_path=None,
+            trial=trial,
+        )
+        y_val_reg = dd["y_val_reg"]
+        mae, cls_acc, dir_acc = _val_metrics_gru(model, dd, dd["scaler_y"])
+        loss = _optuna_composite_loss(mae, cls_acc, dir_acc, y_val_reg, w_cls, w_dir)
+        trial.set_user_attr("val_reg_mae", mae)
+        trial.set_user_attr("val_cls_acc", cls_acc)
+        trial.set_user_attr("val_dir_acc", dir_acc)
+        return loss
+
+    sampler = optuna.samplers.TPESampler(seed=int(seed))
+    pruner = optuna.pruners.MedianPruner(n_startup_trials=5, n_warmup_steps=10)
+    study = optuna.create_study(
+        direction="minimize",
+        sampler=sampler,
+        pruner=pruner,
+        study_name="rework_gru_multitask_fe" if tune_fe else "rework_gru_multitask",
+    )
+    print(
+        f"\n开始 Optuna：trials={n_trials}, 每 trial(epochs)={optuna_epochs}, "
+        f"tune_fe={tune_fe}, "
+        f"composite = mae_norm + {w_cls:.3f}*(1-cls_acc) + {w_dir:.3f}*(1-dir_acc)"
+    )
+    study.optimize(
+        objective,
+        n_trials=int(n_trials),
+        timeout=None if int(optuna_timeout) <= 0 else int(optuna_timeout),
+        show_progress_bar=False,
+    )
+    bt = study.best_trial
+    best = _optuna_best_params_from_trial(bt)
+    row = {
+        "best_composite": bt.value,
+        "val_reg_mae": bt.user_attrs.get("val_reg_mae"),
+        "val_cls_acc": bt.user_attrs.get("val_cls_acc"),
+        "val_dir_acc": bt.user_attrs.get("val_dir_acc"),
+        **best,
+    }
+    pd.DataFrame([row]).to_csv(out_csv_path, index=False, encoding="utf-8-sig")
+    print(
+        f"Optuna 结束：最优 composite={bt.value:.6f}, trial={bt.number}, "
+        f"val_cls_acc={row.get('val_cls_acc')}, val_dir_acc={row.get('val_dir_acc')}, "
+        f"已保存 {out_csv_path}"
+    )
+    return best
+
+
 def main(base_path='.', top_n=RF_TOP_N_DEFAULT, output_dir='.', no_plots=False,
-         cutoff_date=None, forecast_steps=0, epochs: int = 200):
+         cutoff_date=None, forecast_steps=0, epochs: int = 200, monitor_port: int = 0,
+         params_csv=None, optuna_trials: int = 0, optuna_epochs: int = 80,
+         optuna_timeout: int = 0, optuna_weight_cls: float = 0.35,
+         optuna_weight_dir: float = 0.25, optuna_seed: int = 42, optuna_tune_fe: bool = True):
     print("=" * 80)
     print("多变量油价预测系统（按时间序列最佳实践）")
     print("=" * 80)
@@ -1615,9 +2473,9 @@ def main(base_path='.', top_n=RF_TOP_N_DEFAULT, output_dir='.', no_plots=False,
     feature_engineer = FeatureEngineer()
     data_features = feature_engineer.create_all_features(data, target_price_col='WTI_Futures')
 
-    # Step 1.5: 先创建未来价格目标（必须在特征选择之前，以便 RF 按与未来价格的相关性选特征）
-    predictor = OilPricePredictor(timesteps=LOOKBACK_L, horizon=HORIZON_H)
-    data_features = predictor.create_target_price(
+    # Step 1.5: 创建远期对数收益目标（必须在特征选择之前，RF 按与未来收益相关性选特征）
+    predictor = OilPricePredictor(timesteps=WINDOW_LONG, horizon=HORIZON_H)
+    data_features = predictor.create_target_forward_return(
         data_features, price_col='WTI_Futures', target_col=TARGET_COL
     )
 
@@ -1632,77 +2490,74 @@ def main(base_path='.', top_n=RF_TOP_N_DEFAULT, output_dir='.', no_plots=False,
 
     print(f"\n数据切分: Train={len(data_train)}, Val={len(data_val)}, Test={len(data_test)}")
 
-    # Step 4: 只用 Train 做特征选择
+    # Step 4: 特征选择（RF）+ Winsorize + 序列；Optuna 同步搜特征工程时先跳过本段
     try:
         n = int(top_n)
     except Exception:
         n = int(RF_TOP_N_DEFAULT)
 
-    data_train_sel, data_val_sel, data_test_sel, feature_cols = \
-        preprocessor.rf_feature_selection_top_n(
-            data_train,
-            data_val,
-            data_test,
-            target_col=TARGET_COL,
-            top_n=int(n)
+    mandatory_ok = [c for c in MANDATORY_RF_FEATURES if c in data_train.columns]
+
+    params_early = None
+    if params_csv and int(optuna_trials) == 0:
+        params_early = load_gru_params_from_csv(params_csv)
+        print(f"已从 CSV 预读参数: {Path(params_csv).resolve()}")
+
+    skip_fe_for_optuna = int(optuna_trials) > 0 and optuna_tune_fe
+    use_fe_from_csv = params_early is not None and "rf_top_n" in params_early and int(optuna_trials) == 0
+
+    if skip_fe_for_optuna:
+        data_dict = None
+        n_feat = None
+        final_features = None
+        feature_cols = None
+        data_train_sel = None
+        data_val_sel = None
+        data_test_sel = None
+    elif use_fe_from_csv:
+        data_dict, feature_cols, n_feat, data_train_sel, data_val_sel, data_test_sel = _apply_feature_pipeline(
+            preprocessor, predictor, data_train, data_val, data_test,
+            params_early, mandatory_ok, TARGET_COL,
         )
+        final_features = feature_cols
+        print(
+            f"\n[CSV 特征工程] rf_top_n={params_early['rf_top_n']}, "
+            f"rf_n_estimators={params_early.get('rf_n_estimators')}, "
+            f"winsor=({params_early.get('winsor_lower')},{params_early.get('winsor_upper')}), "
+            f"rf_fit_scope={params_early.get('rf_fit_scope', 'train')}"
+        )
+        print(f"\n数据清洗后: Train={len(data_train_sel)}, Val={len(data_val_sel)}, Test={len(data_test_sel)}")
+    else:
+        data_train_sel, data_val_sel, data_test_sel, feature_cols = \
+            preprocessor.rf_feature_selection_top_n(
+                data_train,
+                data_val,
+                data_test,
+                target_col=TARGET_COL,
+                top_n=int(n),
+                keep_also_cols=mandatory_ok,
+            )
 
-    # Step 4.1: 只在 Train 上计算 winsorize
-    data_train_sel = preprocessor.winsorize_outliers(data_train_sel, lower=0.01, upper=0.99)
+        # Step 4.1: 只在 Train 上计算 winsorize
+        data_train_sel = preprocessor.winsorize_outliers(data_train_sel, lower=0.01, upper=0.99)
 
-    # Step 4.2: dropna
-    data_train_sel = data_train_sel.dropna().copy()
-    data_val_sel = data_val_sel.dropna().copy()
-    data_test_sel = data_test_sel.dropna().copy()
-    print(f"\n数据清洗后: Train={len(data_train_sel)}, Val={len(data_val_sel)}, Test={len(data_test_sel)}")
+        # Step 4.2: dropna
+        data_train_sel = data_train_sel.dropna().copy()
+        data_val_sel = data_val_sel.dropna().copy()
+        data_test_sel = data_test_sel.dropna().copy()
+        print(f"\n数据清洗后: Train={len(data_train_sel)}, Val={len(data_val_sel)}, Test={len(data_test_sel)}")
+        final_features = feature_cols
 
-    all_feature_cols = data_train_sel.columns.tolist()  # 保留当前所有列（已是筛选后的特征集）
-    full_train = data_train_sel[all_feature_cols].copy()
-    full_train['Split'] = 'train'
-    full_val = data_val_sel[all_feature_cols].copy()
-    full_val['Split'] = 'val'
-    full_test = data_test_sel[all_feature_cols].copy()
-    full_test['Split'] = 'test'
-    full_all = pd.concat([full_train, full_val, full_test]).sort_index()
-    full_all.reset_index(inplace=True)
-    full_all.rename(columns={'index': 'Date'}, inplace=True)
-    full_all.to_csv(out_path('all_features_data.csv'), index=False)
-    print(f"\n已保存所有特征总表到 {out_path('all_features_data.csv')}，行数={len(full_all)}，列数={full_all.shape[1]}")
-
-    # 此时已经完成：
-    # - 整段缺失值处理
-    # - 随机森林 Top-N 特征选择
-    # - 整段 Z-score 删除异常值
-    # - 日期切分 + 创建未来价格目标
-    #
-    # 因此可以直接把当前的数据视为“已筛选&清洗”的最终输入
-    data_train_filtered = data_train_sel
-    data_val_filtered = data_val_sel
-    data_test_filtered = data_test_sel
-    final_features = feature_cols
-    print(f"\n最终特征数: {len(final_features)}")
-
-    # Step 5: 导出给模型使用的特征工程总表（含 Train/Val/Test 标记）
-    cols_for_model = list(dict.fromkeys(final_features + [TARGET_COL, 'WTI_Futures']))
-    model_train = data_train_filtered[cols_for_model].dropna().copy()
-    model_train['Split'] = 'train'
-    model_val = data_val_filtered[cols_for_model].dropna().copy()
-    model_val['Split'] = 'val'
-    model_test = data_test_filtered[cols_for_model].dropna().copy()
-    model_test['Split'] = 'test'
-    model_all = pd.concat([model_train, model_val, model_test]).sort_index()
-    model_all.reset_index(inplace=True)
-    model_all.rename(columns={'index': 'Date'}, inplace=True)
-    model_all.to_csv(out_path('model_input_data.csv'), index=False)
-    print(f"\n已保存模型输入总表到 {out_path('model_input_data.csv')}，行数={len(model_all)}，列数={model_all.shape[1]}")
-
-    # Step 8: 准备序列数据
-    data_dict = predictor.prepare_data(
-        data_train_filtered, data_val_filtered, data_test_filtered,
-        final_features, target_col=TARGET_COL
-    )
-
-    input_shape = (predictor.timesteps, data_dict['X_train'].shape[2])
+    if not skip_fe_for_optuna:
+        _write_feature_export_csvs(
+            out_path, data_train_sel, data_val_sel, data_test_sel, final_features, TARGET_COL
+        )
+        if not use_fe_from_csv:
+            data_dict = predictor.prepare_data(
+                data_train_sel, data_val_sel, data_test_sel,
+                final_features, target_col=TARGET_COL
+            )
+            n_feat = int(data_dict["X_train_60"].shape[2])
 
     # Step 9: 训练模型（目前只保留 GRU，LSTM 暂时注释掉）
     # print("\n训练LSTM...")
@@ -1712,18 +2567,110 @@ def main(base_path='.', top_n=RF_TOP_N_DEFAULT, output_dir='.', no_plots=False,
     #     data_dict['X_val'], data_dict['y_val']
     # )
 
-    print("\n训练GRU...")
-    gru_model = predictor.build_gru_model(input_shape, units=[256, 128, 64], dropout=0.05, learning_rate=3e-3)
-    predictor.train_model(
-        gru_model, data_dict['X_train'], data_dict['y_train'],
-        data_dict['X_val'], data_dict['y_val'],
-        epochs=int(max(1, int(epochs or 200))), batch_size=32,
-        log_path=out_path('training_log.csv')
-    )
+    print("\n训练GRU（多尺度 + 方向感知损失 + 涨跌辅助头）...")
+    csvp = None
+    if int(optuna_trials) > 0:
+        if params_csv:
+            print("[提示] 已启用 Optuna（--optuna-trials>0），将忽略 --params-csv。")
+        csvp = run_optuna_gru_study(
+            predictor,
+            preprocessor,
+            data_train,
+            data_val,
+            data_test,
+            mandatory_ok,
+            out_path("rework_optuna_best_params.csv"),
+            int(optuna_trials),
+            int(optuna_epochs),
+            int(optuna_timeout),
+            float(optuna_weight_cls),
+            float(optuna_weight_dir),
+            int(optuna_seed),
+            bool(optuna_tune_fe),
+            TARGET_COL,
+            data_dict=data_dict,
+            n_feat=n_feat,
+        )
+        if skip_fe_for_optuna:
+            fe_d = {k: csvp[k] for k in ("rf_top_n", "rf_n_estimators", "winsor_lower", "winsor_upper", "rf_fit_scope") if k in csvp}
+            data_dict, final_features, n_feat, data_train_sel, data_val_sel, data_test_sel = _apply_feature_pipeline(
+                preprocessor, predictor, data_train, data_val, data_test,
+                fe_d, mandatory_ok, TARGET_COL,
+            )
+            # 与主线一致：后续驱动因子分析等处使用 feature_cols；skip_fe 分支此前未赋值会保持为 None
+            feature_cols = final_features
+            _write_feature_export_csvs(
+                out_path, data_train_sel, data_val_sel, data_test_sel, final_features, TARGET_COL
+            )
+    elif params_early is not None:
+        csvp = params_early
+        print("使用预读 CSV 中的超参（含 GRU；若含 rf_top_n 则已用于特征工程）。")
+    elif params_csv:
+        csvp = load_gru_params_from_csv(params_csv)
+        print(f"已从 CSV 加载 GRU 超参: {Path(params_csv).resolve()}")
 
-    # Step 10: 预测和评估
-    # 预测目标（归一化后的未来价格），目前只用 GRU
-    gru_pred_price_scaled = predictor.predict(gru_model, data_dict['X_test']).flatten()
+    if csvp:
+        gru_model = predictor.build_gru_model(
+            n_feat,
+            dropout=csvp["dropout"],
+            learning_rate=csvp["learning_rate"],
+            recurrent_dropout=csvp["recurrent_dropout"],
+            input_noise_std=csvp["input_noise_std"],
+            units_5=csvp["units_5"],
+            units_20=csvp["units_20"],
+            units_60=csvp["units_60"],
+            dense_units=csvp["dense_units"],
+            use_cnn_front=csvp["use_cnn_front"],
+            cls_weight=csvp["cls_weight"],
+            direction_lambda=csvp["direction_lambda"],
+            huber_delta=csvp["huber_delta"],
+        )
+    else:
+        gru_model = predictor.build_gru_model(
+            n_feat,
+            dropout=DROPOUT_GRU_STACK,
+            learning_rate=3e-3,
+            recurrent_dropout=RECURRENT_DROPOUT_GRU,
+            input_noise_std=GAUSSIAN_NOISE_INPUT,
+        )
+    loss_json_abs = os.path.abspath(out_path(LIVE_LOSS_JSON))
+    print(f"Train/Val loss 将逐 epoch 写入: {loss_json_abs}")
+    mp = int(monitor_port or 0)
+    if mp > 0:
+        _start_loss_monitor_web_server(os.path.abspath(output_dir), LIVE_LOSS_JSON, mp)
+    if csvp:
+        history = predictor.train_model(
+            gru_model,
+            data_dict,
+            epochs=int(max(1, int(epochs or 200))),
+            batch_size=int(csvp["batch_size"]),
+            aug_copies=int(csvp["aug_copies"]),
+            aug_noise_std=float(csvp["aug_noise_std"]),
+            aug_seed=int(csvp["aug_seed"]),
+            log_path=out_path('training_log.csv'),
+            live_loss_json_path=loss_json_abs,
+        )
+    else:
+        history = predictor.train_model(
+            gru_model,
+            data_dict,
+            epochs=int(max(1, int(epochs or 200))),
+            batch_size=32,
+            log_path=out_path('training_log.csv'),
+            live_loss_json_path=loss_json_abs,
+        )
+    _save_loss_curve_png(history, out_path('loss_curve_train_val.png'), show_plots)
+
+    # Step 10: 预测和评估（回归头：远期收益 → 还原价格）
+    reg_scaled, cls_prob = predictor.predict(
+        gru_model,
+        [
+            data_dict['X_test_5'],
+            data_dict['X_test_20'],
+            data_dict['X_test_60'],
+        ],
+    )
+    gru_pred_price_scaled = np.asarray(reg_scaled).flatten()
 
     # 使用 prepare_data 中已经对齐好的价格
     test_base_prices = data_dict['price_test_base']
@@ -1732,23 +2679,28 @@ def main(base_path='.', top_n=RF_TOP_N_DEFAULT, output_dir='.', no_plots=False,
     test_target_dates = data_dict['date_test_target']
 
     # 确保长度匹配
-    min_len = min(len(gru_pred_price_scaled), len(test_base_prices), len(test_target_prices), len(data_dict['y_test']))
+    min_len = min(
+        len(gru_pred_price_scaled),
+        len(test_base_prices),
+        len(test_target_prices),
+        len(data_dict['y_test_reg']),
+    )
     gru_pred_price_scaled = gru_pred_price_scaled[:min_len]
     test_base_prices = test_base_prices[:min_len]
     test_target_prices = test_target_prices[:min_len]
     test_base_dates = test_base_dates[:min_len]
     test_target_dates = test_target_dates[:min_len]
-    y_test_price_scaled = data_dict['y_test'][:min_len]
 
-    # 还原为价格（GRU）
-    gru_pred_price = predictor.predict_price(
-        gru_pred_price_scaled, data_dict['scaler_y']
-    )
+    # 还原为「远期对数收益」尺度，再还原价格：P̂_{t+h} = P_t * exp(r̂)
+    gru_pred_return = predictor.predict_price(gru_pred_price_scaled, data_dict['scaler_y'])
+    gru_pred_price = test_base_prices * np.exp(gru_pred_return)
 
-    # 为了继续输出/画“收益曲线”（方便检查是否仍贴 0），用价格反推出收益：
-    # r_t = log(P_{t+h}/P_t)
     y_test_return = np.log(test_target_prices / test_base_prices)
-    gru_pred_return = np.log(gru_pred_price / test_base_prices)
+    if cls_prob is not None:
+        pc = (np.asarray(cls_prob).flatten()[:min_len] > 0.5).astype(float)
+        ta = data_dict['y_test_cls'][:min_len]
+        cls_acc = float(np.mean(pc == ta)) if len(ta) else float("nan")
+        print(f"\n涨跌辅助头准确率（阈值 0.5）: {cls_acc:.4f}")
 
     # Baseline：随机游走（未来价格=当前价格 => return=0）
     baseline_pred_price = test_base_prices.copy()
@@ -1909,7 +2861,7 @@ def main(base_path='.', top_n=RF_TOP_N_DEFAULT, output_dir='.', no_plots=False,
         top_rf = corr_df.sort_values("rf_importance", ascending=False).head(top_k).iloc[::-1]
         plt.figure(figsize=(10, 7))
         plt.barh(top_rf["feature"], top_rf["rf_importance"], color="#F58518")
-        plt.title(f"Top-{top_k} 驱动因子（RF importance vs 未来价格目标）")
+        plt.title(f"Top-{top_k} 驱动因子（RF importance vs 远期收益目标）")
         plt.xlabel("RF feature importance")
         plt.tight_layout()
         plt.savefig(out_path("top_drivers_rf_importance.png"), dpi=300, bbox_inches="tight")
@@ -2035,8 +2987,10 @@ def main(base_path='.', top_n=RF_TOP_N_DEFAULT, output_dir='.', no_plots=False,
         report_lines.append("# 油价预测分析报告（企业银行团队版）")
         report_lines.append("")
         report_lines.append(f"- 生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        report_lines.append(f"- 预测步长：H={HORIZON_H}（天），窗口：LOOKBACK={LOOKBACK_L}")
-        report_lines.append(f"- 特征选择：RandomForest Top-N={int(n)}")
+        report_lines.append(
+            f"- 预测步长：H={HORIZON_H}（天），多尺度窗口：{WINDOW_SHORT}/{WINDOW_MID}/{WINDOW_LONG} 日"
+        )
+        report_lines.append(f"- 特征选择：RandomForest Top-N={int(n)} + 强制趋势列")
         report_lines.append("")
         report_lines.append("## 1. 预测效果（Test）")
         report_lines.append(f"- MAE：{metrics['MAE']:.4f}")
@@ -2092,7 +3046,12 @@ def main(base_path='.', top_n=RF_TOP_N_DEFAULT, output_dir='.', no_plots=False,
         print(f"[警告] 报告生成失败：{e}")
 
     # lstm_model.save('lstm_model.h5')
-    gru_model.save(out_path('gru_model.h5'))
+    try:
+        gru_model.save(out_path('gru_model.h5'))
+    except Exception as exc:
+        print(f"[警告] 保存 gru_model.h5 失败，将尝试仅保存权重: {exc}")
+        gru_model.save_weights(out_path('gru_model.weights.h5'))
+
     print("\n完成！")
 
     # ----------------------------------------------------------------------
@@ -2142,7 +3101,9 @@ def main(base_path='.', top_n=RF_TOP_N_DEFAULT, output_dir='.', no_plots=False,
 
                 # 重新做特征工程与清洗（只为获得最新一天的输入特征）
                 feats = feature_engineer.create_all_features(raw_ext, target_price_col='WTI_Futures')
-                feats = predictor.create_target_price(feats, price_col='WTI_Futures', target_col=TARGET_COL)
+                feats = predictor.create_target_forward_return(
+                    feats, price_col='WTI_Futures', target_col=TARGET_COL
+                )
                 feats_clean = preprocessor.handle_missing_values(feats)
 
                 # 只取模型所需列，避免缺列
@@ -2156,19 +3117,28 @@ def main(base_path='.', top_n=RF_TOP_N_DEFAULT, output_dir='.', no_plots=False,
                 # 若直接 dropna() 会把新行丢掉，导致每一步都重复用同一段历史窗口。
                 x_df = feats_clean[selected_features].copy()
                 x_df = x_df.ffill().bfill()
-                if x_df.tail(predictor.timesteps).isna().any().any():
+                if x_df.tail(predictor.w_long).isna().any().any():
                     print("[警告] 实盘预测窗口仍存在 NaN，无法继续递推。")
                     break
-                if len(x_df) < predictor.timesteps:
+                w5, w20, w60 = predictor.w_short, predictor.w_mid, predictor.w_long
+                if len(x_df) < w60:
                     print("[警告] 实盘预测窗口不足（特征行数过少）。")
                     break
 
-                x_window = x_df.iloc[-predictor.timesteps:].values
-                x_scaled = scaler_X.transform(x_window)
-                X_seq = x_scaled.reshape(1, predictor.timesteps, len(selected_features))
+                x5 = scaler_X.transform(x_df.iloc[-w5:].values).astype(np.float32)
+                x20 = scaler_X.transform(x_df.iloc[-w20:].values).astype(np.float32)
+                x60 = scaler_X.transform(x_df.iloc[-w60:].values).astype(np.float32)
+                X5 = x5.reshape(1, w5, len(selected_features))
+                X20 = x20.reshape(1, w20, len(selected_features))
+                X60 = x60.reshape(1, w60, len(selected_features))
 
-                pred_scaled = float(predictor.predict(gru_model, X_seq).flatten()[0])
-                pred_price = float(predictor.predict_price(np.array([pred_scaled]), scaler_y)[0])
+                reg_scaled, _ = predictor.predict(gru_model, [X5, X20, X60])
+                pred_scaled = float(np.asarray(reg_scaled).flatten()[0])
+                pred_log_fwd = float(
+                    predictor.predict_price(np.array([pred_scaled]), scaler_y)[0]
+                )
+                base_p = float(raw_ext['WTI_Futures'].iloc[-2])
+                pred_price = float(base_p * np.exp(pred_log_fwd))
 
                 # 用预测价格更新下一天的 WTI_Futures，形成递推
                 raw_ext.loc[next_date, 'WTI_Futures'] = pred_price
@@ -2215,6 +3185,39 @@ if __name__ == '__main__':
     parser.add_argument("--cutoff-date", default=None, help="实盘预测的截止日期（YYYY-MM-DD）；默认使用数据最后一天")
     parser.add_argument("--forecast-steps", type=int, default=0, help="实盘预测：递推预测未来 N 天（0=不生成）")
     parser.add_argument("--epochs", type=int, default=200, help="训练轮数（epochs），默认 200")
+    parser.add_argument(
+        "--monitor-port",
+        type=int,
+        default=0,
+        metavar="PORT",
+        help=">0 时在后台启动简易 Web（需 flask），浏览器查看实时 train/val loss；0 关闭",
+    )
+    parser.add_argument(
+        "--params-csv",
+        default=None,
+        help="从 noise_optuna_best_params.csv 加载 GRU/增强/batch 超参（与 noise_binary_test 导出一致）",
+    )
+    parser.add_argument("--optuna-trials", type=int, default=0, help="Optuna 搜索次数；0=关闭（与 --params-csv 二选一）")
+    parser.add_argument("--optuna-epochs", type=int, default=80, help="Optuna 每个 trial 的最大训练轮数")
+    parser.add_argument("--optuna-timeout", type=int, default=0, help="Optuna 总秒数上限，0=不限")
+    parser.add_argument(
+        "--optuna-weight-cls",
+        type=float,
+        default=0.35,
+        help="复合目标中 (1-val_cls_acc) 的权重，越大越重视分类头",
+    )
+    parser.add_argument(
+        "--optuna-weight-dir",
+        type=float,
+        default=0.25,
+        help="复合目标中 (1-val_dir_acc) 的权重，越大越重视回归头方向（验证集）",
+    )
+    parser.add_argument("--optuna-seed", type=int, default=42, help="Optuna 采样随机种子")
+    parser.add_argument(
+        "--optuna-no-fe",
+        action="store_true",
+        help="Optuna 只搜索 GRU/增强等，不搜索 RF Top-N、树棵数、Winsorize、RF 拟合范围（更快；先按 --top-n 跑完固定特征流水线）",
+    )
     args = parser.parse_args()
 
     # Web/服务器环境下建议关闭交互式绘图
@@ -2232,5 +3235,14 @@ if __name__ == '__main__':
         no_plots=args.no_plots,
         cutoff_date=args.cutoff_date,
         forecast_steps=args.forecast_steps,
-        epochs=int(max(1, int(args.epochs or 200)))
+        epochs=int(max(1, int(args.epochs or 200))),
+        monitor_port=int(args.monitor_port or 0),
+        params_csv=args.params_csv,
+        optuna_trials=int(args.optuna_trials or 0),
+        optuna_epochs=int(max(1, int(args.optuna_epochs or 80))),
+        optuna_timeout=int(args.optuna_timeout or 0),
+        optuna_weight_cls=float(args.optuna_weight_cls),
+        optuna_weight_dir=float(args.optuna_weight_dir),
+        optuna_seed=int(args.optuna_seed),
+        optuna_tune_fe=not bool(args.optuna_no_fe),
     )

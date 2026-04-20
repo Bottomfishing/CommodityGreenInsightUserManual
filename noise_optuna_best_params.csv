@@ -1,0 +1,2 @@
+﻿best_val_loss,units_5,units_20,units_60,dense_units,dropout,learning_rate,recurrent_dropout,input_noise_std,use_cnn_front,cls_weight,direction_lambda,huber_delta,aug_copies,aug_noise_std,aug_seed,batch_size
+0.19505521655082703,"(48, 24, 24)","(128, 32, 24)","(64, 128, 16)","(128, 96)",0.4872623217251676,0.00043291744847929927,0.19027729759319567,0.14984189321348163,False,0.10139778043166059,0.1445407105300825,1.9730737681669122,2,0.048450382244740436,42,64
