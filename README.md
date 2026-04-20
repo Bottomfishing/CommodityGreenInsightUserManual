@@ -25,6 +25,12 @@
 
 [FRONTEND_API_MAPPING.md](FRONTEND_API_MAPPING.md)  -（新增）后端api说明表，供前端将api功能对其旧的streamlit_web
 
+[rework_oil_price_prediction.py](rework_oil_price_prediction.py)    -（新增）预测模型修改，结果在rework_result
+
+[noise_binary_test.py](noise_binary_test.py)    -(新增)检查新模型是否可行
+
+[rework_result](rework_result)  -（新增）新模型结果存储
+
 启动命令：
 web :streamlit run streamlit_app_0325.py
 oilprice :python oil_price_prediction_main_0309.py
