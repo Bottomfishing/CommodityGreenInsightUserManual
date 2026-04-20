@@ -31,6 +31,8 @@
 
 [rework_result](rework_result)  -（新增）新模型结果存储
 
+[rework_Vue](rework_Vue)    -（新增）新前端
+
 启动命令：
 web :streamlit run streamlit_app_0325.py
 oilprice :python oil_price_prediction_main_0309.py
