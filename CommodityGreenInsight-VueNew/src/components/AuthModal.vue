@@ -1,117 +1,132 @@
 <template>
   <Teleport to="body">
-    <transition name="modal-fade">
+    <transition name="auth-fade">
       <div v-if="visible" class="auth-overlay" @click.self="handleClose">
-        <!-- 背景网格 -->
-        <div class="grid-bg"></div>
+        <div class="auth-card">
+          <!-- 关闭 -->
+          <button class="auth-close" @click="handleClose">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M12 4L4 12M4 4l8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </button>
 
-        <div class="auth-modal">
-          <!-- 顶部关闭 -->
-          <button class="close-btn" @click="handleClose">✕</button>
-
-          <!-- 模式切换头部（科技风格） -->
-          <div class="switch-header">
-            <div class="switch-track">
-              <div
-                :class="['switch-indicator', { right: mode === 'register' }]"
-              ></div>
-              <button
-                :class="['switch-btn', { active: mode === 'login' }]"
-                @click="switchMode('login')"
-              >
-                <span class="btn-icon">🔐</span> 登录
-              </button>
-              <button
-                :class="['switch-btn', { active: mode === 'register' }]"
-                @click="switchMode('register')"
-              >
-                <span class="btn-icon">🚀</span> 注册
-              </button>
-            </div>
+          <!-- 品牌头部 -->
+          <div class="auth-header">
+            <div class="auth-logo"></div>
+            <h2 v-if="mode === 'login'" class="auth-heading">欢迎回来</h2>
+            <h2 v-else class="auth-heading">创建账号</h2>
+            <p v-if="mode === 'login'" class="auth-sub">登录以继续使用大宗绿测平台</p>
+            <p v-else class="auth-sub">注册即可开始使用全部功能</p>
           </div>
 
-          <!-- 内容区（左右滑动） -->
-          <div class="form-container">
-            <transition :name="slideDirection" mode="out-in">
-              <form v-if="mode === 'login'" key="login" class="auth-form" @submit.prevent="handleSubmit">
-                <p class="form-desc">欢迎回来，请输入您的账号信息</p>
-                <div class="field-group">
-                  <div class="field">
-                    <label>用户名</label>
-                    <div class="input-box">
-                      <span class="box-icon">👤</span>
-                      <input v-model="username" type="text" placeholder="输入用户名" autocomplete="username" :disabled="loading" />
-                      <div class="input-line"></div>
-                    </div>
-                  </div>
-                  <div class="field">
-                    <label>密码</label>
-                    <div class="input-box">
-                      <span class="box-icon">🔒</span>
-                      <input v-model="password" :type="showPwd ? 'text' : 'password'" placeholder="输入密码" autocomplete="current-password" :disabled="loading" />
-                      <button type="button" class="pwd-toggle" @click="showPwd = !showPwd">{{ showPwd ? '🙈' : '👁️' }}</button>
-                      <div class="input-line"></div>
-                    </div>
-                  </div>
+          <!-- 表单 -->
+          <transition :name="slideDir" mode="out-in">
+            <form v-if="mode === 'login'" key="login" class="auth-form" @submit.prevent="handleSubmit">
+              <div class="field">
+                <label for="login-username">用户名</label>
+                <input
+                  id="login-username"
+                  ref="inputFocus"
+                  v-model="username"
+                  type="text"
+                  placeholder="请输入用户名"
+                  autocomplete="username"
+                  :disabled="loading"
+                />
+              </div>
+              <div class="field">
+                <label for="login-password">密码</label>
+                <div class="pw-wrap">
+                  <input
+                    id="login-password"
+                    v-model="password"
+                    :type="showPwd ? 'text' : 'password'"
+                    placeholder="请输入密码"
+                    autocomplete="current-password"
+                    :disabled="loading"
+                  />
+                  <button type="button" class="pw-toggle" tabindex="-1" @click="showPwd = !showPwd">
+                    <svg v-if="!showPwd" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/>
+                    </svg>
+                    <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                      <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>
+                    </svg>
+                  </button>
                 </div>
+              </div>
 
-                <transition name="err-fade">
-                  <div v-if="error" class="error-bar">
-                    <span class="error-dot"></span>{{ error }}
-                  </div>
-                </transition>
+              <!-- 错误提示 -->
+              <transition name="msg-slide">
+                <div v-if="error" class="err-msg">{{ error }}</div>
+              </transition>
 
-                <button type="submit" class="action-btn login-btn" :disabled="loading">
-                  <span v-if="loading" class="spinner-mini"></span>
-                  <template v-else>
-                    <span class="btn-glow"></span> 登 录
-                  </template>
-                </button>
-              </form>
+              <button type="submit" class="submit-btn" :disabled="loading">
+                <span v-if="loading" class="spin"></span>
+                <span v-else>登 录</span>
+              </button>
 
-              <form v-else key="register" class="auth-form" @submit.prevent="handleSubmit">
-                <p class="form-desc">创建账号，开始您的绿色金融之旅</p>
-                <div class="field-group">
-                  <div class="field">
-                    <label>用户名</label>
-                    <div class="input-box">
-                      <span class="box-icon">👤</span>
-                      <input v-model="username" type="text" placeholder="设置用户名" autocomplete="username" :disabled="loading" />
-                      <div class="input-line"></div>
-                    </div>
-                  </div>
-                  <div class="field">
-                    <label>密码</label>
-                    <div class="input-box">
-                      <span class="box-icon">🔒</span>
-                      <input v-model="password" :type="showPwd ? 'text' : 'password'" placeholder="设置密码（至少4位）" autocomplete="new-password" :disabled="loading" />
-                      <button type="button" class="pwd-toggle" @click="showPwd = !showPwd">{{ showPwd ? '🙈' : '👁️' }}</button>
-                      <div class="input-line"></div>
-                    </div>
-                  </div>
+              <p class="switch-hint">
+                还没有账号？
+                <a href="javascript:void(0)" @click.prevent="switchTo('register')">立即注册</a>
+              </p>
+            </form>
+
+            <form v-else key="register" class="auth-form" @submit.prevent="handleSubmit">
+              <div class="field">
+                <label for="reg-username">用户名</label>
+                <input
+                  id="reg-username"
+                  ref="inputFocus"
+                  v-model="username"
+                  type="text"
+                  placeholder="设置用户名"
+                  autocomplete="username"
+                  :disabled="loading"
+                />
+              </div>
+              <div class="field">
+                <label for="reg-password">密码</label>
+                <div class="pw-wrap">
+                  <input
+                    id="reg-password"
+                    v-model="password"
+                    :type="showPwd ? 'text' : 'password'"
+                    placeholder="至少 4 位字符"
+                    autocomplete="new-password"
+                    :disabled="loading"
+                  />
+                  <button type="button" class="pw-toggle" tabindex="-1" @click="showPwd = !showPwd">
+                    <svg v-if="!showPwd" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/>
+                    </svg>
+                    <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                      <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>
+                    </svg>
+                  </button>
                 </div>
+              </div>
 
-                <transition name="err-fade">
-                  <div v-if="error" class="error-bar">
-                    <span class="error-dot"></span>{{ error }}
-                  </div>
-                </transition>
+              <transition name="msg-slide">
+                <div v-if="error" class="err-msg">{{ error }}</div>
+              </transition>
 
-                <button type="submit" class="action-btn reg-btn" :disabled="loading">
-                  <span v-if="loading" class="spinner-mini"></span>
-                  <template v-else>
-                    <span class="btn-glow"></span> 注 册
-                  </template>
-                </button>
-              </form>
-            </transition>
-          </div>
+              <button type="submit" class="submit-btn" :disabled="loading">
+                <span v-if="loading" class="spin"></span>
+                <span v-else>注 册</span>
+              </button>
 
-          <!-- 底部装饰线 -->
-          <div class="bottom-deco">
-            <div class="deco-line"></div>
-            <span class="deco-text">SECURE CONNECTION</span>
-            <div class="deco-line"></div>
+              <p class="switch-hint">
+                已有账号？
+                <a href="javascript:void(0)" @click.prevent="switchTo('login')">返回登录</a>
+              </p>
+            </form>
+          </transition>
+
+          <!-- 底部安全标识 -->
+          <div class="auth-footer">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+            </svg>
+            <span>安全连接 · 数据加密传输</span>
           </div>
         </div>
       </div>
@@ -120,426 +135,280 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, nextTick } from 'vue'
 
-const props = defineProps<{
-  visible: boolean
-}>()
+interface Props { visible: boolean }
+const props = defineProps<Props>()
 
-const emit = defineEmits<{
+interface Emits {
   (e: 'update:visible', val: boolean): void
   (e: 'success'): void
-}>()
+}
+const emit = defineEmits<Emits>()
 
-const mode = ref<'login' | 'register'>('login')
+type AuthMode = 'login' | 'register'
+const mode = ref<AuthMode>('login')
 const username = ref('')
 const password = ref('')
 const showPwd = ref(false)
 const loading = ref(false)
 const error = ref('')
-const slideDirection = ref('slide-left')
+const slideDir = ref<'slide-l' | 'slide-r'>('slide-l')
+const inputFocus = ref<HTMLInputElement>()
 
-let prevMode = 'login'
-
-function switchMode(m: 'login' | 'register') {
+function switchTo(m: 'login' | 'register') {
   if (m === mode.value) return
-  // 判断滑动方向：register→login 是往右，login→register 是往左
-  slideDirection.value = m === 'register' ? 'slide-left' : 'slide-right'
+  slideDir.value = m === 'register' ? 'slide-l' : 'slide-r'
   mode.value = m
   error.value = ''
+  nextTick(() => { inputFocus.value?.focus() })
 }
 
 watch(() => props.visible, (val) => {
   if (val) {
-    username.value = ''
-    password.value = ''
-    error.value = ''
-    loading.value = false
-    showPwd.value = false
-    mode.value = 'login'
-    slideDirection.value = 'slide-left'
+    username.value = ''; password.value = ''; error.value = ''
+    loading.value = false; showPwd.value = false
+    mode.value = 'login'; slideDir.value = 'slide-l'
+    nextTick(() => { inputFocus.value?.focus() })
   }
 })
 
-function handleClose() {
-  emit('update:visible', false)
-}
+function handleClose() { emit('update:visible', false) }
 
 async function handleSubmit() {
-  if (!username.value || !password.value) {
-    error.value = '请填写完整信息'
-    return
-  }
-  if (password.value.length < 4) {
-    error.value = '密码至少需要 4 位字符'
-    return
-  }
-
-  loading.value = true
-  error.value = ''
-
+  if (!username.value || !password.value) { error.value = '请输入用户名和密码'; return }
+  if (password.value.length < 4) { error.value = '密码至少需要 4 位字符'; return }
+  loading.value = true; error.value = ''
   try {
     const { login: apiLogin, register: apiRegister, fetchMe } = await import('@/api/auth')
-
     if (mode.value === 'login') {
       await apiLogin(username.value, password.value)
       const me = await fetchMe()
       localStorage.setItem('username', me.username || username.value)
-      emit('update:visible', false)
-      emit('success')
+      emit('update:visible', false); emit('success')
     } else {
       await apiRegister(username.value, password.value)
-      error.value = '' // 注册成功
-      // 自动切到登录
-      setTimeout(() => { switchMode('login') }, 600)
+      switchTo('login') // 注册成功自动切回登录
     }
   } catch (e: any) {
     error.value = e?.message || '操作失败，请重试'
-  } finally {
-    loading.value = false
-  }
+  } finally { loading.value = false }
 }
 </script>
 
 <style scoped>
-/* ═══ 遮罩层 ═══ */
+/* ═══ 遮罩 ═══ */
 .auth-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(8px);
+  position: fixed; inset: 0;
+  z-index: 10000;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(3, 7, 18, 0.65);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
-.grid-bg {
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(16, 185, 129, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(16, 185, 129, 0.04) 1px, transparent 1px);
-  background-size: 40px 40px;
-  mask-image: radial-gradient(circle at center, black 30%, transparent 80%);
-}
-
-/* ═══ 弹框主体 ═══ */
-.auth-modal {
-  position: relative;
-  z-index: 1;
-  width: 440px;
-  max-width: 92vw;
-  padding: 32px 36px 24px;
-  border-radius: 20px;
-  background: rgba(10, 15, 26, 0.9);
-  border: 1px solid rgba(16, 185, 129, 0.15);
-  box-shadow:
-    0 0 60px rgba(16, 185, 129, 0.08),
-    0 25px 60px rgba(0, 0, 0, 0.5),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
-}
-.auth-modal::before {
+.auth-overlay::before {
   content: '';
   position: absolute;
-  top: -1px; left: 20%; right: 20%;
-  height: 2px;
-  border-radius: 2px;
-  background: linear-gradient(90deg, transparent, #059669, #06b6d4, #059669, transparent);
-  animation: scanline 3s ease-in-out infinite;
-}
-@keyframes scanline {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 1; }
+  top: -50%; left: -50%; width: 200%; height: 200%;
+  background: radial-gradient(circle at center, rgba(52,211,153,.03), transparent 60%);
+  pointer-events: none;
 }
 
-/* 关闭按钮 */
-.close-btn {
+/* ═══ 卡片主体 ═══ */
+.auth-card {
+  position: relative;
+  width: 400px;
+  max-width: 92vw;
+  padding: 40px 36px 28px;
+  border-radius: 20px;
+  background: #0f141e;
+  border: 1px solid rgba(255,255,255,.06);
+  box-shadow:
+    0 32px 80px rgba(0,0,0,.45),
+    0 0 1px rgba(255,255,255,.04) inset,
+    0 1px 0 rgba(255,255,255,.03) inset;
+}
+
+/* 关闭按钮 — 精致圆形 */
+.auth-close {
   position: absolute;
-  top: 14px; right: 14px;
-  width: 32px; height: 32px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.03);
-  color: rgba(148, 163, 184, 0.5);
-  font-size: 13px;
+  top: 16px; right: 16px;
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: #64748b;
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  transition: all 0.2s;
+  transition: all .2s;
 }
-.close-btn:hover {
-  color: #fca5a5;
-  border-color: rgba(239, 68, 68, 0.3);
-  background: rgba(239, 68, 68, 0.08);
+.auth-close:hover {
+  color: #cbd5e1;
+  background: rgba(255,255,255,.06);
 }
 
-/* ═══ 切换头部 ═══ */
-.switch-header {
-  margin-bottom: 28px;
+/* ═══ 头部 ═══ */
+.auth-header {
+  margin-bottom: 32px;
+  text-align: center;
 }
-.switch-track {
-  display: flex;
-  position: relative;
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: 12px;
-  padding: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+.auth-logo {
+  width: 44px; height: 44px;
+  margin: 0 auto 18px;
+  border-radius: 13px;
+  background: linear-gradient(135deg, #059669, #0891b2);
+  opacity: .88;
 }
-.switch-indicator {
-  position: absolute;
-  top: 4px; left: 4px;
-  width: calc(50% - 4px);
-  height: calc(100% - 8px);
-  border-radius: 9px;
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(6, 182, 212, 0.15));
-  border: 1px solid rgba(16, 185, 129, 0.25);
-  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 0 12px rgba(16, 185, 129, 0.1);
-}
-.switch-indicator.right {
-  transform: translateX(100%);
-}
-.switch-btn {
-  flex: 1;
-  position: relative;
-  z-index: 1;
-  padding: 10px 0;
-  border: none;
-  border-radius: 9px;
-  background: transparent;
-  font-size: 14px;
+.auth-heading {
+  font-size: 22px;
   font-weight: 700;
-  letter-spacing: 1px;
-  cursor: pointer;
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-  color: rgba(148, 163, 184, 0.55);
-  transition: all 0.25s;
-}
-.switch-btn.active {
-  color: #34d399;
-  text-shadow: 0 0 12px rgba(52, 211, 153, 0.4);
-}
-.btn-icon { font-size: 15px; }
-
-/* ═══ 表单容器 ═══ */
-.form-container {
-  min-height: 260px;
-  overflow: hidden;
-}
-.auth-form { padding: 0; }
-
-.form-desc {
-  font-size: 13px;
-  color: rgba(148, 163, 184, 0.5);
-  margin-bottom: 22px;
-  letter-spacing: 0.5px;
-}
-.field-group {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-.field label {
-  display: block;
-  font-size: 11.5px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 1.5px;
-  color: rgba(52, 211, 153, 0.7);
-  margin-bottom: 8px;
-}
-.input-box {
-  position: relative;
-}
-.box-icon {
-  position: absolute;
-  left: 14px; top: 50%; transform: translateY(-50%);
-  font-size: 14px;
-  opacity: 0.45;
-  pointer-events: none;
-  z-index: 1;
-}
-.input-box input {
-  width: 100%;
-  padding: 14px 44px 14px 42px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.02);
   color: #f1f5f9;
+  letter-spacing: -.3px;
+  margin-bottom: 6px;
+}
+.auth-sub {
+  font-size: 14px;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+/* ═══ 表单字段 ═══ */
+.auth-form .field {
+  margin-bottom: 18px;
+}
+.auth-form label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #94a3b8;
+  margin-bottom: 7px;
+  letter-spacing: .3px;
+}
+.auth-form input[type="text"],
+.auth-form input[type="password"] {
+  width: 100%;
+  height: 46px;
+  padding: 0 14px;
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 10px;
+  background: rgba(255,255,255,.03);
+  color: #e2e8f0;
   font-size: 15px;
   outline: none;
-  transition: all 0.25s;
+  transition: all .2s ease;
   box-sizing: border-box;
 }
-.input-box input::placeholder { color: rgba(71, 85, 105, 0.6); }
-.input-box input:focus {
-  border-color: rgba(16, 185, 129, 0.4);
-  background: rgba(16, 185, 129, 0.03);
-  box-shadow: 0 0 20px rgba(16, 185, 129, 0.08);
+.auth-form input::placeholder { color: #475569; font-size: 14px; }
+.auth-form input:focus {
+  border-color: #059669;
+  background: rgba(5,150,105,.04);
+  box-shadow: 0 0 0 3px rgba(5,150,105,.1);
 }
-.input-box input:disabled { opacity: 0.45; cursor: not-allowed; }
-.pwd-toggle {
-  position: absolute;
-  right: 10px; top: 50%; transform: translateY(-50%);
-  border: none;
-  background: none;
-  cursor: pointer;
-  font-size: 14px;
-  padding: 4px;
-  opacity: 0.4;
-  transition: opacity 0.2s;
-}
-.pwd-toggle:hover { opacity: 0.75; }
+.auth-form input:disabled { opacity: .45; cursor: not-allowed; }
 
-/* 底部发光线条 */
-.input-line {
-  position: absolute;
-  bottom: 0; left: 10%; right: 10%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, #059669, transparent);
-  opacity: 0;
-  transition: opacity 0.3s;
-}
-.input-box input:focus ~ .input-line { opacity: 0.6; }
+.pw-wrap { position: relative; }
+.pw-wrap input { padding-right: 42px; }
 
-/* 错误提示条 */
-.error-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.pw-toggle {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  border: none; background: none;
+  cursor: pointer; padding: 6px;
+  color: #64748b; transition: color .15s;
+  display: flex; align-items: center;
+}
+.pw-toggle:hover { color: #94a3b8; }
+
+/* 错误 */
+.err-msg {
   padding: 10px 14px;
-  margin-top: 18px;
-  border-radius: 8px;
-  background: rgba(239, 68, 68, 0.06);
-  border: 1px solid rgba(239, 68, 68, 0.15);
-  font-size: 13px;
+  border-radius: 9px;
+  background: rgba(220,38,38,.06);
+  border: 1px solid rgba(220,38,38,.12);
   color: #fca5a5;
-}
-.error-dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: #ef4444;
-  box-shadow: 0 0 6px #ef4444;
-  animation: pulse-dot 1.2s infinite;
-}
-@keyframes pulse-dot {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+  font-size: 13px;
+  margin-bottom: 16px;
 }
 
-/* ═══ 提交按钮（赛博风格） ═══ */
-.action-btn {
-  width: 100%;
-  padding: 14px;
-  border: none;
-  border-radius: 10px;
-  font-size: 15px;
-  font-weight: 800;
-  letter-spacing: 4px;
+/* ═══ 提交按钮 ═══ */
+.submit-btn {
+  width: 100%; height: 46px;
+  border: none; border-radius: 10px;
+  background: linear-gradient(135deg, #059669, #047857);
+  color: #fff;
+  font-size: 15px; font-weight: 600;
+  letter-spacing: 2px;
   cursor: pointer;
-  position: relative;
-  overflow: hidden;
-  margin-top: 22px;
   display: flex; align-items: center; justify-content: center;
-  gap: 8px;
-  transition: all 0.3s;
+  transition: all .25s;
+  box-shadow: 0 4px 16px rgba(5,150,105,.22);
+  margin-top: 4px;
 }
-.login-btn {
-  background: linear-gradient(135deg, #059669 0%, #047857 100%);
-  color: #ecfdf5;
-  box-shadow: 0 0 24px rgba(16, 185, 129, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-}
-.reg-btn {
-  background: linear-gradient(135deg, #0891b2 0%, #0e7490 100%);
-  color: #ecfeff;
-  box-shadow: 0 0 24px rgba(8, 145, 178, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-}
-.action-btn:hover:not(:disabled) {
+.submit-btn:hover:not(:disabled) {
+  filter: brightness(1.08);
   transform: translateY(-1px);
-  filter: brightness(1.1);
+  box-shadow: 0 6px 24px rgba(5,150,105,.32);
 }
-.action-btn:active:not(:disabled) { transform: translateY(0); }
-.action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn-glow {
-  position: absolute;
-  top: 0; left: -100%;
-  width: 60%; height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
-  animation: btn-shine 3s infinite;
-}
-@keyframes btn-shine {
-  to { left: 200%; }
-}
-.spinner-mini {
+.submit-btn:active:not(:disabled) { transform: translateY(0); }
+.submit-btn:disabled { opacity: .55; cursor: not-allowed; }
+
+.spin {
   width: 18px; height: 18px;
-  border: 2.5px solid rgba(255, 255, 255, 0.25);
+  border: 2.5px solid rgba(255,255,255,.25);
   border-top-color: #fff;
   border-radius: 50%;
-  animation: spin 0.65s linear infinite;
+  animation: spin .6s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ═══ 底部装饰 ═══ */
-.bottom-deco {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 22px;
-  padding-top: 18px;
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
+/* 切换提示 */
+.switch-hint {
+  text-align: center;
+  margin-top: 20px;
+  font-size: 13.5px;
+  color: #64748b;
 }
-.deco-line {
-  flex: 1;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.15), transparent);
+.switch-hint a {
+  color: #34d399;
+  text-decoration: none;
+  font-weight: 600;
+  margin-left: 3px;
+  transition: color .15s;
 }
-.deco-text {
-  font-size: 9.5px;
-  letter-spacing: 3px;
-  color: rgba(16, 185, 129, 0.25);
-  white-space: nowrap;
+.switch-hint a:hover { color: #6ee7b7; }
+
+/* ═══ 底部 ═══ */
+.auth-footer {
+  display: flex; align-items: center; gap: 6px;
+  justify-content: center;
+  margin-top: 26px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255,255,255,.045);
+  font-size: 11.5px;
+  color: #475569;
+  letter-spacing: .3px;
 }
+.auth-footer svg { flex-shrink: 0; opacity: .5; }
 
 /* ═══ 过渡动画 ═══ */
-.modal-fade-enter-active,
-.modal-fade-leave-active {
-  transition: all 0.3s ease;
-}
-.modal-fade-enter-from,
-.modal-fade-leave-to {
-  opacity: 0;
-}
-.modal-fade-enter-from .auth-modal,
-.modal-fade-leave-to .auth-modal {
-  transform: scale(0.95) translateY(16px);
+.auth-fade-enter-active { transition: all .3s ease; }
+.auth-fade-leave-active { transition: all .2s ease; }
+.auth-fade-enter-from, .auth-fade-leave-to { opacity: 0; }
+.auth-fade-enter-from .auth-card,
+.auth-fade-leave-to .auth-card {
+  transform: scale(.96) translateY(12px);
   opacity: 0;
 }
 
 /* 左右滑动 */
-.slide-left-enter-active,
-.slide-left-leave-active,
-.slide-right-enter-active,
-.slide-right-leave-active {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+.slide-l-enter-active, .slide-l-leave-active,
+.slide-r-enter-active, .slide-r-leave-active {
+  transition: all .28s cubic-bezier(.4,0,.2,1);
 }
-.slide-left-enter-from {
-  opacity: 0;
-  transform: translateX(36px);
-}
-.slide-left-leave-to {
-  opacity: 0;
-  transform: translateX(-36px);
-}
-.slide-right-enter-from {
-  opacity: 0;
-  transform: translateX(-36px);
-}
-.slide-right-leave-to {
-  opacity: 0;
-  transform: translateX(36px);
-}
+.slide-l-enter-from { opacity: 0; transform: translateX(24px); }
+.slide-l-leave-to   { opacity: 0; transform: translateX(-24px); }
+.slide-r-enter-from { opacity: 0; transform: translateX(-24px); }
+.slide-r-leave-to   { opacity: 0; transform: translateX(24px); }
 
-.err-fade-enter-active,
-.err-fade-leave-active { transition: all 0.25s; }
-.err-fade-enter-from,
-.err-fade-leave-to { opacity: 0; transform: translateY(-6px); }
+.msg-slide-enter-active, .msg-slide-leave-active { transition: all .2s; }
+.msg-slide-enter-from, .msg-slide-leave-to { opacity: 0; transform: translateY(-8px); }
 </style>
