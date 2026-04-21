@@ -7,15 +7,38 @@
       @success="onAuthSuccess"
     />
 
-    <!-- 背景 — 多色光晕 -->
+    <!-- 背景 — 多层深度 -->
     <div class="bg-layer" aria-hidden="true">
-      <div class="noise"></div>
-      <div class="glow glow--1"></div>
-      <div class="glow glow--2"></div>
-      <div class="glow glow--3"></div>
-      <div class="glow glow--4"></div>
-      <div class="glow glow--5"></div>
-      <div class="glow glow--6"></div>
+      <!-- SVG噪点纹理 -->
+      <svg class="noise-svg" aria-hidden="true">
+        <filter id="grain">
+          <feTurbulence
+            type="fractalNoise"
+            baseFrequency=".75"
+            numOctaves="4"
+            stitchTiles="stitch"
+          />
+        </filter>
+        <rect width="100%" height="100%" filter="url(#grain)" opacity=".035" />
+      </svg>
+      <!-- 主渐变底色 -->
+      <div class="bg-base"></div>
+      <!-- 对角光线 -->
+      <div class="bg-rays"></div>
+      <!-- 漂浮光斑 -->
+      <div class="bg-orb bg-orb--a"></div>
+      <div class="bg-orb bg-orb--b"></div>
+      <div class="bg-orb bg-orb--c"></div>
+      <div class="bg-orb bg-orb--d"></div>
+      <div class="bg-orb bg-orb--e"></div>
+      <!-- 网格线 -->
+      <div class="bg-grid"></div>
+      <!-- 漂浮微粒 -->
+      <canvas
+        ref="particleCanvasRef"
+        class="particle-canvas"
+        aria-hidden="true"
+      ></canvas>
     </div>
 
     <!-- 主内容 -->
@@ -23,7 +46,7 @@
       <!-- ══ 左侧品牌区 ═══ -->
       <section class="brand-col">
         <header class="top-mark">
-          <span class="mark-line"></span>
+          <span class="mark-dot"></span>
           <span class="mark-text">GREEN FINTECH</span>
         </header>
 
@@ -89,81 +112,190 @@
         </footer>
       </section>
 
-      <!-- ══ 右侧：3D 数据展示 ═══ -->
+      <!-- ══ 右侧：数据展示 ═══ -->
       <aside class="viz-col">
-
-        <!-- Spotlight 光效层 -->
-        <div class="spotlight-layer"></div>
-        <div class="spotlight-layer spotlight-layer--2"></div>
-        <div class="spotlight-layer spotlight-layer--3"></div>
-
-        <!-- Bento Grid 3D 卡片容器 -->
-        <div class="bento-grid">
-
-          <!-- ★★★ 核心大卡 — 油价预测（占据主要视觉区域）-->
-          <div class="bento-card bento-card--hero" @mousemove="onHeroTilt" @mouseleave="onHeroLeave" :style="heroStyle">
-            <div class="bc-spotlight" :style="heroSpotStyle"></div>
-            <div class="hero-inner">
-              <div class="hero-header">
-                <span class="hero-tag hero-tag--gru">GRU MODEL</span>
-                <span class="hero-meta">Brent Crude · Forecast</span>
-              </div>
-              <canvas ref="chartCanvasRef" class="hero-chart" width="400" height="200" aria-hidden="true"></canvas>
-              <div class="hero-footer">
-                <span class="hero-acc">Accuracy <strong>94.7%</strong></span>
-                <span class="hero-live"><i class="live-pulse"></i> LIVE</span>
-              </div>
+        <!-- 不规则卡片容器 -->
+        <div class="card-scatter">
+          <!-- ★ 主卡片 — 油价图表 -->
+          <div
+            class="data-card data-card--hero"
+            @mousemove="onHeroTilt"
+            @mouseleave="onHeroLeave"
+            :style="heroStyle"
+          >
+            <div class="dc-spotlight" :style="heroSpotStyle"></div>
+            <div class="dc-head">
+              <span class="dc-tag">GRU MODEL</span>
+              <span class="dc-sub">Brent Crude · Forecast</span>
             </div>
-            <!-- 边缘光 -->
-            <div class="hero-glow"></div>
-            <div class="bc-shine"></div>
+            <canvas
+              ref="chartCanvasRef"
+              class="dc-chart"
+              width="400"
+              height="200"
+              aria-hidden="true"
+            ></canvas>
+            <div class="dc-foot">
+              <span>Accuracy <strong>94.7%</strong></span>
+              <span class="dc-live"><i class="live-dot"></i> LIVE</span>
+            </div>
           </div>
 
-          <!-- 油价实时卡 — 琥珀橙 -->
-          <div class="bento-card bento-card--price" @mousemove="(e) => onCardTilt(e, 'price')" @mouseleave="() => onCardLeave('price')" :style="cardStyles.price">
-            <div class="bc-spotlight bc-spotlight--amber" :style="cardSpotStyles.price"></div>
-            <div class="bc-content">
-              <span class="bc-icon bc-icon--oil"></span>
-              <span class="bc-label">Oil Price</span>
-              <span class="bc-value">$78.42</span>
-              <span class="bc-delta bc-up">+2.34%</span>
-              <canvas ref="priceChartRef" class="bc-spark" width="120" height="28" aria-hidden="true"></canvas>
+          <!-- 油价实时卡 -->
+          <div
+            class="data-card data-card--oil"
+            @mousemove="(e) => onCardTilt(e, 'price')"
+            @mouseleave="() => onCardLeave('price')"
+            :style="cardStyles.price"
+          >
+            <div class="dc-spotlight" :style="cardSpotStyles.price"></div>
+            <div class="dc-content">
+              <div class="dc-head-row">
+                <span class="dc-label">Oil Price</span>
+                <span class="dc-live-badge"><i class="live-dot"></i> LIVE</span>
+              </div>
+              <div class="dc-price-row">
+                <span class="dc-big">$78.42</span>
+                <span class="dc-chg dc-chg--up">+2.34%</span>
+              </div>
+              <canvas
+                ref="priceChartRef"
+                class="dc-spark"
+                width="120"
+                height="28"
+                aria-hidden="true"
+              ></canvas>
+              <div class="dc-meta-row">
+                <span>Vol: 2.4M</span>
+                <span>$76.8 — $79.2</span>
+              </div>
             </div>
-            <div class="bc-shine"></div>
           </div>
 
-          <!-- 新能源股票卡 — 翠绿 -->
-          <div class="bento-card bento-card--stock" @mousemove="(e) => onCardTilt(e, 'stock')" @mouseleave="() => onCardLeave('stock')" :style="cardStyles.stock">
-            <div class="bc-spotlight bc-spotlight--green" :style="cardSpotStyles.stock"></div>
-            <div class="bc-content">
-              <span class="bc-icon bc-icon--bolt"></span>
-              <span class="bc-label">New Energy</span>
-              <div class="bc-list">
-                <div class="bc-item">
-                  <span>CSI新能源</span><em>3,847</em><small class="bc-up bc-up--green">+1.82%</small>
+          <!-- 新能源股票卡 -->
+          <div
+            class="data-card data-card--energy"
+            @mousemove="(e) => onCardTilt(e, 'stock')"
+            @mouseleave="() => onCardLeave('stock')"
+            :style="cardStyles.stock"
+          >
+            <div class="dc-spotlight" :style="cardSpotStyles.stock"></div>
+            <div class="dc-content">
+              <div class="dc-head-row">
+                <span class="dc-label">New Energy</span>
+                <span class="dc-badge dc-badge--up">↗ +1.4%</span>
+              </div>
+              <div class="dc-rows">
+                <div class="dc-row">
+                  <span>CSI新能源</span>
+                  <em>3,847</em>
+                  <small class="dc-up">+1.82%</small>
                 </div>
-                <div class="bc-item">
-                  <span>光伏产业</span><em>4,126</em><small class="bc-up bc-up--green">+0.95%</small>
+                <div class="dc-row">
+                  <span>光伏产业</span>
+                  <em>4,126</em>
+                  <small class="dc-up">+0.95%</small>
+                </div>
+                <div class="dc-row">
+                  <span>新能源车</span>
+                  <em>2,934</em>
+                  <small class="dc-down">−0.42%</small>
+                </div>
+              </div>
+              <div class="dc-spark-inline">
+                <svg viewBox="0 0 80 22" preserveAspectRatio="none">
+                  <polyline
+                    fill="none"
+                    stroke="#34d399"
+                    stroke-width="1.3"
+                    points="0,18 12,15 24,17 36,10 48,12 60,6 72,8 80,5"
+                  />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <!-- 债券/利率卡 -->
+          <div
+            class="data-card data-card--bond"
+            @mousemove="(e) => onCardTilt(e, 'bond')"
+            @mouseleave="() => onCardLeave('bond')"
+            :style="cardStyles.bond"
+          >
+            <div class="dc-spotlight" :style="cardSpotStyles.bond"></div>
+            <div class="dc-content">
+              <div class="dc-head-row">
+                <span class="dc-label">Bond / Rate</span>
+                <span class="dc-badge dc-badge--stable">Stable</span>
+              </div>
+              <div class="dc-rows">
+                <div class="dc-row">
+                  <span>10Y国债</span><em>2.34%</em
+                  ><small class="dc-rate-down">−2bp</small>
+                </div>
+                <div class="dc-row">
+                  <span>SHIBOR</span><em>1.68%</em
+                  ><small class="dc-rate-flat">0bp</small>
+                </div>
+                <div class="dc-row">
+                  <span>LPR 1Y</span><em>3.45%</em
+                  ><small class="dc-rate-down">−5bp</small>
+                </div>
+              </div>
+              <div class="dc-rate-bar">
+                <div class="rate-bar-track">
+                  <div class="rate-bar-fill" style="width: 65%"></div>
                 </div>
               </div>
             </div>
-            <div class="bc-shine"></div>
           </div>
 
-          <!-- 债券/利率卡 — 玫红 -->
-          <div class="bento-card bento-card--bond" @mousemove="(e) => onCardTilt(e, 'bond')" @mouseleave="() => onCardLeave('bond')" :style="cardStyles.bond">
-            <div class="bc-spotlight bc-spotlight--pink" :style="cardSpotStyles.bond"></div>
-            <div class="bc-content">
-              <span class="bc-icon bc-icon--rate"></span>
-              <span class="bc-label">Bond / Rate</span>
-              <div class="bc-list">
-                <div class="bc-item"><span>10Y国债</span><em>2.34%</em></div>
-                <div class="bc-item"><span>SHIBOR</span><em>1.68%</em></div>
+          <!-- AI 分析卡 -->
+          <div
+            class="data-card data-card--ai"
+            @mousemove="(e) => onCardTilt(e, 'ai')"
+            @mouseleave="() => onCardLeave('ai')"
+            :style="cardStyles.ai"
+          >
+            <div class="dc-spotlight" :style="cardSpotStyles.ai"></div>
+            <div class="dc-content">
+              <div class="dc-head-row">
+                <span class="dc-label">AI Insight</span>
+                <span class="dc-live-badge"
+                  ><i class="live-dot live-dot--green"></i> Active</span
+                >
+              </div>
+              <div class="dc-ai-grid">
+                <div class="ai-metric">
+                  <span class="ai-metric-label">Confidence</span>
+                  <span class="ai-metric-val">94.7%</span>
+                </div>
+                <div class="ai-metric">
+                  <span class="ai-metric-label">Model</span>
+                  <span class="ai-metric-val">GRU+LSTM</span>
+                </div>
+              </div>
+              <div class="dc-signals">
+                <div class="signal-item">
+                  <span class="signal-dot signal-dot--buy"></span
+                  ><span>Bullish — Brent</span>
+                </div>
+                <div class="signal-item">
+                  <span class="signal-dot signal-dot--hold"></span
+                  ><span>Hold — Green Bond</span>
+                </div>
+              </div>
+              <div class="dc-ai-progress">
+                <div class="ai-bar-track">
+                  <div
+                    class="ai-bar-fill"
+                    :style="{ width: aiProgress + '%' }"
+                  ></div>
+                </div>
+                <span class="ai-bar-label">Analysis {{ aiProgress }}%</span>
               </div>
             </div>
-            <div class="bc-shine"></div>
           </div>
-
         </div>
       </aside>
     </main>
@@ -180,65 +312,140 @@ const router = useRouter();
 const showAuth = ref(false);
 const priceChartRef = ref<HTMLCanvasElement | null>(null);
 const chartCanvasRef = ref<HTMLCanvasElement | null>(null);
+const particleCanvasRef = ref<HTMLCanvasElement | null>(null);
 const currentTime = ref("");
 
-// ===== 3D 卡片倾斜交互 + 鼠标光晕 =====
+// ===== 3D 卡片倾斜 + 鼠标光晕 =====
 const heroStyle = ref<Record<string, string>>({});
 const heroSpotStyle = ref<Record<string, string>>({});
 const cardStyles = reactive({
   price: <Record<string, string>>{},
   stock: <Record<string, string>>{},
   bond: <Record<string, string>>{},
+  ai: <Record<string, string>>{},
 });
 const cardSpotStyles = reactive({
   price: <Record<string, string>>{},
   stock: <Record<string, string>>{},
   bond: <Record<string, string>>{},
+  ai: <Record<string, string>>{},
 });
+const aiProgress = ref(0);
 
 function onHeroTilt(e: MouseEvent) {
-  const el = (e.currentTarget as HTMLElement);
+  const el = e.currentTarget as HTMLElement;
   const r = el.getBoundingClientRect();
-  const x = e.clientX - r.left, y = e.clientY - r.top;
-  const cx = r.width / 2, cy = r.height / 2;
-  const rx = ((y - cy) / cy) * -12;
-  const ry = ((x - cx) / cx) * 12;
+  const x = e.clientX - r.left,
+    y = e.clientY - r.top;
+  const cx = r.width / 2,
+    cy = r.height / 2;
+  const rx = ((y - cy) / cy) * -6;
+  const ry = ((x - cx) / cx) * 6;
   heroStyle.value = {
-    transform: `perspective(1000px) rotateX(${rx}deg) rotateY(${ry}deg) scale3d(1.02,1.02,1.02)`,
+    transform: `perspective(900px) rotateX(${rx}deg) rotateY(${ry}deg)`,
   };
   heroSpotStyle.value = {
     opacity: "1",
-    background: `radial-gradient(circle 150px at ${x}px ${y}px, rgba(99,102,241,.12), transparent)`,
+    background: `radial-gradient(circle 200px at ${x}px ${y}px, rgba(99,102,241,.08), transparent)`,
   };
 }
 function onHeroLeave() {
-  heroStyle.value = { transition: "transform .5s ease", transform: "perspective(1000px) rotateX(0) rotateY(0)" };
-  heroSpotStyle.value = { opacity: "0", transition: "opacity .4s ease" };
+  heroStyle.value = {
+    transition: "transform .6s cubic-bezier(.22,1,.36,1)",
+    transform: "perspective(900px) rotateX(0) rotateY(0)",
+  };
+  heroSpotStyle.value = { opacity: "0", transition: "opacity .5s" };
 }
 
-function onCardTilt(e: MouseEvent, key: "price" | "stock" | "bond") {
-  const el = (e.currentTarget as HTMLElement);
+function onCardTilt(e: MouseEvent, key: "price" | "stock" | "bond" | "ai") {
+  const el = e.currentTarget as HTMLElement;
   const r = el.getBoundingClientRect();
-  const x = e.clientX - r.left, y = e.clientY - r.top;
-  const cx = r.width / 2, cy = r.height / 2;
-  const rx = ((y - cy) / cy) * -14;
-  const ry = ((x - cx) / cx) * 14;
+  const x = e.clientX - r.left,
+    y = e.clientY - r.top;
+  const cx = r.width / 2,
+    cy = r.height / 2;
+  const rx = ((y - cy) / cy) * -8;
+  const ry = ((x - cx) / cx) * 8;
   cardStyles[key] = {
-    transform: `perspective(800px) rotateX(${rx}deg) rotateY(${ry}deg) scale3d(1.05,1.05,1.05)`,
+    transform: `perspective(700px) rotateX(${rx}deg) rotateY(${ry}deg) translateY(-2px)`,
   };
   const colors: Record<string, string> = {
-    price: "rgba(245,158,11,.15)",
-    stock: "rgba(16,185,129,.15)",
-    bond: "rgba(244,114,182,.15)",
+    price: "rgba(245,158,11,.10)",
+    stock: "rgba(16,185,129,.10)",
+    bond: "rgba(244,114,182,.10)",
+    ai: "rgba(139,92,246,.10)",
   };
   cardSpotStyles[key] = {
     opacity: "1",
-    background: `radial-gradient(circle 120px at ${x}px ${y}px, ${colors[key]}, transparent)`,
+    background: `radial-gradient(circle 140px at ${x}px ${y}px, ${colors[key]}, transparent)`,
   };
 }
-function onCardLeave(key: "price" | "stock" | "bond") {
-  cardStyles[key] = { transition: "transform .4s ease", transform: "perspective(800px) rotateX(0) rotateY(0)" };
-  cardSpotStyles[key] = { opacity: "0", transition: "opacity .4s ease" };
+function onCardLeave(key: "price" | "stock" | "bond" | "ai") {
+  cardStyles[key] = {
+    transition: "transform .5s cubic-bezier(.22,1,.36,1)",
+    transform: "perspective(700px) rotateX(0) rotateY(0)",
+  };
+  cardSpotStyles[key] = { opacity: "0", transition: "opacity .4s" };
+}
+
+// ===== 背景微粒 =====
+let particleAnimId: number | null = null;
+function initParticles() {
+  const c = particleCanvasRef.value;
+  if (!c) return;
+  const ctx = c.getContext("2d");
+  if (!ctx) return;
+  const dpr = window.devicePixelRatio || 1;
+  function resize() {
+    c.width = window.innerWidth * dpr;
+    c.height = window.innerHeight * dpr;
+    c.style.width = window.innerWidth + "px";
+    c.style.height = window.innerHeight + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  resize();
+  window.addEventListener("resize", resize);
+
+  const particles: Array<{
+    x: number;
+    y: number;
+    r: number;
+    vx: number;
+    vy: number;
+    a: number;
+    phase: number;
+  }> = [];
+  for (let i = 0; i < 60; i++) {
+    particles.push({
+      x: Math.random() * window.innerWidth,
+      y: Math.random() * window.innerHeight,
+      r: Math.random() * 1.2 + 0.3,
+      vx: (Math.random() - 0.5) * 0.15,
+      vy: (Math.random() - 0.5) * 0.1 - 0.05,
+      a: Math.random() * 0.3 + 0.05,
+      phase: Math.random() * Math.PI * 2,
+    });
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+    const t = Date.now() / 1000;
+    particles.forEach((p) => {
+      p.x += p.vx + Math.sin(t + p.phase) * 0.08;
+      p.y += p.vy;
+      if (p.x < -10) p.x = window.innerWidth + 10;
+      if (p.x > window.innerWidth + 10) p.x = -10;
+      if (p.y < -10) p.y = window.innerHeight + 10;
+      if (p.y > window.innerHeight + 10) p.y = -10;
+      const flicker = 0.5 + Math.sin(t * 1.5 + p.phase) * 0.5;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(148,180,220,${p.a * flicker})`;
+      ctx.fill();
+    });
+    particleAnimId = requestAnimationFrame(draw);
+  }
+  draw();
 }
 
 // ===== 时钟 =====
@@ -251,7 +458,7 @@ function updateClock() {
   currentTime.value = h + ":" + m + ":" + s;
 }
 
-// ===== 迷你油价折线图（琥珀橙） =====
+// ===== 迷你油价折线图 =====
 function drawPriceSparkline() {
   const c = priceChartRef.value;
   if (!c) return;
@@ -283,272 +490,421 @@ function drawPriceSparkline() {
   ctx.lineTo(5, h - 5);
   ctx.closePath();
   const grad = ctx.createLinearGradient(0, 0, 0, h);
-  grad.addColorStop(0, "rgba(245,158,11,0.25)");
+  grad.addColorStop(0, "rgba(245,158,11,0.2)");
   grad.addColorStop(1, "rgba(245,158,11,0)");
   ctx.fillStyle = grad;
   ctx.fill();
 }
 
-// ===== 主折线图 — 多色渐变 =====
+// ===== 主图表 — 暗夜雷达风 =====
 let chartAnimId: number | null = null;
 let chartProgress = 0;
-
 const OIL_DATA = {
-  prices: [
-    82.4, 79.8, 76.3, 72.1, 71.2,
-    74.5, 78.0, 81.6, 84.3, 82.1,
-    80.4, 83.7, 85.9, 87.1, 87.3,
+  actual: [82.4, 79.8, 76.3, 72.1, 71.2, 74.5, 78.0, 81.6, 84.3, 82.1],
+  predicted: [82.1, 80.4, 83.7, 85.9, 87.1, 87.3],
+  wti: [
+    78.2, 76.1, 73.8, 69.5, 68.7, 71.8, 75.3, 78.9, 81.5, 79.3, 77.6, 81.2,
+    83.4, 84.6, 84.9,
   ],
-  predictStartIdx: 9,
 };
 
 function drawMainChart() {
-  const c = chartCanvasRef.value; if (!c) return;
-  const ctx = c.getContext("2d"); if (!ctx) return;
-
+  const c = chartCanvasRef.value;
+  if (!c) return;
+  const ctx = c.getContext("2d");
+  if (!ctx) return;
   const dpr = window.devicePixelRatio || 1;
-  const W = 440, H = 260;
-  c.width = W * dpr; c.height = H * dpr;
-  c.style.width = W + "px"; c.style.height = H + "px";
+  const W = 520,
+    H = 300;
+  c.width = W * dpr;
+  c.height = H * dpr;
+  c.style.width = W + "px";
+  c.style.height = H + "px";
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-  const ox = W * 0.48, oy = H * 0.78;
-  const depthY = 55;
-  const gridCols = 7, gridRows = 4;
-
-  const pts = OIL_DATA.prices;
-  const n = pts.length;
-  const minV = Math.min(...pts) - 3;
-  const maxV = Math.max(...pts) + 4;
+  const allPrices = [
+    ...OIL_DATA.actual,
+    ...OIL_DATA.predicted,
+    ...OIL_DATA.wti,
+  ];
+  const minV = Math.min(...allPrices) - 4;
+  const maxV = Math.max(...allPrices) + 5;
   const range = maxV - minV || 1;
-
+  const pad = { top: 28, right: 50, bottom: 32, left: 48 };
+  const chartW = W - pad.left - pad.right;
+  const chartH = H - pad.top - pad.bottom;
+  const time = Date.now() / 1000;
   ctx.clearRect(0, 0, W, H);
 
-  function proj(x2d: number, yVal: number, zDepth = 0): { x: number; y: number } {
-    const hPx = ((yVal - minV) / range) * 110;
-    const zScale = 1 - zDepth * 0.25;
-    return {
-      x: ox + (x2d - W / 2) * zScale,
-      y: oy - hPx * zScale - zDepth * depthY,
-    };
-  }
+  // 扫描线
+  const scanY = (time * 40) % H;
+  const scanGrad = ctx.createLinearGradient(0, scanY - 30, 0, scanY + 30);
+  scanGrad.addColorStop(0, "transparent");
+  scanGrad.addColorStop(0.5, "rgba(59,130,246,.025)");
+  scanGrad.addColorStop(1, "transparent");
+  ctx.fillStyle = scanGrad;
+  ctx.fillRect(0, 0, W, H);
 
-  /* ─── 3D网格底座 ─── */
-  const gW = 300, gH = 130;
-  ctx.save();
-  for (let r = 0; r <= gridRows; r++) {
-    const ratio = r / gridRows;
-    const yBase = oy + (ratio - 1) * gH * 0.6;
-    const leftX = ox - gW / 2 * (1 - ratio * 0.35);
-    const rightX = ox + gW / 2 * (1 - ratio * 0.35);
+  // 网格
+  const hLines = 5;
+  for (let i = 0; i <= hLines; i++) {
+    const y = pad.top + (chartH / hLines) * i;
     ctx.beginPath();
-    ctx.moveTo(leftX, yBase);
-    ctx.lineTo(rightX, yBase);
-    ctx.strokeStyle = `rgba(59,130,246,${0.04 + ratio * 0.02})`;
-    ctx.lineWidth = 0.6;
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(W - pad.right, y);
+    ctx.strokeStyle =
+      i === hLines ? "rgba(148,163,184,.10)" : "rgba(148,163,184,.04)";
+    ctx.lineWidth = i === hLines ? 0.7 : 0.4;
+    ctx.stroke();
+    const priceVal = maxV - (i / hLines) * range;
+    ctx.font = "10px 'SF Mono','Cascadia Code',monospace";
+    ctx.fillStyle = "rgba(148,163,184,.25)";
+    ctx.textAlign = "right";
+    ctx.fillText(`$${priceVal.toFixed(0)}`, pad.left - 8, y + 3);
+  }
+  const vLines = 6;
+  for (let i = 0; i <= vLines; i++) {
+    const x = pad.left + (chartW / vLines) * i;
+    ctx.beginPath();
+    ctx.moveTo(x, pad.top);
+    ctx.lineTo(x, H - pad.bottom);
+    ctx.strokeStyle = "rgba(148,163,184,.025)";
+    ctx.lineWidth = 0.4;
     ctx.stroke();
   }
-  for (let col = 0; col <= gridCols; col++) {
-    const cxRatio = col / gridCols;
-    const bottomX = ox - gW / 2 + cxRatio * gW;
-    const topX = ox - gW / 2 * 0.65 + cxRatio * gW * 0.65;
-    const topY = oy - gH * 0.6;
-    ctx.beginPath();
-    ctx.moveTo(bottomX, oy);
-    ctx.lineTo(topX, topY);
-    ctx.strokeStyle = `rgba(99,179,237,${0.03 + (1 - cxRatio) * 0.03})`;
-    ctx.lineWidth = 0.5;
-    ctx.stroke();
-  }
-  ctx.restore();
 
-  /* ─── 数据点3D坐标 ─── */
-  const drawN = Math.max(2, Math.floor(chartProgress * n));
-  const xStep = gW / (n - 1);
-  const pts3d = [];
-  for (let i = 0; i < n; i++) {
-    const x2d = ox - gW / 2 + i * xStep;
-    const zD = Math.abs(i / (n - 1) - 0.5) * 0.15;
-    pts3d.push(proj(x2d, pts[i], zD));
+  const brentAll = [...OIL_DATA.actual, ...OIL_DATA.predicted];
+  const wtiAll = OIL_DATA.wti;
+  const totalN = brentAll.length;
+  const drawN = Math.max(2, Math.floor(chartProgress * totalN));
+  const wtiDrawN = Math.min(drawN, wtiAll.length);
+
+  function toX(i: number, len: number) {
+    return pad.left + (i / (len - 1)) * chartW;
+  }
+  function toY(val: number) {
+    return pad.top + ((maxV - val) / range) * chartH;
   }
 
-  /* 面积填充 — 蓝→青→紫渐变 */
-  if (drawN >= 2) {
+  function drawLine(
+    data: number[],
+    maxI: number,
+    color: string,
+    glowColor: string,
+    fillC1: string,
+    fillC2: string,
+    lineW: number,
+    isPrimary: boolean,
+    nodeColor: string,
+  ) {
+    if (maxI < 2) return;
+    const pts: Array<{ x: number; y: number }> = [];
+    for (let i = 0; i < maxI && i < data.length; i++)
+      pts.push({ x: toX(i, data.length), y: toY(data[i]) });
+
+    // 面积
     ctx.save();
     ctx.beginPath();
-    ctx.moveTo(pts3d[0].x, pts3d[0].y);
-    for (let i = 1; i < drawN; i++) {
-      if (i < drawN - 1) {
-        const mx = (pts3d[i].x + pts3d[i + 1].x) / 2;
-        const my = (pts3d[i].y + pts3d[i + 1].y) / 2;
-        ctx.quadraticCurveTo(pts3d[i].x, pts3d[i].y, mx, my);
-      } else {
-        ctx.lineTo(pts3d[i].x, pts3d[i].y);
-      }
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) {
+      if (i < pts.length - 1) {
+        const mx = (pts[i].x + pts[i + 1].x) / 2;
+        const my = (pts[i].y + pts[i + 1].y) / 2;
+        ctx.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
+      } else ctx.lineTo(pts[i].x, pts[i].y);
     }
-    const lastP = pts3d[drawN - 1];
-    const firstP = pts3d[0];
-    ctx.lineTo(lastP.x, oy);
-    ctx.lineTo(ox + gW * 0.45, oy);
-    ctx.lineTo(ox - gW * 0.45, oy);
-    ctx.lineTo(firstP.x, oy);
+    ctx.lineTo(pts[pts.length - 1].x, H - pad.bottom);
+    ctx.lineTo(pts[0].x, H - pad.bottom);
     ctx.closePath();
-    const ag = ctx.createLinearGradient(0, oy - 120, 0, oy);
-    ag.addColorStop(0, "rgba(59,130,246,.12)");
-    ag.addColorStop(OIL_DATA.predictStartIdx / n, "rgba(99,179,237,.06)");
-    ag.addColorStop(.65, "rgba(139,92,246,.05)");
-    ag.addColorStop(1, "rgba(139,92,246,.005)");
-    ctx.fillStyle = ag;
-    ctx.fill();
-    ctx.globalCompositeOperation = "lighter";
-    const glowG = ctx.createLinearGradient(0, oy - 100, 0, oy - 40);
-    glowG.addColorStop(0, "rgba(59,130,246,.04)");
-    glowG.addColorStop(1, "transparent");
-    ctx.fillStyle = glowG;
+    const fg = ctx.createLinearGradient(0, pad.top, 0, H - pad.bottom);
+    fg.addColorStop(0, fillC1);
+    fg.addColorStop(1, fillC2);
+    ctx.fillStyle = fg;
     ctx.fill();
     ctx.restore();
-  }
 
-  /* 主曲线 — 蓝→青→紫→玫红渐变 */
-  if (drawN >= 2) {
-    ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(pts3d[0].x, pts3d[0].y);
-    for (let i = 1; i < drawN; i++) {
-      if (i < drawN - 1) {
-        const mx = (pts3d[i].x + pts3d[i + 1].x) / 2;
-        const my = (pts3d[i].y + pts3d[i + 1].y) / 2;
-        ctx.quadraticCurveTo(pts3d[i].x, pts3d[i].y, mx, my);
-      } else {
-        ctx.lineTo(pts3d[i].x, pts3d[i].y);
+    // 发光
+    if (isPrimary) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) {
+        if (i < pts.length - 1) {
+          const mx = (pts[i].x + pts[i + 1].x) / 2;
+          const my = (pts[i].y + pts[i + 1].y) / 2;
+          ctx.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
+        } else ctx.lineTo(pts[i].x, pts[i].y);
       }
+      ctx.strokeStyle = glowColor;
+      ctx.lineWidth = 12;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.filter = "blur(6px)";
+      ctx.stroke();
+      ctx.filter = "none";
+      ctx.restore();
     }
 
+    // 主线
     ctx.save();
-    ctx.translate(2, 5);
-    ctx.strokeStyle = "rgba(0,0,0,.30)";
-    ctx.lineWidth = 8;
-    ctx.lineCap = "round"; ctx.lineJoin = "round";
-    ctx.filter = "blur(5px)";
-    ctx.stroke(); ctx.restore();
-
-    ctx.strokeStyle = "rgba(59,130,246,.13)";
-    ctx.lineWidth = 10;
-    ctx.lineCap = "round"; ctx.lineJoin = "round";
-    ctx.filter = "blur(3px)";
-    ctx.stroke();
-    ctx.filter = "none";
-
-    const grad = ctx.createLinearGradient(
-      pts3d[0].x, pts3d[0].y,
-      pts3d[n - 1].x, pts3d[n - 1].y
-    );
-    grad.addColorStop(0, "#60a5fa");
-    grad.addColorStop(.25, "#22d3ee");
-    grad.addColorStop(.50, "#818cf8");
-    grad.addColorStop(.75, "#a78bfa");
-    grad.addColorStop(1, "#f472b6");
-
-    ctx.strokeStyle = grad;
-    ctx.lineWidth = 2.8;
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) {
+      if (i < pts.length - 1) {
+        const mx = (pts[i].x + pts[i + 1].x) / 2;
+        const my = (pts[i].y + pts[i + 1].y) / 2;
+        ctx.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
+      } else ctx.lineTo(pts[i].x, pts[i].y);
+    }
+    const lg = ctx.createLinearGradient(pts[0].x, 0, pts[pts.length - 1].x, 0);
+    lg.addColorStop(0, color);
+    lg.addColorStop(1, isPrimary ? "#c084fc" : color);
+    ctx.strokeStyle = lg;
+    ctx.lineWidth = lineW;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     ctx.stroke();
 
+    // 高光
     ctx.save();
-    ctx.translate(-0.5, -1);
-    ctx.strokeStyle = "rgba(255,255,255,.20)";
-    ctx.lineWidth = 1.2;
-    ctx.lineCap = "round";
-    ctx.filter = "blur(0.4px)";
+    ctx.translate(0, -0.8);
+    ctx.strokeStyle = "rgba(255,255,255,.10)";
+    ctx.lineWidth = 0.7;
+    ctx.filter = "blur(0.3px)";
     ctx.beginPath();
-    ctx.moveTo(pts3d[0].x, pts3d[0].y);
-    for (let i = 1; i < drawN; i++) {
-      if (i < drawN - 1) {
-        const mx = (pts3d[i].x + pts3d[i + 1].x) / 2;
-        const my = (pts3d[i].y + pts3d[i + 1].y) / 2;
-        ctx.quadraticCurveTo(pts3d[i].x, pts3d[i].y, mx, my);
-      } else {
-        ctx.lineTo(pts3d[i].x, pts3d[i].y);
-      }
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) {
+      if (i < pts.length - 1) {
+        const mx = (pts[i].x + pts[i + 1].x) / 2;
+        const my = (pts[i].y + pts[i + 1].y) / 2;
+        ctx.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
+      } else ctx.lineTo(pts[i].x, pts[i].y);
     }
     ctx.stroke();
     ctx.restore();
     ctx.restore();
+
+    // 粒子
+    if (isPrimary && chartProgress >= 1) {
+      for (let i = 0; i < 6; i++) {
+        const t = (time * 0.35 + i * 0.17) % 1;
+        const idx = Math.floor(t * (pts.length - 1));
+        const frac = t * (pts.length - 1) - idx;
+        if (idx >= pts.length - 1) continue;
+        const px = pts[idx].x + (pts[idx + 1].x - pts[idx].x) * frac;
+        const py = pts[idx].y + (pts[idx + 1].y - pts[idx].y) * frac;
+        const pr = 1.2 + Math.sin(time * 4 + i) * 0.6;
+        const alpha = 0.25 + Math.sin(time * 3 + i * 1.3) * 0.15;
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(px, py, pr + 3, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(96,165,250,${alpha * 0.12})`;
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(px, py, pr, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(180,210,255,${alpha})`;
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    // 节点
+    if (chartProgress >= 1) {
+      const nodeIdxs = isPrimary
+        ? [
+            0,
+            Math.floor(data.length * 0.25),
+            Math.floor(data.length * 0.5),
+            Math.floor(data.length * 0.75),
+            data.length - 1,
+          ]
+        : [0, Math.floor(data.length * 0.5), data.length - 1];
+      nodeIdxs.forEach((idx) => {
+        if (idx >= data.length || idx >= pts.length) return;
+        const p = pts[idx];
+        const isEnd = idx === data.length - 1;
+        if (isEnd && isPrimary) {
+          const pulseR = 7 + Math.sin(time * 3.5) * 2.5;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, pulseR, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(192,132,252,${0.12 + Math.sin(time * 3.5) * 0.06})`;
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, pulseR + 5, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(192,132,252,${0.04 + Math.sin(time * 2.5) * 0.02})`;
+          ctx.lineWidth = 0.7;
+          ctx.stroke();
+        }
+        const br = isEnd ? 3.5 : 2;
+        const bg = ctx.createRadialGradient(
+          p.x - br * 0.3,
+          p.y - br * 0.3,
+          0,
+          p.x,
+          p.y,
+          br,
+        );
+        bg.addColorStop(0, "#ffffff");
+        bg.addColorStop(0.4, nodeColor);
+        bg.addColorStop(1, "rgba(0,0,0,.3)");
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, br, 0, Math.PI * 2);
+        ctx.fillStyle = bg;
+        ctx.fill();
+      });
+
+      if (isPrimary) {
+        const ep = pts[pts.length - 1];
+        const lp = data[data.length - 1],
+          pp = data[data.length - 2];
+        const chg = lp - pp,
+          chgP = (chg / pp) * 100,
+          isUp = chg >= 0;
+        const ly = ep.y - 18 - Math.sin(time * 2) * 1.5;
+        ctx.save();
+        const lblW = 58,
+          lblH = 28,
+          lblX = ep.x - lblW / 2,
+          lblY = ly - 8;
+        ctx.fillStyle = "rgba(10,18,36,.88)";
+        ctx.strokeStyle = "rgba(148,163,184,.12)";
+        ctx.lineWidth = 0.7;
+        ctx.beginPath();
+        ctx.roundRect(lblX, lblY, lblW, lblH, 5);
+        ctx.fill();
+        ctx.stroke();
+        ctx.font = "bold 12px 'SF Mono','Cascadia Code',monospace";
+        ctx.textAlign = "center";
+        ctx.fillStyle = "#f1f5f9";
+        ctx.fillText(`$${lp.toFixed(1)}`, ep.x, ly + 2);
+        ctx.font = "bold 9px 'SF Mono','Cascadia Code',monospace";
+        ctx.fillStyle = isUp ? "#34d399" : "#f87171";
+        ctx.fillText(`${isUp ? "+" : ""}${chgP.toFixed(1)}%`, ep.x, ly + 13);
+        ctx.restore();
+      }
+    }
   }
 
-  /* 数据节点 — 各自颜色 */
+  // 预测分界
+  if (chartProgress >= 0.6) {
+    const divIdx = OIL_DATA.actual.length - 1;
+    if (divIdx < drawN && divIdx < brentAll.length) {
+      const dx = toX(divIdx, brentAll.length);
+      ctx.save();
+      const bandW = 18;
+      const bandGrad = ctx.createLinearGradient(dx - bandW, 0, dx + bandW, 0);
+      bandGrad.addColorStop(0, "transparent");
+      bandGrad.addColorStop(0.5, "rgba(139,92,246,.05)");
+      bandGrad.addColorStop(1, "transparent");
+      ctx.fillStyle = bandGrad;
+      ctx.fillRect(dx - bandW, pad.top, bandW * 2, chartH);
+      ctx.setLineDash([3, 4]);
+      ctx.strokeStyle = "rgba(139,92,246,.15)";
+      ctx.lineWidth = 0.7;
+      ctx.beginPath();
+      ctx.moveTo(dx, pad.top);
+      ctx.lineTo(dx, H - pad.bottom);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.font = "bold 8px 'SF Mono','Cascadia Code',monospace";
+      ctx.textAlign = "center";
+      ctx.fillStyle = "rgba(139,92,246,.35)";
+      ctx.fillText("FORECAST", dx, pad.top - 6);
+      ctx.restore();
+    }
+  }
+
+  // WTI
+  drawLine(
+    wtiAll,
+    wtiDrawN,
+    "rgba(251,191,36,.40)",
+    "rgba(251,191,36,.03)",
+    "rgba(251,191,36,.03)",
+    "rgba(251,191,36,.001)",
+    1.4,
+    false,
+    "#fbbf24",
+  );
+  // Brent
+  drawLine(
+    brentAll,
+    drawN,
+    "#60a5fa",
+    "rgba(96,165,250,.08)",
+    "rgba(96,165,250,.07)",
+    "rgba(96,165,250,.001)",
+    2.2,
+    true,
+    "#60a5fa",
+  );
+
+  // 图例
   if (chartProgress >= 1) {
-    const time = Date.now() / 1000;
-    const keyIdx = [0, 4, 8, n - 1];
-    keyIdx.forEach((idx) => {
-      if (idx >= n || idx >= drawN) return;
-      const p = pts3d[idx];
-      const isEndpoint = idx === n - 1;
-      const scale = isEndpoint ? 1.2 : (0.7 + Math.abs(idx / (n - 1) - 0.5) * 0.6);
-      if (isEndpoint) {
-        const pr = 6 + Math.sin(time * 3) * 2.5;
-        ctx.beginPath(); ctx.arc(p.x, p.y, pr * scale + 5, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(244,114,182,${0.10 + Math.sin(time * 3) * 0.07})`;
-        ctx.lineWidth = 1; ctx.stroke();
-      }
-      const ballR = (isEndpoint ? 5 : 3.5) * scale;
-      const bx = p.x - ballR * 0.3, by = p.y - ballR * 0.3;
-      const bg = ctx.createRadialGradient(bx, by, 0, p.x, p.y, ballR);
-      if (idx <= OIL_DATA.predictStartIdx) {
-        bg.addColorStop(0, "#ffffff");
-        bg.addColorStop(.35, "#60a5fa");
-        bg.addColorStop(1, "#1e3a8a");
-      } else {
-        bg.addColorStop(0, "#ffffff");
-        bg.addColorStop(.35, "#c084fc");
-        bg.addColorStop(1, "#701a75");
-      }
-      ctx.beginPath(); ctx.arc(p.x, p.y, ballR, 0, Math.PI * 2);
-      ctx.fillStyle = bg; ctx.fill();
-    });
-
-    const ep = pts3d[n - 1];
-    const lp = pts[n - 1], pp = pts[n - 2];
-    const chg = lp - pp, chgP = (chg / pp) * 100, isUp = chg >= 0;
-    const labelY = ep.y - 18 - Math.sin(time * 2) * 2;
-    ctx.font = "bold 14px system-ui";
-    ctx.textAlign = "center";
-    ctx.fillStyle = "#f1f5f9";
-    ctx.fillText(`$${lp.toFixed(1)}`, ep.x, labelY);
-    ctx.font = "bold 10px system-ui";
-    ctx.fillStyle = isUp ? "#34d399" : "#f87171";
-    ctx.fillText(`${isUp ? "+" : ""}${chg.toFixed(1)} (${isUp ? "+" : ""}${chgP.toFixed(1)}%)`, ep.x, labelY + 14);
+    ctx.save();
+    const legX = W - pad.right + 8,
+      legY = pad.top + 5;
+    ctx.beginPath();
+    ctx.moveTo(legX, legY);
+    ctx.lineTo(legX + 14, legY);
+    ctx.strokeStyle = "#60a5fa";
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = "round";
+    ctx.stroke();
+    ctx.font = "bold 8px 'SF Mono','Cascadia Code',monospace";
+    ctx.fillStyle = "rgba(226,232,240,.4)";
+    ctx.textAlign = "left";
+    ctx.fillText("BRENT", legX, legY + 13);
+    ctx.beginPath();
+    ctx.moveTo(legX, legY + 24);
+    ctx.lineTo(legX + 14, legY + 24);
+    ctx.strokeStyle = "rgba(251,191,36,.55)";
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+    ctx.fillStyle = "rgba(226,232,240,.25)";
+    ctx.fillText("WTI", legX, legY + 37);
+    ctx.restore();
   }
 
-  /* 预测分界线 */
-  if (chartProgress >= 0.7 && OIL_DATA.predictStartIdx < n && OIL_DATA.predictStartIdx < drawN) {
-    const dp = pts3d[OIL_DATA.predictStartIdx];
+  // 右侧价格条
+  if (chartProgress >= 1) {
     ctx.save();
-    ctx.setLineDash([3, 4]);
-    ctx.strokeStyle = "rgba(139,92,246,.18)";
-    ctx.lineWidth = 0.8;
+    const barX = W - pad.right + 5;
+    const curPrice = brentAll[brentAll.length - 1];
+    const curY = pad.top + ((maxV - curPrice) / range) * chartH;
+    ctx.fillStyle = "rgba(148,163,184,.025)";
     ctx.beginPath();
-    ctx.moveTo(dp.x, dp.y);
-    ctx.lineTo(dp.x + 15, oy - 5);
+    ctx.roundRect(barX - 1.5, pad.top, 3, chartH, 1.5);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(barX, curY, 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = "#c084fc";
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(barX, curY, 4.5, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(192,132,252,.25)";
+    ctx.lineWidth = 0.8;
     ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.font = "bold 8px system-ui";
+    ctx.font = "bold 9px 'SF Mono','Cascadia Code',monospace";
     ctx.textAlign = "left";
-    ctx.fillStyle = "rgba(139,92,246,.4)";
-    ctx.fillText("FORECAST", dp.x + 4, dp.y - 8);
+    ctx.fillStyle = "rgba(192,132,252,.4)";
+    ctx.fillText(`$${curPrice.toFixed(1)}`, barX + 9, curY + 3);
     ctx.restore();
   }
 }
 
 function animateChart() {
-  if(chartProgress<1){
-    chartProgress+=.018;
-    if(chartProgress>1)chartProgress=1;
+  if (chartProgress < 1) {
+    chartProgress += 0.018;
+    if (chartProgress > 1) chartProgress = 1;
     drawMainChart();
-    chartAnimId=requestAnimationFrame(animateChart);
-  }else{
-    chartAnimId=requestAnimationFrame(function tick(){drawMainChart();chartAnimId=requestAnimationFrame(tick)});
+    chartAnimId = requestAnimationFrame(animateChart);
+  } else {
+    chartAnimId = requestAnimationFrame(function tick() {
+      drawMainChart();
+      chartAnimId = requestAnimationFrame(tick);
+    });
   }
 }
 
@@ -568,181 +924,276 @@ onMounted(() => {
   clockTimer = setInterval(updateClock, 1000);
   drawPriceSparkline();
   animateChart();
-  window.addEventListener("resize", () => {
-    drawMainChart();
-  });
+  initParticles();
+  // AI分析进度动画
+  let aiTimer = setInterval(() => {
+    if (aiProgress.value < 100)
+      aiProgress.value = Math.min(
+        100,
+        aiProgress.value + Math.random() * 3 + 1,
+      );
+    else clearInterval(aiTimer);
+  }, 120);
 });
 onBeforeUnmount(() => {
   clearInterval(clockTimer);
   if (chartAnimId !== null) cancelAnimationFrame(chartAnimId);
-  window.removeEventListener("resize", drawMainChart);
+  if (particleAnimId !== null) cancelAnimationFrame(particleAnimId);
 });
 </script>
 
 <style scoped>
 /* ================================================================
-   LANDING PAGE — 大宗绿测
-   Design: Multi-color dark-mode (blue base + amber/green/pink accents)
-   Layout: Left brand (42%) | Right visualization (58%)
+   LANDING — 大宗绿测
+   Style: 深邃暗色 · 有机布局 · 多层背景
    ================================================================ */
 
-/* ─── Reset & Container ─── */
 .landing {
   position: relative;
   min-height: 100vh;
   overflow: hidden;
-  background: #060a14;
+  background: #050a14;
   color: #e2e8f0;
   font-family:
     -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, "PingFang SC",
     sans-serif;
 }
 
-/* ─── Background — 多色光晕（蓝+橙+绿+玫红+紫） ─── */
+/* ─── 背景层 ─── */
 .bg-layer {
   position: fixed;
   inset: 0;
   z-index: 0;
   pointer-events: none;
 }
-.noise {
+.noise-svg {
   position: absolute;
   inset: 0;
-  opacity: 0.03;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  background-size: 220px 220px;
+  width: 100%;
+  height: 100%;
+  opacity: 0.04;
 }
-.glow {
+.bg-base {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(
+      ellipse 80% 60% at 70% 20%,
+      rgba(30, 64, 175, 0.18) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 60% 50% at 20% 80%,
+      rgba(6, 182, 212, 0.1) 0%,
+      transparent 65%
+    ),
+    radial-gradient(
+      ellipse 50% 40% at 50% 50%,
+      rgba(15, 23, 42, 0.9) 0%,
+      #050a14 100%
+    );
+}
+.bg-rays {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(135deg, rgba(59, 130, 246, 0.04) 0%, transparent 40%),
+    linear-gradient(225deg, rgba(139, 92, 246, 0.03) 0%, transparent 35%);
+}
+.bg-orb {
   position: absolute;
   border-radius: 50%;
-}
-/* 主蓝色光晕 — 右上 */
-.glow--1 {
-  width: 700px; height: 700px;
-  top: -250px; right: -100px;
-  background: radial-gradient(circle, rgba(30,64,175,.30) 0%, rgba(30,64,175,.06) 40%, transparent 70%);
   filter: blur(80px);
-  animation: drift1 20s ease-in-out infinite alternate;
 }
-/* 青蓝光晕 — 左下 */
-.glow--2 {
-  width: 550px; height: 550px;
-  bottom: -200px; left: -100px;
-  background: radial-gradient(circle, rgba(6,182,212,.18) 0%, transparent 65%);
-  filter: blur(90px);
-  animation: drift2 26s ease-in-out infinite alternate;
+.bg-orb--a {
+  width: 600px;
+  height: 600px;
+  top: -20%;
+  right: -5%;
+  background: radial-gradient(
+    circle,
+    rgba(30, 64, 175, 0.22) 0%,
+    transparent 70%
+  );
+  animation: orbFloat1 25s ease-in-out infinite alternate;
 }
-/* 琥珀橙光晕 — 右中 */
-.glow--3 {
-  width: 420px; height: 420px;
-  top: 40%; right: 5%;
-  background: radial-gradient(circle, rgba(245,158,11,.10) 0%, transparent 60%);
-  filter: blur(90px);
-  animation: drift3 22s ease-in-out infinite alternate;
+.bg-orb--b {
+  width: 450px;
+  height: 450px;
+  bottom: -15%;
+  left: -8%;
+  background: radial-gradient(
+    circle,
+    rgba(6, 182, 212, 0.14) 0%,
+    transparent 65%
+  );
+  animation: orbFloat2 30s ease-in-out infinite alternate;
 }
-/* 翠绿光晕 — 左中 */
-.glow--4 {
-  width: 380px; height: 380px;
-  top: 30%; left: 10%;
-  background: radial-gradient(circle, rgba(16,185,129,.08) 0%, transparent 55%);
-  filter: blur(80px);
-  animation: drift4 24s ease-in-out infinite alternate;
+.bg-orb--c {
+  width: 300px;
+  height: 300px;
+  top: 55%;
+  right: 15%;
+  background: radial-gradient(
+    circle,
+    rgba(245, 158, 11, 0.08) 0%,
+    transparent 60%
+  );
+  animation: orbFloat3 20s ease-in-out infinite alternate;
 }
-/* 玫红光晕 — 右下 */
-.glow--5 {
-  width: 350px; height: 350px;
-  bottom: 5%; right: 20%;
-  background: radial-gradient(circle, rgba(244,114,182,.07) 0%, transparent 55%);
-  filter: blur(70px);
-  animation: drift5 18s ease-in-out infinite alternate;
+.bg-orb--d {
+  width: 250px;
+  height: 250px;
+  top: 35%;
+  left: 25%;
+  background: radial-gradient(
+    circle,
+    rgba(16, 185, 129, 0.06) 0%,
+    transparent 55%
+  );
+  animation: orbFloat4 22s ease-in-out infinite alternate;
 }
-/* 紫色点缀 — 中心 */
-.glow--6 {
-  width: 300px; height: 300px;
-  top: 50%; left: 45%;
-  background: radial-gradient(circle, rgba(139,92,246,.06) 0%, transparent 55%);
-  filter: blur(60px);
-  animation: drift6 16s ease-in-out infinite alternate;
+.bg-orb--e {
+  width: 200px;
+  height: 200px;
+  bottom: 20%;
+  right: 35%;
+  background: radial-gradient(
+    circle,
+    rgba(244, 114, 182, 0.05) 0%,
+    transparent 55%
+  );
+  animation: orbFloat5 18s ease-in-out infinite alternate;
+}
+@keyframes orbFloat1 {
+  to {
+    transform: translate(-40px, 30px) scale(1.06);
+  }
+}
+@keyframes orbFloat2 {
+  to {
+    transform: translate(50px, -25px) scale(1.08);
+  }
+}
+@keyframes orbFloat3 {
+  to {
+    transform: translate(-25px, -30px) scale(1.12);
+  }
+}
+@keyframes orbFloat4 {
+  to {
+    transform: translate(30px, 15px) scale(0.92);
+  }
+}
+@keyframes orbFloat5 {
+  to {
+    transform: translate(15px, 20px) scale(1.15);
+  }
 }
 
-@keyframes drift1 { to { transform: translate(-50px, 40px) scale(1.08); } }
-@keyframes drift2 { to { transform: translate(60px, -30px) scale(1.1); } }
-@keyframes drift3 { to { transform: translate(-30px, -40px) scale(1.15); } }
-@keyframes drift4 { to { transform: translate(40px, 20px) scale(.9); } }
-@keyframes drift5 { to { transform: translate(20px, 30px) scale(1.2); } }
-@keyframes drift6 { to { transform: translate(-20px, -25px) scale(1.1); } }
+.bg-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.02) 1px, transparent 1px);
+  background-size: 60px 60px;
+  mask-image: radial-gradient(
+    ellipse 70% 60% at 55% 45%,
+    black 20%,
+    transparent 80%
+  );
+  -webkit-mask-image: radial-gradient(
+    ellipse 70% 60% at 55% 45%,
+    black 20%,
+    transparent 80%
+  );
+}
 
-/* ─── Main Grid ─── */
+.particle-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* ─── 主布局 ─── */
 .main-grid {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: 42% 58%;
+  grid-template-columns: 38fr 62fr;
   min-height: 100vh;
-  max-width: 1500px;
+  max-width: 1600px;
   margin: 0 auto;
+  gap: 0;
 }
 
-/* ─── LEFT: Brand Column ─── */
+/* ─── 左侧品牌 ─── */
 .brand-col {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 48px 40px 48px 200px;
+  padding: 48px 32px 48px 36%;
 }
-
-/* 标签行 */
 .top-mark {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 22px;
+  gap: 12px;
+  margin-bottom: 28px;
   animation: fadeUp 0.5s ease both;
 }
-.mark-line {
-  width: 24px;
-  height: 2px;
-  background: linear-gradient(90deg, #3b82f6, #8b5cf6);
-  box-shadow: 0 0 12px rgba(99, 102, 241, 0.6);
-  border-radius: 1px;
+.mark-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #3b82f6;
+  box-shadow:
+    0 0 12px rgba(59, 130, 246, 0.6),
+    0 0 24px rgba(59, 130, 246, 0.2);
 }
 .mark-text {
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: 3px;
-  color: rgba(148, 163, 184, 0.5);
+  letter-spacing: 3.5px;
+  color: rgba(148, 163, 184, 0.45);
   text-transform: uppercase;
 }
-
-/* 标题 — 多色渐变 */
 .hero-title {
-  margin: 0 0 14px;
+  margin: 0 0 18px;
   animation: fadeUp 0.5s ease 0.08s both;
 }
 .title-line {
   display: block;
-  font-size: clamp(34px, 4vw, 50px);
+  font-size: clamp(36px, 4vw, 56px);
   font-weight: 800;
   letter-spacing: 4px;
-  line-height: 1.12;
-  background: linear-gradient(135deg, #f1f5f9 0%, #94a3b8 30%, #60a5fa 60%, #a78bfa 85%, #f472b6 100%);
+  line-height: 1.15;
+  background: linear-gradient(
+    135deg,
+    #f1f5f9 0%,
+    #94a3b8 25%,
+    #60a5fa 55%,
+    #a78bfa 80%,
+    #f472b6 100%
+  );
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 .hero-desc {
-  margin: 0 0 30px;
-  font-size: 13.5px;
-  line-height: 1.75;
+  margin: 0 0 32px;
+  font-size: 15px;
+  line-height: 1.85;
   color: rgba(148, 163, 184, 0.5);
-  max-width: 380px;
+  max-width: 420px;
   animation: fadeUp 0.5s ease 0.16s both;
 }
 
-/* 功能列表  + 蓝色标号 */
+/* 功能列表 */
 .feat-list {
   list-style: none;
-  margin: 0 0 32px;
+  margin: 0 0 34px;
   padding: 0;
   display: flex;
   flex-direction: column;
@@ -751,44 +1202,42 @@ onBeforeUnmount(() => {
 .feat-item {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
   padding: 12px 16px;
-  border-radius: 11px;
+  border-radius: 12px;
   border: 1px solid transparent;
   background: transparent;
   cursor: default;
   opacity: 0;
   animation: fadeUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-  transition: all 0.25s ease;
+  transition: all 0.3s ease;
 }
-.feat--1 { animation-delay: 0.26s; }
-.feat--2 { animation-delay: 0.34s; }
-.feat--3 { animation-delay: 0.42s; }
-.feat--4 { animation-delay: 0.5s; }
-
-/* 统一蓝色 hover 效果 */
-.feat--1:hover,
-.feat--2:hover,
-.feat--3:hover,
-.feat--4:hover {
-  border-color: rgba(59, 130, 246, 0.12);
+.feat--1 {
+  animation-delay: 0.26s;
+}
+.feat--2 {
+  animation-delay: 0.32s;
+}
+.feat--3 {
+  animation-delay: 0.38s;
+}
+.feat--4 {
+  animation-delay: 0.44s;
+}
+.feat-item:hover {
+  border-color: rgba(59, 130, 246, 0.1);
   background: rgba(59, 130, 246, 0.04);
-  transform: translateX(6px);
+  transform: translateX(4px);
 }
-
-/* 四个标号统一蓝色 */
-.feat--1 .feat-num,
-.feat--2 .feat-num,
-.feat--3 .feat-num,
-.feat--4 .feat-num {
-  color: rgba(96, 165, 250, 0.5);
-}
-
 .feat-num {
   font-size: 11px;
   font-weight: 800;
-  min-width: 24px;
-  transition: color 0.25s;
+  min-width: 26px;
+  color: rgba(96, 165, 250, 0.35);
+  transition: color 0.3s;
+}
+.feat-item:hover .feat-num {
+  color: rgba(96, 165, 250, 0.6);
 }
 .feat-body {
   display: flex;
@@ -796,324 +1245,658 @@ onBeforeUnmount(() => {
   gap: 2px;
 }
 .feat-body strong {
-  font-size: 13.5px;
-  font-weight: 700;
-  color: #e2e8f0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #cbd5e1;
 }
 .feat-body span {
-  font-size: 11.5px;
+  font-size: 12px;
   color: rgba(148, 163, 184, 0.38);
-  line-height: 1.5;
+  line-height: 1.55;
 }
 
-/* CTA 按钮 — 蓝紫渐变 */
+/* CTA */
 .cta-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  animation: fadeUp 0.5s ease 0.58s both;
+  gap: 14px;
+  animation: fadeUp 0.5s ease 0.52s both;
 }
 .cta-primary {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 14px 32px;
+  gap: 10px;
+  padding: 15px 32px;
   border: none;
-  border-radius: 10px;
+  border-radius: 12px;
   background: linear-gradient(135deg, #3b82f6, #6366f1);
   color: #fff;
-  font-size: 13.5px;
+  font-size: 15px;
   font-weight: 700;
-  letter-spacing: 1px;
+  letter-spacing: 0.5px;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
   box-shadow:
-    0 4px 24px rgba(59, 99, 235, 0.35),
-    0 0 40px -10px rgba(99, 102, 241, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    0 4px 20px rgba(59, 99, 235, 0.3),
+    0 0 30px -10px rgba(99, 102, 241, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 .cta-primary:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 36px rgba(59, 99, 235, 0.45), 0 0 50px -10px rgba(99, 102, 241, 0.3);
+  transform: translateY(-2px);
+  box-shadow:
+    0 8px 30px rgba(59, 99, 235, 0.4),
+    0 0 40px -10px rgba(99, 102, 241, 0.25);
 }
-.cta-primary svg { transition: transform 0.25s; }
-.cta-primary:hover svg { transform: translateX(4px); }
+.cta-primary svg {
+  transition: transform 0.25s;
+}
+.cta-primary:hover svg {
+  transform: translateX(3px);
+}
 .cta-secondary {
-  padding: 14px 26px;
-  border: 1px solid rgba(148, 163, 184, 0.15);
-  border-radius: 10px;
+  padding: 15px 26px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 12px;
   background: transparent;
-  color: rgba(148, 163, 184, 0.55);
-  font-size: 13px;
+  color: rgba(148, 163, 184, 0.5);
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.25s;
 }
 .cta-secondary:hover {
-  border-color: rgba(148, 163, 184, 0.3);
+  border-color: rgba(148, 163, 184, 0.25);
   color: #cbd5e1;
-  background: rgba(148, 163, 184, 0.05);
+  background: rgba(148, 163, 184, 0.04);
 }
 
 /* 状态栏 */
 .status-bar {
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding-top: 26px;
-  font-size: 10px;
+  gap: 8px;
+  padding-top: 28px;
+  font-size: 11px;
   font-weight: 500;
-  letter-spacing: 1px;
+  letter-spacing: 1.2px;
   color: rgba(148, 163, 184, 0.25);
-  animation: fadeUp 0.5s ease 0.66s both;
+  animation: fadeUp 0.5s ease 0.6s both;
 }
 .status-dot {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: #34d399;
   animation: blink 2s ease-in-out infinite;
 }
-.divider { opacity: 0.2; }
+.divider {
+  opacity: 0.2;
+}
 @keyframes blink {
-  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(52,211,153,.4); }
-  50% { opacity: 0.4; box-shadow: 0 0 0 5px rgba(52,211,153,0); }
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.4);
+  }
+  50% {
+    opacity: 0.3;
+    box-shadow: 0 0 0 5px rgba(52, 211, 153, 0);
+  }
 }
-
 @keyframes fadeUp {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: none; }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
-/* ══════════════════════════════════════════════════
-   RIGHT: Bento Grid + 3D Cards + Spotlight
-   ══════════════════════════════════════════════════ */
-
-/* ─── 容器 ─── */
+/* ═══ 右侧卡片区域 ═══ */
 .viz-col {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 28px 24px;
+  padding: 32px 40px 32px 20px;
   overflow: hidden;
-  border-left: 1px solid rgba(59,130,246,.04);
   height: 100%;
-  perspective: 1200px;
+  perspective: 1000px;
 }
 
-/* ─── Spotlight 聚光灯 — 多色 ─── */
-.spotlight-layer {
-  position: absolute;
-  width: 600px; height: 600px;
-  top: -200px; right: -150px;
-  background: radial-gradient(
-    circle,
-    rgba(59,130,246,.08) 0%,
-    rgba(99,102,241,.04) 35%,
-    transparent 70%
-  );
-  pointer-events: none;
-  z-index: 1;
-  animation: spotlightFloat 8s ease-in-out infinite alternate;
-}
-.spotlight-layer--2 {
-  width: 500px; height: 500px;
-  top: auto; bottom: -200px; right: auto; left: -100px;
-  background: radial-gradient(
-    circle,
-    rgba(245,158,11,.05) 0%,
-    transparent 65%
-  );
-  animation: spotlightFloat2 12s ease-in-out infinite alternate;
-}
-.spotlight-layer--3 {
-  width: 400px; height: 400px;
-  top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
-  background: radial-gradient(
-    circle,
-    rgba(244,114,182,.04) 0%,
-    transparent 60%
-  );
-  animation: spotlightFloat3 10s ease-in-out infinite alternate;
-}
-@keyframes spotlightFloat {
-  0%   { transform: translate(0,0) scale(1); }
-  50%  { transform: translate(-40px,30px) scale(1.15); }
-  100% { transform: translate(-20px,-20px) scale(.95); }
-}
-@keyframes spotlightFloat2 {
-  0%   { transform: translate(0,0) scale(1); }
-  50%  { transform: translate(30px,-20px) scale(1.1); }
-  100% { transform: translate(-10px,15px) scale(.9); }
-}
-@keyframes spotlightFloat3 {
-  0%   { transform: translate(-50%,-50%) scale(1); }
-  50%  { transform: translate(-50%,-50%) scale(1.2); }
-  100% { transform: translate(-50%,-50%) scale(.9); }
-}
-
-/* ─── Bento Grid 布局（3小卡横排）─── */
-.bento-grid {
+/* ─── 不规则卡片布局 ─── */
+.card-scatter {
+  position: relative;
+  z-index: 2;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: 1fr 1fr;
   grid-template-rows: auto auto;
   gap: 14px;
-  z-index: 2;
-  position: relative;
   width: 100%;
-  max-width: 540px;
+  max-width: 620px;
 }
 
-/* ═══ 核心大卡 — 油价预测（蓝紫渐变） ═══ */
-.bento-card--hero {
-  grid-column: 1 / -1;
-  border-radius: 18px;
-  position: relative;
-  overflow: hidden;
-  background: linear-gradient(135deg, rgba(59,130,246,.06) 0%, rgba(139,92,246,.03) 50%, transparent 100%),
-              linear-gradient(to bottom, rgba(8,16,36,.75) 0%, rgba(6,10,20,.9) 100%);
-  border: 1px solid rgba(59,130,246,.08);
-  box-shadow:
-    0 25px 70px -15px rgba(0,0,0,.55),
-    0 0 60px -20px rgba(59,130,246,.06),
-    0 0 40px -20px rgba(139,92,246,.04),
-    inset 0 1px 0 rgba(255,255,255,.04);
-  backdrop-filter: blur(24px) saturate(1.4);
-  transition: transform .15s ease-out;
-  transform-style: preserve-3d;
-}
-.hero-inner { padding: 18px 20px 16px; position: relative; z-index: 2; }
-.hero-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-.hero-tag { font-size: 9px; font-weight: 700; letter-spacing: .12em; padding: 3px 8px; border-radius: 6px; text-transform: uppercase; }
-.hero-tag--gru { color: #c084fc; background: rgba(139,92,246,.1); border: 1px solid rgba(139,92,246,.2); }
-.hero-meta { font-size: 11px; color: rgba(148,163,184,.45); }
-.hero-chart { display: block; width:100%!important; height:auto!important; max-height:200px; }
-.hero-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 11px; color: rgba(148,163,184,.5); }
-.hero-acc strong { color: #a78bfa; font-size: 13px; }
-.hero-live { display: flex; align-items: center; gap: 5px; }
-.live-pulse { display:inline-block; width:6px; height:6px; border-radius:50%; background:#c084fc; animation: pulseLive 2s ease infinite; box-shadow:0 0 8px rgba(192,132,252,.5); }
-@keyframes pulseLive { 0%,100%{opacity:1} 50%{opacity:.3} }
-
-.hero-glow { position:absolute; inset:0; pointer-events:none; border-radius:18px;
-  background: radial-gradient(ellipse at 50% 120%, rgba(99,102,241,.04) 0%, transparent 55%); z-index:1; }
-.bento-card--hero:hover { border-color: rgba(99,102,246,.18);
-  box-shadow: 0 35px 90px -15px rgba(0,0,0,.62), 0 0 80px -15px rgba(99,102,246,.12), 0 0 40px -15px rgba(192,132,252,.06), inset 0 1px 0 rgba(255,255,255,.07); }
-
-/* ═══ 小卡片 — 统一基础样式 ═══ */
-.bento-card {
-  border-radius: 14px;
+/* ─── 卡片通用 ─── */
+.data-card {
   position: relative;
   overflow: hidden;
   cursor: default;
-  background: linear-gradient(to bottom, rgba(8,16,36,.7) 0%, rgba(6,10,20,.85) 100%);
-  border: 1px solid rgba(255,255,255,.04);
-  backdrop-filter: blur(20px) saturate(1.3);
-  box-shadow: 0 12px 36px -10px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.03);
-  transition: transform .12s ease-out, box-shadow .3s ease, border-color .3s ease;
+  border-radius: 16px;
+  background: rgba(10, 18, 36, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(20px) saturate(1.2);
+  box-shadow:
+    0 8px 32px -8px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  transition:
+    transform 0.15s ease-out,
+    box-shadow 0.3s,
+    border-color 0.3s;
   transform-style: preserve-3d;
 }
-.bc-content { padding: 14px 15px; position: relative; z-index: 2; }
 
-/* ─── 油价卡 — 琥珀橙 ─── */
-.bento-card--price {
-  background: linear-gradient(135deg, rgba(245,158,11,.06) 0%, transparent 50%),
-              linear-gradient(to bottom, rgba(8,16,36,.7) 0%, rgba(6,10,20,.85) 100%);
-  border: 1px solid rgba(245,158,11,.08);
+/* ─── 主图表卡 ─── */
+.data-card--hero {
+  grid-column: 1 / -1;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(59, 130, 246, 0.05) 0%,
+      rgba(139, 92, 246, 0.02) 40%,
+      transparent 70%
+    ),
+    rgba(10, 18, 36, 0.65);
+  border-color: rgba(59, 130, 246, 0.06);
+  border-radius: 18px;
 }
-.bento-card--price:hover {
-  border-color: rgba(245,158,11,.2);
-  box-shadow: 0 18px 48px -8px rgba(0,0,0,.5), 0 0 30px -10px rgba(245,158,11,.1), inset 0 1px 0 rgba(255,255,255,.06);
+.data-card--hero:hover {
+  border-color: rgba(99, 102, 246, 0.14);
+  box-shadow:
+    0 20px 60px -12px rgba(0, 0, 0, 0.5),
+    0 0 50px -15px rgba(99, 102, 246, 0.08);
 }
-.bc-icon--oil { background: linear-gradient(135deg,rgba(245,158,11,.18),rgba(245,158,11,.05)); border:1px solid rgba(245,158,11,.2); }
-.bc-icon--oil::after { content:""; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; width:14px; height:14px; margin:auto; border-radius:50%; background:#f59e0b; box-shadow:0 0 8px rgba(245,158,11,.5); }
-
-/* ─── 新能源卡 — 翠绿 ─── */
-.bento-card--stock {
-  background: linear-gradient(135deg, rgba(16,185,129,.06) 0%, transparent 50%),
-              linear-gradient(to bottom, rgba(8,16,36,.7) 0%, rgba(6,10,20,.85) 100%);
-  border: 1px solid rgba(16,185,129,.08);
+.dc-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 20px 0;
 }
-.bento-card--stock:hover {
-  border-color: rgba(16,185,129,.2);
-  box-shadow: 0 18px 48px -8px rgba(0,0,0,.5), 0 0 30px -10px rgba(16,185,129,.1), inset 0 1px 0 rgba(255,255,255,.06);
+.dc-tag {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  padding: 3px 8px;
+  border-radius: 5px;
+  text-transform: uppercase;
+  color: #c084fc;
+  background: rgba(139, 92, 246, 0.08);
+  border: 1px solid rgba(139, 92, 246, 0.15);
 }
-.bc-icon--bolt { background: linear-gradient(135deg,rgba(16,185,129,.18),rgba(16,185,129,.05)); border:1px solid rgba(16,185,129,.2); }
-.bc-icon--bolt::after { content:""; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; width:14px; height:14px; margin:auto; border-radius:50%; background:#34d399; box-shadow:0 0 8px rgba(16,185,129,.5); }
-
-/* ─── 债券卡 — 玫红 ─── */
-.bento-card--bond {
-  background: linear-gradient(135deg, rgba(244,114,182,.06) 0%, transparent 50%),
-              linear-gradient(to bottom, rgba(8,16,36,.7) 0%, rgba(6,10,20,.85) 100%);
-  border: 1px solid rgba(244,114,182,.08);
+.dc-sub {
+  font-size: 12px;
+  color: rgba(148, 163, 184, 0.4);
 }
-.bento-card--bond:hover {
-  border-color: rgba(244,114,182,.2);
-  box-shadow: 0 18px 48px -8px rgba(0,0,0,.5), 0 0 30px -10px rgba(244,114,182,.1), inset 0 1px 0 rgba(255,255,255,.06);
+.dc-chart {
+  display: block;
+  width: 100% !important;
+  height: auto !important;
+  max-height: 300px;
+  padding: 0 4px;
 }
-.bc-icon--rate { background: linear-gradient(135deg,rgba(244,114,182,.18),rgba(244,114,182,.05)); border:1px solid rgba(244,114,182,.2); }
-.bc-icon--rate::after { content:""; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; width:14px; height:14px; margin:auto; border-radius:4px; background:#f472b6; box-shadow:0 0 8px rgba(244,114,182,.5); }
+.dc-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 20px 16px;
+  font-size: 11.5px;
+  color: rgba(148, 163, 184, 0.4);
+}
+.dc-foot strong {
+  color: #a78bfa;
+  font-size: 13.5px;
+}
+.dc-live {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.live-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #c084fc;
+  animation: pulseLive 2s ease infinite;
+  box-shadow: 0 0 6px rgba(192, 132, 252, 0.4);
+}
+@keyframes pulseLive {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
 
-/* 通用图标 */
-.bc-icon { display:block; width:28px; height:28px; border-radius:8px; margin-bottom:8px; position:relative; overflow:hidden; }
+/* ─── 油价卡 — 不等高 ─── */
+.data-card--oil {
+  grid-row: span 1;
+  background: linear-gradient(
+    160deg,
+    rgba(245, 158, 11, 0.04) 0%,
+    rgba(10, 18, 36, 0.6) 60%
+  );
+  border-color: rgba(245, 158, 11, 0.06);
+  min-height: 150px;
+}
+.data-card--oil:hover {
+  border-color: rgba(245, 158, 11, 0.15);
+  box-shadow:
+    0 12px 36px -6px rgba(0, 0, 0, 0.45),
+    0 0 20px -8px rgba(245, 158, 11, 0.08);
+}
 
-/* 通用文本 */
-.bc-label { display:block; font-size:9px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:rgba(148,163,184,.45); margin-bottom:6px; }
-.bc-value { display:block; font-size:26px; font-weight:800; color:#f1f5f9; line-height:1.1; letter-spacing:-.02em; }
-.bc-delta { display:inline-block; font-size:12px; font-weight:700; padding:2px 7px; border-radius:5px; margin-top:4px; }
-.bc-delta.bc-up { color:#f59e0b; background: rgba(245,158,11,.1); }
-.bc-delta.bc-up--green { color:#34d399; background: rgba(16,185,129,.1); }
-.bc-list { display:flex; flex-direction:column; gap:5px; margin-top:4px; }
-.bc-item { display:flex; align-items:baseline; justify-content:space-between; gap:8px; font-size:11px; color:rgba(148,163,184,.55); }
-.bc-item em { font-style:normal; font-weight:700; color:#e2e8f0; font-size:13px; }
-.bc-item small { font-size:10px; font-weight:600; padding:1px 5px; border-radius:4px; }
-.bc-item small.bc-up { color:#f59e0b; background:rgba(245,158,11,.09); }
-.bc-item small.bc-up--green { color:#34d399; background:rgba(16,185,129,.09); }
-.bc-spark { display:block; width:100%!important; margin-top:6px; opacity:.7; }
+/* ─── 新能源卡 ─── */
+.data-card--energy {
+  background: linear-gradient(
+    160deg,
+    rgba(16, 185, 129, 0.04) 0%,
+    rgba(10, 18, 36, 0.6) 60%
+  );
+  border-color: rgba(16, 185, 129, 0.06);
+  min-height: 140px;
+}
+.data-card--energy:hover {
+  border-color: rgba(16, 185, 129, 0.15);
+  box-shadow:
+    0 12px 36px -6px rgba(0, 0, 0, 0.45),
+    0 0 20px -8px rgba(16, 185, 129, 0.08);
+}
 
-/* 卡片高光（hover扫光）— 蓝色通用 */
-.bc-shine { position:absolute; inset:0; pointer-events:none; opacity:0;
-  background: linear-gradient(105deg, transparent 40%, rgba(148,163,184,.04) 45%, rgba(255,255,255,.07) 50%, rgba(148,163,184,.04) 55%, transparent 60%);
-  border-radius: 14px; z-index:1; transition: opacity .3s ease; }
-.bento-card:hover .bc-shine { opacity:1; }
+/* ─── 债券卡 ─── */
+.data-card--bond {
+  background: linear-gradient(
+    160deg,
+    rgba(244, 114, 182, 0.04) 0%,
+    rgba(10, 18, 36, 0.6) 60%
+  );
+  border-color: rgba(244, 114, 182, 0.06);
+  min-height: 140px;
+}
+.data-card--bond:hover {
+  border-color: rgba(244, 114, 182, 0.15);
+  box-shadow:
+    0 12px 36px -6px rgba(0, 0, 0, 0.45),
+    0 0 20px -8px rgba(244, 114, 182, 0.08);
+}
 
-/* 鼠标跟随光晕 */
-.bc-spotlight {
+/* ─── AI分析卡 ─── */
+.data-card--ai {
+  background: linear-gradient(
+    160deg,
+    rgba(139, 92, 246, 0.05) 0%,
+    rgba(10, 18, 36, 0.6) 60%
+  );
+  border-color: rgba(139, 92, 246, 0.06);
+  min-height: 140px;
+}
+.data-card--ai:hover {
+  border-color: rgba(139, 92, 246, 0.15);
+  box-shadow:
+    0 12px 36px -6px rgba(0, 0, 0, 0.45),
+    0 0 20px -8px rgba(139, 92, 246, 0.08);
+}
+
+/* 卡片内容 */
+.dc-content {
+  padding: 16px 18px;
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.dc-head-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 3px;
+}
+.dc-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.4);
+}
+.dc-price-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.dc-big {
+  font-size: 30px;
+  font-weight: 800;
+  color: #f1f5f9;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+.dc-chg {
+  display: inline-block;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 3px 7px;
+  border-radius: 5px;
+}
+.dc-chg--up {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.08);
+}
+.dc-spark {
+  display: block;
+  width: 100% !important;
+  opacity: 0.65;
+}
+
+/* LIVE / 状态徽标 */
+.dc-live-badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: rgba(192, 132, 252, 0.55);
+}
+.dc-badge {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 3px 8px;
+  border-radius: 5px;
+}
+.dc-badge--up {
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.08);
+}
+.dc-badge--stable {
+  color: rgba(148, 163, 184, 0.5);
+  background: rgba(148, 163, 184, 0.06);
+}
+
+/* 底部元数据行 */
+.dc-meta-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 10px;
+  color: rgba(148, 163, 184, 0.32);
+  letter-spacing: 0.03em;
+}
+
+/* 迷你折线图（内联SVG） */
+.dc-spark-inline {
+  margin-top: 3px;
+  opacity: 0.5;
+}
+.dc-spark-inline svg {
+  display: block;
+  width: 100%;
+  height: 22px;
+}
+
+/* 数据行 */
+.dc-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 3px;
+}
+.dc-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: rgba(148, 163, 184, 0.5);
+}
+.dc-row em {
+  font-style: normal;
+  font-weight: 700;
+  color: #e2e8f0;
+  font-size: 14px;
+}
+.dc-row small {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.dc-up {
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.08);
+}
+.dc-down {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.08);
+}
+.dc-rate-down {
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.06);
+  font-size: 9.5px !important;
+}
+.dc-rate-flat {
+  color: rgba(148, 163, 184, 0.35);
+  background: rgba(148, 163, 184, 0.05);
+  font-size: 9.5px !important;
+}
+
+/* 利率进度条 */
+.dc-rate-bar {
+  margin-top: 3px;
+}
+.rate-bar-track {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(244, 114, 182, 0.06);
+  overflow: hidden;
+}
+.rate-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(
+    90deg,
+    rgba(244, 114, 182, 0.3),
+    rgba(244, 114, 182, 0.08)
+  );
+  transition: width 1s ease;
+}
+
+/* ─── AI分析卡内容 ─── */
+.dc-ai-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 3px 0;
+}
+.ai-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ai-metric-label {
+  font-size: 10px;
+  color: rgba(148, 163, 184, 0.35);
+  letter-spacing: 0.05em;
+}
+.ai-metric-val {
+  font-size: 16px;
+  font-weight: 800;
+  color: #e2e8f0;
+  letter-spacing: -0.02em;
+}
+
+.dc-signals {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.signal-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: rgba(148, 163, 184, 0.55);
+}
+.signal-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.signal-dot--buy {
+  background: #34d399;
+  box-shadow: 0 0 6px rgba(52, 211, 153, 0.3);
+}
+.signal-dot--hold {
+  background: #fbbf24;
+  box-shadow: 0 0 6px rgba(251, 191, 36, 0.2);
+}
+
+.dc-ai-progress {
+  margin-top: 3px;
+}
+.ai-bar-track {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(139, 92, 246, 0.06);
+  overflow: hidden;
+}
+.ai-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(
+    90deg,
+    rgba(139, 92, 246, 0.4),
+    rgba(192, 132, 252, 0.15)
+  );
+  transition: width 0.3s ease;
+}
+.ai-bar-label {
+  font-size: 9px;
+  color: rgba(148, 163, 184, 0.28);
+  letter-spacing: 0.05em;
+  display: block;
+  margin-top: 3px;
+}
+
+.live-dot--green {
+  background: #34d399 !important;
+  box-shadow: 0 0 6px rgba(52, 211, 153, 0.4) !important;
+}
+
+/* 鼠标光晕 */
+.dc-spotlight {
   position: absolute;
   inset: 0;
   pointer-events: none;
   border-radius: inherit;
   z-index: 0;
   opacity: 0;
-  transition: opacity .3s ease;
+  transition: opacity 0.3s;
 }
-
-/* 小卡高度 */
-.bento-card--price { min-height: 130px; }
-.bento-card--stock { min-height: 140px; }
-.bento-card--bond  { min-height: 120px; }
 
 /* ═══ 响应式 ═══ */
-@media (max-width: 1280px) {
-  .bento-grid { max-width: 100%; }
+@media (max-width: 1400px) {
+  .card-scatter {
+    max-width: 560px;
+  }
+  .brand-col {
+    padding: 48px 24px 48px 6%;
+  }
 }
-@media (max-width: 1024px) {
-  .main-grid { grid-template-columns: 1fr; grid-template-rows: auto auto; }
-  .brand-col { padding: 36px 28px 32px; }
-  .viz-col { border-left: none; border-top: 1px solid rgba(59,130,246,.06); min-height: 500px; padding: 24px 16px; }
-  .bento-card { position:relative!important; width:100%!important; margin:0 auto 12px; animation: fadeUp .5s ease forwards!important; }
-  .bento-card--hero { order: -1; }
-  .live-tag { display: none; }
+@media (max-width: 1100px) {
+  .main-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+  }
+  .brand-col {
+    padding: 40px 32px 32px;
+  }
+  .viz-col {
+    min-height: auto;
+    padding: 0 32px 40px;
+  }
+  .card-scatter {
+    max-width: 100%;
+  }
+  .data-card--hero {
+    order: -1;
+  }
 }
-@media (max-width: 640px) {
-  .brand-col { padding: 24px 16px 20px; }
-  .title-line { letter-spacing: 2px; }
-  .cta-row { flex-direction: column; }
-  .bento-card { max-width: 100%!important; }
+@media (max-width: 768px) {
+  .brand-col {
+    padding: 28px 20px 24px;
+  }
+  .title-line {
+    font-size: clamp(28px, 6vw, 40px);
+    letter-spacing: 2px;
+  }
+  .hero-desc {
+    font-size: 13px;
+  }
+  .feat-body strong {
+    font-size: 14px;
+  }
+  .feat-body span {
+    font-size: 11.5px;
+  }
+  .cta-row {
+    gap: 10px;
+  }
+  .cta-primary {
+    padding: 13px 24px;
+    font-size: 14px;
+  }
+  .cta-secondary {
+    padding: 13px 20px;
+    font-size: 13px;
+  }
+  .viz-col {
+    padding: 0 16px 32px;
+  }
+  .card-scatter {
+    gap: 10px;
+  }
+}
+@media (max-width: 540px) {
+  .brand-col {
+    padding: 20px 14px 18px;
+  }
+  .title-line {
+    letter-spacing: 1.5px;
+  }
+  .cta-row {
+    flex-direction: column;
+  }
+  .card-scatter {
+    grid-template-columns: 1fr;
+  }
+  .data-card--hero {
+    order: -1;
+  }
+  .viz-col {
+    padding: 0 12px 24px;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.001ms !important;
     transition-duration: 0.001ms !important;
   }
