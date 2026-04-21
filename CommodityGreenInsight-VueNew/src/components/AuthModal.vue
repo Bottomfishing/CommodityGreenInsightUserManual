@@ -306,23 +306,44 @@ watch(() => props.visible, (val) => {
 
 function handleClose() { emit('update:visible', false) }
 
+// ===== 写死默认账号 =====
+const DEFAULT_ACCOUNTS: Record<string, string> = {
+  admin: 'admin123',
+  demo: 'demo123',
+  test: 'test123',
+}
+
 async function handleSubmit() {
   if (!username.value || !password.value) { error.value = '请输入用户名和密码'; return }
   if (password.value.length < 4) { error.value = '密码至少需要 4 位字符'; return }
   loading.value = true; error.value = ''
+
   try {
-    const { login: apiLogin, register: apiRegister, fetchMe } = await import('@/api/auth')
     if (mode.value === 'login') {
+      // 先检查本地写死账号
+      const localPwd = DEFAULT_ACCOUNTS[username.value]
+      if (localPwd !== undefined && localPwd === password.value) {
+        localStorage.setItem('username', username.value)
+        successState.value = true
+        setTimeout(() => {
+          emit('update:visible', false)
+          emit('success')
+        }, 1200)
+        return
+      }
+      // 写死账号不匹配，走后端 API
+      const { login: apiLogin, fetchMe } = await import('@/api/auth')
       await apiLogin(username.value, password.value)
       const me = await fetchMe()
       localStorage.setItem('username', me.username || username.value)
-      // 登录成功动画
       successState.value = true
       setTimeout(() => {
         emit('update:visible', false)
         emit('success')
       }, 1200)
     } else {
+      // 注册仍走后端
+      const { register: apiRegister } = await import('@/api/auth')
       await apiRegister(username.value, password.value)
       switchTo('login')
     }
