@@ -7,7 +7,7 @@
       @success="onAuthSuccess"
     />
 
-    <!-- 背景 — 多层光晕 -->
+    <!-- 背景 — 多色光晕 -->
     <div class="bg-layer" aria-hidden="true">
       <div class="noise"></div>
       <div class="glow glow--1"></div>
@@ -15,6 +15,7 @@
       <div class="glow glow--3"></div>
       <div class="glow glow--4"></div>
       <div class="glow glow--5"></div>
+      <div class="glow glow--6"></div>
     </div>
 
     <!-- 主内容 -->
@@ -94,12 +95,14 @@
         <!-- Spotlight 光效层 -->
         <div class="spotlight-layer"></div>
         <div class="spotlight-layer spotlight-layer--2"></div>
+        <div class="spotlight-layer spotlight-layer--3"></div>
 
         <!-- Bento Grid 3D 卡片容器 -->
         <div class="bento-grid">
 
           <!-- ★★★ 核心大卡 — 油价预测（占据主要视觉区域）-->
           <div class="bento-card bento-card--hero" @mousemove="onHeroTilt" @mouseleave="onHeroLeave" :style="heroStyle">
+            <div class="bc-spotlight" :style="heroSpotStyle"></div>
             <div class="hero-inner">
               <div class="hero-header">
                 <span class="hero-tag hero-tag--gru">GRU MODEL</span>
@@ -116,8 +119,9 @@
             <div class="bc-shine"></div>
           </div>
 
-          <!-- 油价实时卡 -->
+          <!-- 油价实时卡 — 琥珀橙 -->
           <div class="bento-card bento-card--price" @mousemove="(e) => onCardTilt(e, 'price')" @mouseleave="() => onCardLeave('price')" :style="cardStyles.price">
+            <div class="bc-spotlight bc-spotlight--amber" :style="cardSpotStyles.price"></div>
             <div class="bc-content">
               <span class="bc-icon bc-icon--oil"></span>
               <span class="bc-label">Oil Price</span>
@@ -128,25 +132,27 @@
             <div class="bc-shine"></div>
           </div>
 
-          <!-- 新能源股票卡 -->
+          <!-- 新能源股票卡 — 翠绿 -->
           <div class="bento-card bento-card--stock" @mousemove="(e) => onCardTilt(e, 'stock')" @mouseleave="() => onCardLeave('stock')" :style="cardStyles.stock">
+            <div class="bc-spotlight bc-spotlight--green" :style="cardSpotStyles.stock"></div>
             <div class="bc-content">
               <span class="bc-icon bc-icon--bolt"></span>
               <span class="bc-label">New Energy</span>
               <div class="bc-list">
                 <div class="bc-item">
-                  <span>CSI新能源</span><em>3,847</em><small class="bc-up">+1.82%</small>
+                  <span>CSI新能源</span><em>3,847</em><small class="bc-up bc-up--green">+1.82%</small>
                 </div>
                 <div class="bc-item">
-                  <span>光伏产业</span><em>4,126</em><small class="bc-up">+0.95%</small>
+                  <span>光伏产业</span><em>4,126</em><small class="bc-up bc-up--green">+0.95%</small>
                 </div>
               </div>
             </div>
             <div class="bc-shine"></div>
           </div>
 
-          <!-- 债券/利率卡 -->
+          <!-- 债券/利率卡 — 玫红 -->
           <div class="bento-card bento-card--bond" @mousemove="(e) => onCardTilt(e, 'bond')" @mouseleave="() => onCardLeave('bond')" :style="cardStyles.bond">
+            <div class="bc-spotlight bc-spotlight--pink" :style="cardSpotStyles.bond"></div>
             <div class="bc-content">
               <span class="bc-icon bc-icon--rate"></span>
               <span class="bc-label">Bond / Rate</span>
@@ -176,9 +182,15 @@ const priceChartRef = ref<HTMLCanvasElement | null>(null);
 const chartCanvasRef = ref<HTMLCanvasElement | null>(null);
 const currentTime = ref("");
 
-// ===== 3D 卡片倾斜交互 =====
+// ===== 3D 卡片倾斜交互 + 鼠标光晕 =====
 const heroStyle = ref<Record<string, string>>({});
+const heroSpotStyle = ref<Record<string, string>>({});
 const cardStyles = reactive({
+  price: <Record<string, string>>{},
+  stock: <Record<string, string>>{},
+  bond: <Record<string, string>>{},
+});
+const cardSpotStyles = reactive({
   price: <Record<string, string>>{},
   stock: <Record<string, string>>{},
   bond: <Record<string, string>>{},
@@ -189,27 +201,44 @@ function onHeroTilt(e: MouseEvent) {
   const r = el.getBoundingClientRect();
   const x = e.clientX - r.left, y = e.clientY - r.top;
   const cx = r.width / 2, cy = r.height / 2;
-  const rx = ((y - cy) / cy) * -8;
-  const ry = ((x - cx) / cx) * 8;
+  const rx = ((y - cy) / cy) * -12;
+  const ry = ((x - cx) / cx) * 12;
   heroStyle.value = {
     transform: `perspective(1000px) rotateX(${rx}deg) rotateY(${ry}deg) scale3d(1.02,1.02,1.02)`,
   };
+  heroSpotStyle.value = {
+    opacity: "1",
+    background: `radial-gradient(circle 150px at ${x}px ${y}px, rgba(99,102,241,.12), transparent)`,
+  };
 }
-function onHeroLeave() { heroStyle.value = { transition: "transform .5s ease", transform: "perspective(1000px) rotateX(0) rotateY(0)" }; }
+function onHeroLeave() {
+  heroStyle.value = { transition: "transform .5s ease", transform: "perspective(1000px) rotateX(0) rotateY(0)" };
+  heroSpotStyle.value = { opacity: "0", transition: "opacity .4s ease" };
+}
 
 function onCardTilt(e: MouseEvent, key: "price" | "stock" | "bond") {
   const el = (e.currentTarget as HTMLElement);
   const r = el.getBoundingClientRect();
   const x = e.clientX - r.left, y = e.clientY - r.top;
   const cx = r.width / 2, cy = r.height / 2;
-  const rx = ((y - cy) / cy) * -10;
-  const ry = ((x - cx) / cx) * 10;
+  const rx = ((y - cy) / cy) * -14;
+  const ry = ((x - cx) / cx) * 14;
   cardStyles[key] = {
     transform: `perspective(800px) rotateX(${rx}deg) rotateY(${ry}deg) scale3d(1.05,1.05,1.05)`,
+  };
+  const colors: Record<string, string> = {
+    price: "rgba(245,158,11,.15)",
+    stock: "rgba(16,185,129,.15)",
+    bond: "rgba(244,114,182,.15)",
+  };
+  cardSpotStyles[key] = {
+    opacity: "1",
+    background: `radial-gradient(circle 120px at ${x}px ${y}px, ${colors[key]}, transparent)`,
   };
 }
 function onCardLeave(key: "price" | "stock" | "bond") {
   cardStyles[key] = { transition: "transform .4s ease", transform: "perspective(800px) rotateX(0) rotateY(0)" };
+  cardSpotStyles[key] = { opacity: "0", transition: "opacity .4s ease" };
 }
 
 // ===== 时钟 =====
@@ -222,7 +251,7 @@ function updateClock() {
   currentTime.value = h + ":" + m + ":" + s;
 }
 
-// ===== 迷你油价折线图 =====
+// ===== 迷你油价折线图（琥珀橙） =====
 function drawPriceSparkline() {
   const c = priceChartRef.value;
   if (!c) return;
@@ -245,7 +274,7 @@ function drawPriceSparkline() {
     if (i === 0) ctx.moveTo(px, py);
     else ctx.lineTo(px, py);
   }
-  ctx.strokeStyle = "#38bdf8";
+  ctx.strokeStyle = "#f59e0b";
   ctx.lineWidth = 1.5;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
@@ -254,13 +283,13 @@ function drawPriceSparkline() {
   ctx.lineTo(5, h - 5);
   ctx.closePath();
   const grad = ctx.createLinearGradient(0, 0, 0, h);
-  grad.addColorStop(0, "rgba(56,189,248,0.25)");
-  grad.addColorStop(1, "rgba(56,189,248,0)");
+  grad.addColorStop(0, "rgba(245,158,11,0.25)");
+  grad.addColorStop(1, "rgba(245,158,11,0)");
   ctx.fillStyle = grad;
   ctx.fill();
 }
 
-// ===== 主折线图 — 科技蓝配色 =====
+// ===== 主折线图 — 多色渐变 =====
 let chartAnimId: number | null = null;
 let chartProgress = 0;
 
@@ -343,7 +372,7 @@ function drawMainChart() {
     pts3d.push(proj(x2d, pts[i], zD));
   }
 
-  /* 面积填充 */
+  /* 面积填充 — 蓝→青→紫渐变 */
   if (drawN >= 2) {
     ctx.save();
     ctx.beginPath();
@@ -380,7 +409,7 @@ function drawMainChart() {
     ctx.restore();
   }
 
-  /* 主曲线 */
+  /* 主曲线 — 蓝→青→紫→玫红渐变 */
   if (drawN >= 2) {
     ctx.save();
     ctx.beginPath();
@@ -415,10 +444,10 @@ function drawMainChart() {
       pts3d[n - 1].x, pts3d[n - 1].y
     );
     grad.addColorStop(0, "#60a5fa");
-    grad.addColorStop(.30, "#38bdf8");
-    grad.addColorStop(.55, "#818cf8");
-    grad.addColorStop(.80, "#a78bfa");
-    grad.addColorStop(1, "#c084fc");
+    grad.addColorStop(.25, "#22d3ee");
+    grad.addColorStop(.50, "#818cf8");
+    grad.addColorStop(.75, "#a78bfa");
+    grad.addColorStop(1, "#f472b6");
 
     ctx.strokeStyle = grad;
     ctx.lineWidth = 2.8;
@@ -448,7 +477,7 @@ function drawMainChart() {
     ctx.restore();
   }
 
-  /* 数据节点 */
+  /* 数据节点 — 各自颜色 */
   if (chartProgress >= 1) {
     const time = Date.now() / 1000;
     const keyIdx = [0, 4, 8, n - 1];
@@ -460,7 +489,7 @@ function drawMainChart() {
       if (isEndpoint) {
         const pr = 6 + Math.sin(time * 3) * 2.5;
         ctx.beginPath(); ctx.arc(p.x, p.y, pr * scale + 5, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(192,132,252,${0.10 + Math.sin(time * 3) * 0.07})`;
+        ctx.strokeStyle = `rgba(244,114,182,${0.10 + Math.sin(time * 3) * 0.07})`;
         ctx.lineWidth = 1; ctx.stroke();
       }
       const ballR = (isEndpoint ? 5 : 3.5) * scale;
@@ -472,8 +501,8 @@ function drawMainChart() {
         bg.addColorStop(1, "#1e3a8a");
       } else {
         bg.addColorStop(0, "#ffffff");
-        bg.addColorStop(.35, "#a78bfa");
-        bg.addColorStop(1, "#4c1d95");
+        bg.addColorStop(.35, "#c084fc");
+        bg.addColorStop(1, "#701a75");
       }
       ctx.beginPath(); ctx.arc(p.x, p.y, ballR, 0, Math.PI * 2);
       ctx.fillStyle = bg; ctx.fill();
@@ -488,7 +517,7 @@ function drawMainChart() {
     ctx.fillStyle = "#f1f5f9";
     ctx.fillText(`$${lp.toFixed(1)}`, ep.x, labelY);
     ctx.font = "bold 10px system-ui";
-    ctx.fillStyle = isUp ? "#38bdf8" : "#f87171";
+    ctx.fillStyle = isUp ? "#34d399" : "#f87171";
     ctx.fillText(`${isUp ? "+" : ""}${chg.toFixed(1)} (${isUp ? "+" : ""}${chgP.toFixed(1)}%)`, ep.x, labelY + 14);
   }
 
@@ -553,7 +582,7 @@ onBeforeUnmount(() => {
 <style scoped>
 /* ================================================================
    LANDING PAGE — 大宗绿测
-   Design: Tech-blue dark-mode with glow orbs background
+   Design: Multi-color dark-mode (blue base + amber/green/pink accents)
    Layout: Left brand (42%) | Right visualization (58%)
    ================================================================ */
 
@@ -569,7 +598,7 @@ onBeforeUnmount(() => {
     sans-serif;
 }
 
-/* ─── Background — 多层光晕 ─── */
+/* ─── Background — 多色光晕（蓝+橙+绿+玫红+紫） ─── */
 .bg-layer {
   position: fixed;
   inset: 0;
@@ -591,7 +620,7 @@ onBeforeUnmount(() => {
 .glow--1 {
   width: 700px; height: 700px;
   top: -250px; right: -100px;
-  background: radial-gradient(circle, rgba(30,64,175,.35) 0%, rgba(30,64,175,.08) 40%, transparent 70%);
+  background: radial-gradient(circle, rgba(30,64,175,.30) 0%, rgba(30,64,175,.06) 40%, transparent 70%);
   filter: blur(80px);
   animation: drift1 20s ease-in-out infinite alternate;
 }
@@ -599,33 +628,41 @@ onBeforeUnmount(() => {
 .glow--2 {
   width: 550px; height: 550px;
   bottom: -200px; left: -100px;
-  background: radial-gradient(circle, rgba(6,182,212,.2) 0%, transparent 65%);
+  background: radial-gradient(circle, rgba(6,182,212,.18) 0%, transparent 65%);
   filter: blur(90px);
   animation: drift2 26s ease-in-out infinite alternate;
 }
-/* 紫蓝光晕 — 中心 */
+/* 琥珀橙光晕 — 右中 */
 .glow--3 {
-  width: 400px; height: 400px;
-  top: 35%; left: 40%;
-  background: radial-gradient(circle, rgba(99,102,241,.12) 0%, transparent 60%);
-  filter: blur(100px);
-  animation: drift3 18s ease-in-out infinite alternate;
+  width: 420px; height: 420px;
+  top: 40%; right: 5%;
+  background: radial-gradient(circle, rgba(245,158,11,.10) 0%, transparent 60%);
+  filter: blur(90px);
+  animation: drift3 22s ease-in-out infinite alternate;
 }
-/* 小蓝点缀 — 右下 */
+/* 翠绿光晕 — 左中 */
 .glow--4 {
-  width: 300px; height: 300px;
-  bottom: 10%; right: 15%;
-  background: radial-gradient(circle, rgba(56,189,248,.1) 0%, transparent 60%);
-  filter: blur(70px);
-  animation: drift4 22s ease-in-out infinite alternate;
+  width: 380px; height: 380px;
+  top: 30%; left: 10%;
+  background: radial-gradient(circle, rgba(16,185,129,.08) 0%, transparent 55%);
+  filter: blur(80px);
+  animation: drift4 24s ease-in-out infinite alternate;
 }
-/* 紫色点缀 — 左上 */
+/* 玫红光晕 — 右下 */
 .glow--5 {
-  width: 250px; height: 250px;
-  top: 15%; left: 20%;
-  background: radial-gradient(circle, rgba(139,92,246,.08) 0%, transparent 55%);
+  width: 350px; height: 350px;
+  bottom: 5%; right: 20%;
+  background: radial-gradient(circle, rgba(244,114,182,.07) 0%, transparent 55%);
+  filter: blur(70px);
+  animation: drift5 18s ease-in-out infinite alternate;
+}
+/* 紫色点缀 — 中心 */
+.glow--6 {
+  width: 300px; height: 300px;
+  top: 50%; left: 45%;
+  background: radial-gradient(circle, rgba(139,92,246,.06) 0%, transparent 55%);
   filter: blur(60px);
-  animation: drift5 15s ease-in-out infinite alternate;
+  animation: drift6 16s ease-in-out infinite alternate;
 }
 
 @keyframes drift1 { to { transform: translate(-50px, 40px) scale(1.08); } }
@@ -633,6 +670,7 @@ onBeforeUnmount(() => {
 @keyframes drift3 { to { transform: translate(-30px, -40px) scale(1.15); } }
 @keyframes drift4 { to { transform: translate(40px, 20px) scale(.9); } }
 @keyframes drift5 { to { transform: translate(20px, 30px) scale(1.2); } }
+@keyframes drift6 { to { transform: translate(-20px, -25px) scale(1.1); } }
 
 /* ─── Main Grid ─── */
 .main-grid {
@@ -650,7 +688,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 48px 40px 48px 140px;
+  padding: 48px 40px 48px 200px;
 }
 
 /* 标签行 */
@@ -664,19 +702,19 @@ onBeforeUnmount(() => {
 .mark-line {
   width: 24px;
   height: 2px;
-  background: #3b82f6;
-  box-shadow: 0 0 12px rgba(59, 130, 246, 0.7);
+  background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+  box-shadow: 0 0 12px rgba(99, 102, 241, 0.6);
   border-radius: 1px;
 }
 .mark-text {
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 3px;
-  color: rgba(96, 165, 250, 0.6);
+  color: rgba(148, 163, 184, 0.5);
   text-transform: uppercase;
 }
 
-/* 标题 */
+/* 标题 — 多色渐变 */
 .hero-title {
   margin: 0 0 14px;
   animation: fadeUp 0.5s ease 0.08s both;
@@ -687,7 +725,7 @@ onBeforeUnmount(() => {
   font-weight: 800;
   letter-spacing: 4px;
   line-height: 1.12;
-  background: linear-gradient(135deg, #f1f5f9 0%, #94a3b8 55%, #60a5fa 100%);
+  background: linear-gradient(135deg, #f1f5f9 0%, #94a3b8 30%, #60a5fa 60%, #a78bfa 85%, #f472b6 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -701,7 +739,7 @@ onBeforeUnmount(() => {
   animation: fadeUp 0.5s ease 0.16s both;
 }
 
-/* 功能列表 */
+/* 功能列表  + 蓝色标号 */
 .feat-list {
   list-style: none;
   margin: 0 0 32px;
@@ -723,20 +761,34 @@ onBeforeUnmount(() => {
   animation: fadeUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   transition: all 0.25s ease;
 }
-.feat-item:hover {
-  border-color: rgba(59, 130, 246, 0.1);
-  background: rgba(59, 130, 246, 0.03);
-  transform: translateX(6px);
-}
 .feat--1 { animation-delay: 0.26s; }
 .feat--2 { animation-delay: 0.34s; }
 .feat--3 { animation-delay: 0.42s; }
 .feat--4 { animation-delay: 0.5s; }
+
+/* 统一蓝色 hover 效果 */
+.feat--1:hover,
+.feat--2:hover,
+.feat--3:hover,
+.feat--4:hover {
+  border-color: rgba(59, 130, 246, 0.12);
+  background: rgba(59, 130, 246, 0.04);
+  transform: translateX(6px);
+}
+
+/* 四个标号统一蓝色 */
+.feat--1 .feat-num,
+.feat--2 .feat-num,
+.feat--3 .feat-num,
+.feat--4 .feat-num {
+  color: rgba(96, 165, 250, 0.5);
+}
+
 .feat-num {
   font-size: 11px;
   font-weight: 800;
-  color: rgba(96, 165, 250, 0.3);
   min-width: 24px;
+  transition: color 0.25s;
 }
 .feat-body {
   display: flex;
@@ -754,7 +806,7 @@ onBeforeUnmount(() => {
   line-height: 1.5;
 }
 
-/* CTA 按钮 */
+/* CTA 按钮 — 蓝紫渐变 */
 .cta-row {
   display: flex;
   align-items: center;
@@ -768,7 +820,7 @@ onBeforeUnmount(() => {
   padding: 14px 32px;
   border: none;
   border-radius: 10px;
-  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  background: linear-gradient(135deg, #3b82f6, #6366f1);
   color: #fff;
   font-size: 13.5px;
   font-weight: 700;
@@ -776,18 +828,19 @@ onBeforeUnmount(() => {
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
   box-shadow:
-    0 4px 24px rgba(37, 99, 235, 0.4),
+    0 4px 24px rgba(59, 99, 235, 0.35),
+    0 0 40px -10px rgba(99, 102, 241, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 .cta-primary:hover {
   transform: translateY(-3px);
-  box-shadow: 0 8px 36px rgba(37, 99, 235, 0.5);
+  box-shadow: 0 8px 36px rgba(59, 99, 235, 0.45), 0 0 50px -10px rgba(99, 102, 241, 0.3);
 }
 .cta-primary svg { transition: transform 0.25s; }
 .cta-primary:hover svg { transform: translateX(4px); }
 .cta-secondary {
   padding: 14px 26px;
-  border: 1px solid rgba(96, 165, 250, 0.2);
+  border: 1px solid rgba(148, 163, 184, 0.15);
   border-radius: 10px;
   background: transparent;
   color: rgba(148, 163, 184, 0.55);
@@ -797,9 +850,9 @@ onBeforeUnmount(() => {
   transition: all 0.25s;
 }
 .cta-secondary:hover {
-  border-color: rgba(96, 165, 250, 0.4);
-  color: #93c5fd;
-  background: rgba(59, 130, 246, 0.05);
+  border-color: rgba(148, 163, 184, 0.3);
+  color: #cbd5e1;
+  background: rgba(148, 163, 184, 0.05);
 }
 
 /* 状态栏 */
@@ -818,13 +871,13 @@ onBeforeUnmount(() => {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #3b82f6;
+  background: #34d399;
   animation: blink 2s ease-in-out infinite;
 }
 .divider { opacity: 0.2; }
 @keyframes blink {
-  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(59,130,246,.4); }
-  50% { opacity: 0.4; box-shadow: 0 0 0 5px rgba(59,130,246,0); }
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(52,211,153,.4); }
+  50% { opacity: 0.4; box-shadow: 0 0 0 5px rgba(52,211,153,0); }
 }
 
 @keyframes fadeUp {
@@ -844,20 +897,20 @@ onBeforeUnmount(() => {
   justify-content: center;
   padding: 28px 24px;
   overflow: hidden;
-  border-left: 1px solid rgba(59,130,246,.06);
+  border-left: 1px solid rgba(59,130,246,.04);
   height: 100%;
   perspective: 1200px;
 }
 
-/* ─── Spotlight 聚光灯 ─── */
+/* ─── Spotlight 聚光灯 — 多色 ─── */
 .spotlight-layer {
   position: absolute;
   width: 600px; height: 600px;
   top: -200px; right: -150px;
   background: radial-gradient(
     circle,
-    rgba(59,130,246,.1) 0%,
-    rgba(99,102,241,.05) 35%,
+    rgba(59,130,246,.08) 0%,
+    rgba(99,102,241,.04) 35%,
     transparent 70%
   );
   pointer-events: none;
@@ -869,10 +922,21 @@ onBeforeUnmount(() => {
   top: auto; bottom: -200px; right: auto; left: -100px;
   background: radial-gradient(
     circle,
-    rgba(139,92,246,.06) 0%,
+    rgba(245,158,11,.05) 0%,
     transparent 65%
   );
   animation: spotlightFloat2 12s ease-in-out infinite alternate;
+}
+.spotlight-layer--3 {
+  width: 400px; height: 400px;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(
+    circle,
+    rgba(244,114,182,.04) 0%,
+    transparent 60%
+  );
+  animation: spotlightFloat3 10s ease-in-out infinite alternate;
 }
 @keyframes spotlightFloat {
   0%   { transform: translate(0,0) scale(1); }
@@ -883,6 +947,11 @@ onBeforeUnmount(() => {
   0%   { transform: translate(0,0) scale(1); }
   50%  { transform: translate(30px,-20px) scale(1.1); }
   100% { transform: translate(-10px,15px) scale(.9); }
+}
+@keyframes spotlightFloat3 {
+  0%   { transform: translate(-50%,-50%) scale(1); }
+  50%  { transform: translate(-50%,-50%) scale(1.2); }
+  100% { transform: translate(-50%,-50%) scale(.9); }
 }
 
 /* ─── Bento Grid 布局（3小卡横排）─── */
@@ -897,18 +966,19 @@ onBeforeUnmount(() => {
   max-width: 540px;
 }
 
-/* ═══ 核心大卡 — 油价预测 ═══ */
+/* ═══ 核心大卡 — 油价预测（蓝紫渐变） ═══ */
 .bento-card--hero {
   grid-column: 1 / -1;
   border-radius: 18px;
   position: relative;
   overflow: hidden;
-  background: linear-gradient(135deg, rgba(59,130,246,.06) 0%, transparent 50%),
+  background: linear-gradient(135deg, rgba(59,130,246,.06) 0%, rgba(139,92,246,.03) 50%, transparent 100%),
               linear-gradient(to bottom, rgba(8,16,36,.75) 0%, rgba(6,10,20,.9) 100%);
-  border: 1px solid rgba(59,130,246,.1);
+  border: 1px solid rgba(59,130,246,.08);
   box-shadow:
     0 25px 70px -15px rgba(0,0,0,.55),
-    0 0 60px -20px rgba(59,130,246,.08),
+    0 0 60px -20px rgba(59,130,246,.06),
+    0 0 40px -20px rgba(139,92,246,.04),
     inset 0 1px 0 rgba(255,255,255,.04);
   backdrop-filter: blur(24px) saturate(1.4);
   transition: transform .15s ease-out;
@@ -917,19 +987,19 @@ onBeforeUnmount(() => {
 .hero-inner { padding: 18px 20px 16px; position: relative; z-index: 2; }
 .hero-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .hero-tag { font-size: 9px; font-weight: 700; letter-spacing: .12em; padding: 3px 8px; border-radius: 6px; text-transform: uppercase; }
-.hero-tag--gru { color: #a78bfa; background: rgba(139,92,246,.1); border: 1px solid rgba(139,92,246,.2); }
+.hero-tag--gru { color: #c084fc; background: rgba(139,92,246,.1); border: 1px solid rgba(139,92,246,.2); }
 .hero-meta { font-size: 11px; color: rgba(148,163,184,.45); }
 .hero-chart { display: block; width:100%!important; height:auto!important; max-height:200px; }
 .hero-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 11px; color: rgba(148,163,184,.5); }
-.hero-acc strong { color: #60a5fa; font-size: 13px; }
+.hero-acc strong { color: #a78bfa; font-size: 13px; }
 .hero-live { display: flex; align-items: center; gap: 5px; }
-.live-pulse { display:inline-block; width:6px; height:6px; border-radius:50%; background:#3b82f6; animation: pulseLive 2s ease infinite; box-shadow:0 0 8px rgba(59,130,246,.5); }
+.live-pulse { display:inline-block; width:6px; height:6px; border-radius:50%; background:#c084fc; animation: pulseLive 2s ease infinite; box-shadow:0 0 8px rgba(192,132,252,.5); }
 @keyframes pulseLive { 0%,100%{opacity:1} 50%{opacity:.3} }
 
 .hero-glow { position:absolute; inset:0; pointer-events:none; border-radius:18px;
-  background: radial-gradient(ellipse at 50% 120%, rgba(59,130,246,.04) 0%, transparent 55%); z-index:1; }
-.bento-card--hero:hover { border-color: rgba(59,130,246,.2);
-  box-shadow: 0 35px 90px -15px rgba(0,0,0,.62), 0 0 80px -15px rgba(59,130,246,.15), inset 0 1px 0 rgba(255,255,255,.07); }
+  background: radial-gradient(ellipse at 50% 120%, rgba(99,102,241,.04) 0%, transparent 55%); z-index:1; }
+.bento-card--hero:hover { border-color: rgba(99,102,246,.18);
+  box-shadow: 0 35px 90px -15px rgba(0,0,0,.62), 0 0 80px -15px rgba(99,102,246,.12), 0 0 40px -15px rgba(192,132,252,.06), inset 0 1px 0 rgba(255,255,255,.07); }
 
 /* ═══ 小卡片 — 统一基础样式 ═══ */
 .bento-card {
@@ -937,9 +1007,8 @@ onBeforeUnmount(() => {
   position: relative;
   overflow: hidden;
   cursor: default;
-  background: linear-gradient(135deg, rgba(59,130,246,.04) 0%, transparent 50%),
-              linear-gradient(to bottom, rgba(8,16,36,.7) 0%, rgba(6,10,20,.85) 100%);
-  border: 1px solid rgba(59,130,246,.06);
+  background: linear-gradient(to bottom, rgba(8,16,36,.7) 0%, rgba(6,10,20,.85) 100%);
+  border: 1px solid rgba(255,255,255,.04);
   backdrop-filter: blur(20px) saturate(1.3);
   box-shadow: 0 12px 36px -10px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.03);
   transition: transform .12s ease-out, box-shadow .3s ease, border-color .3s ease;
@@ -947,33 +1016,78 @@ onBeforeUnmount(() => {
 }
 .bc-content { padding: 14px 15px; position: relative; z-index: 2; }
 
-/* 图标 */
-.bc-icon { display:block; width:28px; height:28px; border-radius:8px; margin-bottom:8px; position:relative; overflow:hidden; }
-.bc-icon--oil { background: linear-gradient(135deg,rgba(59,130,246,.15),rgba(59,130,246,.05)); border:1px solid rgba(59,130,246,.15); }
-.bc-icon--oil::after { content:""; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; width:14px; height:14px; margin:auto; border-radius:50%; background:#60a5fa; box-shadow:0 0 6px rgba(59,130,246,.5); }
-.bc-icon--bolt { background: linear-gradient(135deg,rgba(6,182,212,.15),rgba(6,182,212,.05)); border:1px solid rgba(6,182,212,.15); }
-.bc-icon--bolt::after { content:""; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; width:14px; height:14px; margin:auto; border-radius:50%; background:#22d3ee; box-shadow:0 0 6px rgba(6,182,212,.5); }
-.bc-icon--rate { background: linear-gradient(135deg,rgba(139,92,246,.15),rgba(139,92,246,.05)); border:1px solid rgba(139,92,246,.15); }
-.bc-icon--rate::after { content:""; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; width:14px; height:14px; margin:auto; border-radius:4px; background:#8b5cf6; box-shadow:0 0 6px rgba(139,92,246,.5); }
+/* ─── 油价卡 — 琥珀橙 ─── */
+.bento-card--price {
+  background: linear-gradient(135deg, rgba(245,158,11,.06) 0%, transparent 50%),
+              linear-gradient(to bottom, rgba(8,16,36,.7) 0%, rgba(6,10,20,.85) 100%);
+  border: 1px solid rgba(245,158,11,.08);
+}
+.bento-card--price:hover {
+  border-color: rgba(245,158,11,.2);
+  box-shadow: 0 18px 48px -8px rgba(0,0,0,.5), 0 0 30px -10px rgba(245,158,11,.1), inset 0 1px 0 rgba(255,255,255,.06);
+}
+.bc-icon--oil { background: linear-gradient(135deg,rgba(245,158,11,.18),rgba(245,158,11,.05)); border:1px solid rgba(245,158,11,.2); }
+.bc-icon--oil::after { content:""; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; width:14px; height:14px; margin:auto; border-radius:50%; background:#f59e0b; box-shadow:0 0 8px rgba(245,158,11,.5); }
 
+/* ─── 新能源卡 — 翠绿 ─── */
+.bento-card--stock {
+  background: linear-gradient(135deg, rgba(16,185,129,.06) 0%, transparent 50%),
+              linear-gradient(to bottom, rgba(8,16,36,.7) 0%, rgba(6,10,20,.85) 100%);
+  border: 1px solid rgba(16,185,129,.08);
+}
+.bento-card--stock:hover {
+  border-color: rgba(16,185,129,.2);
+  box-shadow: 0 18px 48px -8px rgba(0,0,0,.5), 0 0 30px -10px rgba(16,185,129,.1), inset 0 1px 0 rgba(255,255,255,.06);
+}
+.bc-icon--bolt { background: linear-gradient(135deg,rgba(16,185,129,.18),rgba(16,185,129,.05)); border:1px solid rgba(16,185,129,.2); }
+.bc-icon--bolt::after { content:""; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; width:14px; height:14px; margin:auto; border-radius:50%; background:#34d399; box-shadow:0 0 8px rgba(16,185,129,.5); }
+
+/* ─── 债券卡 — 玫红 ─── */
+.bento-card--bond {
+  background: linear-gradient(135deg, rgba(244,114,182,.06) 0%, transparent 50%),
+              linear-gradient(to bottom, rgba(8,16,36,.7) 0%, rgba(6,10,20,.85) 100%);
+  border: 1px solid rgba(244,114,182,.08);
+}
+.bento-card--bond:hover {
+  border-color: rgba(244,114,182,.2);
+  box-shadow: 0 18px 48px -8px rgba(0,0,0,.5), 0 0 30px -10px rgba(244,114,182,.1), inset 0 1px 0 rgba(255,255,255,.06);
+}
+.bc-icon--rate { background: linear-gradient(135deg,rgba(244,114,182,.18),rgba(244,114,182,.05)); border:1px solid rgba(244,114,182,.2); }
+.bc-icon--rate::after { content:""; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; width:14px; height:14px; margin:auto; border-radius:4px; background:#f472b6; box-shadow:0 0 8px rgba(244,114,182,.5); }
+
+/* 通用图标 */
+.bc-icon { display:block; width:28px; height:28px; border-radius:8px; margin-bottom:8px; position:relative; overflow:hidden; }
+
+/* 通用文本 */
 .bc-label { display:block; font-size:9px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:rgba(148,163,184,.45); margin-bottom:6px; }
 .bc-value { display:block; font-size:26px; font-weight:800; color:#f1f5f9; line-height:1.1; letter-spacing:-.02em; }
 .bc-delta { display:inline-block; font-size:12px; font-weight:700; padding:2px 7px; border-radius:5px; margin-top:4px; }
-.bc-delta.bc-up { color:#38bdf8; background: rgba(56,189,248,.1); }
-.bc-list { display:flex; flex-direction: column; gap:5px; margin-top:4px; }
+.bc-delta.bc-up { color:#f59e0b; background: rgba(245,158,11,.1); }
+.bc-delta.bc-up--green { color:#34d399; background: rgba(16,185,129,.1); }
+.bc-list { display:flex; flex-direction:column; gap:5px; margin-top:4px; }
 .bc-item { display:flex; align-items:baseline; justify-content:space-between; gap:8px; font-size:11px; color:rgba(148,163,184,.55); }
 .bc-item em { font-style:normal; font-weight:700; color:#e2e8f0; font-size:13px; }
 .bc-item small { font-size:10px; font-weight:600; padding:1px 5px; border-radius:4px; }
-.bc-item small.bc-up { color:#38bdf8; background:rgba(56,189,248,.09); }
+.bc-item small.bc-up { color:#f59e0b; background:rgba(245,158,11,.09); }
+.bc-item small.bc-up--green { color:#34d399; background:rgba(16,185,129,.09); }
 .bc-spark { display:block; width:100%!important; margin-top:6px; opacity:.7; }
 
-/* 卡片高光（hover扫光）*/
+/* 卡片高光（hover扫光）— 蓝色通用 */
 .bc-shine { position:absolute; inset:0; pointer-events:none; opacity:0;
-  background: linear-gradient(105deg, transparent 40%, rgba(96,165,250,.05) 45%, rgba(147,197,253,.1) 50%, rgba(96,165,250,.05) 55%, transparent 60%);
+  background: linear-gradient(105deg, transparent 40%, rgba(148,163,184,.04) 45%, rgba(255,255,255,.07) 50%, rgba(148,163,184,.04) 55%, transparent 60%);
   border-radius: 14px; z-index:1; transition: opacity .3s ease; }
 .bento-card:hover .bc-shine { opacity:1; }
-.bento-card:hover { border-color: rgba(59,130,246,.15);
-  box-shadow: 0 18px 48px -8px rgba(0,0,0,.5), 0 0 30px -10px rgba(59,130,246,.08), inset 0 1px 0 rgba(255,255,255,.06); }
+
+/* 鼠标跟随光晕 */
+.bc-spotlight {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  z-index: 0;
+  opacity: 0;
+  transition: opacity .3s ease;
+}
 
 /* 小卡高度 */
 .bento-card--price { min-height: 130px; }
