@@ -152,25 +152,20 @@
         </div>
       </div>
 
-      <!-- 中间区域：图表 + 数据面板 -->
+      <!-- 主内容区域（图表占位 + 右侧数据面板） -->
       <div class="mid-row">
-        <!-- 左：主图表 -->
+        <!-- 左侧：待添加内容占位 -->
         <div class="panel panel--chart">
           <dv-border-box-1 style="width:100%;height:100%;">
-            <div class="panel-inner">
-              <div class="panel-head">
-                <div class="panel-title-row">
-                  <span class="panel-tag">GRU MODEL</span>
-                  <span class="panel-title">Brent Crude Forecast</span>
-                </div>
-                <span class="panel-live"><i class="live-dot"></i> LIVE</span>
-              </div>
-              <div class="chart-area">
-                <canvas ref="chartCanvasRef" class="main-chart" width="800" height="360"></canvas>
-              </div>
-              <div class="panel-foot">
-                <span>Accuracy <strong>94.7%</strong></span>
-                <span>Updated {{ currentTime }}</span>
+            <div class="panel-inner placeholder-zone">
+              <div class="placeholder-hint">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="8" x2="12" y2="16" />
+                  <line x1="8" y1="12" x2="16" y2="12" />
+                </svg>
+                <span>待添加内容</span>
               </div>
             </div>
           </dv-border-box-1>
@@ -855,7 +850,7 @@ onBeforeUnmount(() => {
 /* ─── 中间面板行 ─── */
 .mid-row {
   display: grid;
-  grid-template-columns: 1.4fr 1fr;
+  grid-template-columns: 1fr 320px;
   gap: 14px;
   flex: 1;
   min-height: 400px;
@@ -907,17 +902,22 @@ onBeforeUnmount(() => {
   color: rgba(192, 132, 252, 0.55);
 }
 
-/* 图表区 */
-.chart-area {
-  flex: 1;
-  min-height: 280px;
+/* 左侧占位区 */
+.placeholder-zone {
   display: flex;
   align-items: center;
   justify-content: center;
 }
-.main-chart {
-  width: 100% !important;
-  height: 100% !important;
+.placeholder-hint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: rgba(148, 163, 184, 0.15);
+}
+.placeholder-hint span {
+  font-size: 13px;
+  letter-spacing: 0.5px;
 }
 
 /* 数据表格区 */
