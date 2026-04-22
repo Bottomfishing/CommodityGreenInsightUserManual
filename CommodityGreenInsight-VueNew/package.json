@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@kjgl77/datav-vue3": "^1.7.4",
     "vue": "^3.5.32",
     "vue-router": "^4.6.4"
   },

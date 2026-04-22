@@ -324,6 +324,7 @@ async function handleSubmit() {
       const localPwd = DEFAULT_ACCOUNTS[username.value]
       if (localPwd !== undefined && localPwd === password.value) {
         localStorage.setItem('username', username.value)
+        localStorage.setItem('token', 'local_' + username.value)
         successState.value = true
         setTimeout(() => {
           emit('update:visible', false)
