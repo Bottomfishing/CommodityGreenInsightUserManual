@@ -631,47 +631,15 @@
       </section>
     </main>
 
-    <Teleport to="body">
-      <div v-if="aiChatOpen" class="ai-chat-overlay" @click.self="aiChatOpen = false">
-        <aside class="ai-chat-drawer">
-          <div class="ai-chat-inner">
-            <div class="ai-chat-head">
-              <div>
-                <h3>AI 助手</h3>
-                <p>可结合当前 Run 上下文进行问答与分析</p>
-              </div>
-              <button class="feature-btn" @click="aiChatOpen = false">关闭</button>
-            </div>
-            <div ref="aiChatMessagesRef" class="ai-chat-messages">
-              <div
-                v-for="(msg, idx) in aiChatMessages"
-                :key="idx"
-                class="ai-msg"
-                :class="msg.role === 'user' ? 'ai-msg--user' : 'ai-msg--bot'"
-              >
-                {{ msg.content }}
-              </div>
-              <div v-if="aiChatLoading" class="ai-msg ai-msg--bot">思考中...</div>
-            </div>
-            <div class="ai-chat-input-row">
-              <input
-                v-model="aiChatInput"
-                type="text"
-                placeholder="例如：请总结本次训练的主要结论"
-                @keydown.enter="sendDashboardAIMessage"
-              />
-              <button
-                class="feature-btn feature-btn--primary"
-                :disabled="aiChatLoading || !aiChatInput.trim()"
-                @click="sendDashboardAIMessage"
-              >
-                发送
-              </button>
-            </div>
-          </div>
-        </aside>
-      </div>
-    </Teleport>
+    <HomeAiDrawer
+      :open="aiChatOpen"
+      :loading="aiChatLoading"
+      :input="aiChatInput"
+      :messages="aiChatMessages"
+      @update:open="aiChatOpen = $event"
+      @update:input="aiChatInput = $event"
+      @send="sendDashboardAIMessage"
+    />
   </div>
 </template>
 
@@ -680,6 +648,8 @@ import { ref, reactive, onMounted, onBeforeUnmount, computed, watch, nextTick } 
 import { useRouter } from "vue-router";
 import { clearToken } from "../api/auth";
 import worldMap from "../assets/world-map.svg";
+import HomeAiDrawer from "../components/home/HomeAiDrawer.vue";
+import { useMonitorDashboard } from "../composables/useMonitorDashboard";
 import {
   createOilRun,
   fetchAnalytics,
@@ -753,7 +723,6 @@ const fileStatuses = reactive({
 const aiChatOpen = ref(false);
 const aiChatInput = ref("");
 const aiChatLoading = ref(false);
-const aiChatMessagesRef = ref<HTMLDivElement | null>(null);
 const aiChatMessages = ref<{ role: "user" | "bot"; content: string }[]>([
   {
     role: "bot",
@@ -761,13 +730,18 @@ const aiChatMessages = ref<{ role: "user" | "bot"; content: string }[]>([
       "你好，我是总览 AI 助手。你可以让我解读当前训练状态、结果指标，或给出下一步训练建议。",
   },
 ]);
-const lossChartRef = ref<HTMLDivElement | null>(null);
-const priceChartRef = ref<HTMLDivElement | null>(null);
-const returnChartRef = ref<HTMLDivElement | null>(null);
-const echartsReady = ref(false);
-let lossChart: any = null;
-let priceChart: any = null;
-let returnChart: any = null;
+const {
+  lossChartRef,
+  priceChartRef,
+  returnChartRef,
+  ensureEchartsReady,
+  renderMonitorCharts,
+  resizeCharts,
+  disposeMonitorCharts,
+} = useMonitorDashboard(activePage, dashboardData);
+void lossChartRef;
+void priceChartRef;
+void returnChartRef;
 
 const dashboardPreview = computed(() =>
   dashboardData.value ? JSON.stringify(dashboardData.value, null, 2) : "暂无训练面板数据",
@@ -878,6 +852,9 @@ const scrollConfig = reactive({
     ["LPR 1Y", "3.45%", "-5bp", "-", "下降"],
   ],
   rowNum: 6,
+  waitTime: 2600,
+  carousel: "single",
+  animation: true,
   headerBGC: "rgba(59,130,246,0.08)",
   oddRowBGC: "transparent",
   evenRowBGC: "rgba(255,255,255,0.015)",
@@ -906,8 +883,6 @@ async function sendDashboardAIMessage() {
   aiChatMessages.value.push({ role: "user", content: prompt });
   aiChatInput.value = "";
   aiChatLoading.value = true;
-  await nextTick();
-  if (aiChatMessagesRef.value) aiChatMessagesRef.value.scrollTop = aiChatMessagesRef.value.scrollHeight;
 
   try {
     const data = await sendAIChat({
@@ -926,8 +901,6 @@ async function sendDashboardAIMessage() {
     });
   } finally {
     aiChatLoading.value = false;
-    await nextTick();
-    if (aiChatMessagesRef.value) aiChatMessagesRef.value.scrollTop = aiChatMessagesRef.value.scrollHeight;
   }
 }
 
@@ -953,116 +926,6 @@ async function refreshRuns() {
   }
 }
 
-function getEcharts() {
-  return (window as any).echarts || null;
-}
-
-async function ensureEchartsReady() {
-  if (echartsReady.value && getEcharts()) return;
-  if (getEcharts()) {
-    echartsReady.value = true;
-    return;
-  }
-  await new Promise<void>((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = "https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js";
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("ECharts 加载失败"));
-    document.head.appendChild(script);
-  });
-  echartsReady.value = true;
-}
-
-function renderMonitorCharts() {
-  const ec = getEcharts();
-  if (!ec || activePage.value !== "monitor") return;
-
-  const lossSeries = Array.isArray(dashboardData.value?.loss_series) ? dashboardData.value.loss_series : [];
-  const priceSeries = Array.isArray(dashboardData.value?.price_series) ? dashboardData.value.price_series : [];
-  const returnSeries = Array.isArray(dashboardData.value?.return_series) ? dashboardData.value.return_series : [];
-
-  if (lossChartRef.value && lossSeries.length) {
-    if (!lossChart) lossChart = ec.init(lossChartRef.value);
-    const epochs = lossSeries.map((r: any) => r.epoch);
-    const losses = lossSeries.map((r: any) => r.loss ?? r.train_loss);
-    const valLosses = lossSeries.map((r: any) => r.val_loss);
-    const chartSeries: any[] = [
-      { name: "train_loss", type: "line", data: losses, smooth: true, symbol: "none", lineStyle: { color: "#38bdf8", width: 2 } },
-    ];
-    if (valLosses.some((v: any) => v !== null && v !== undefined)) {
-      chartSeries.push({
-        name: "val_loss",
-        type: "line",
-        data: valLosses,
-        smooth: true,
-        symbol: "none",
-        lineStyle: { color: "#22c55e", width: 2 },
-      });
-    }
-    lossChart.setOption({
-      backgroundColor: "transparent",
-      tooltip: { trigger: "axis" },
-      legend: { data: chartSeries.map((s) => s.name), bottom: 0, textStyle: { color: "#94a3b8" } },
-      xAxis: { type: "category", data: epochs, name: "Epoch", axisLabel: { color: "#94a3b8" } },
-      yAxis: { type: "value", name: "Loss", axisLabel: { color: "#94a3b8" } },
-      grid: { left: 45, right: 18, top: 16, bottom: 34 },
-      series: chartSeries,
-    });
-  }
-
-  if (priceChartRef.value && priceSeries.length) {
-    if (!priceChart) priceChart = ec.init(priceChartRef.value);
-    const dates = priceSeries.map((r: any) => r.Date_target || r.date);
-    const actual = priceSeries.map((r: any) => r.Actual_P_t_plus_H ?? r.actual);
-    const pred = priceSeries.map((r: any) => r.GRU_Pred_P_t_plus_H ?? r.pred);
-    priceChart.setOption({
-      backgroundColor: "transparent",
-      tooltip: { trigger: "axis" },
-      legend: { data: ["Actual_Price", "GRU_Pred_Price"], bottom: 0, textStyle: { color: "#94a3b8" } },
-      xAxis: { type: "category", data: dates, axisLabel: { color: "#94a3b8", rotate: 25, fontSize: 10 } },
-      yAxis: { type: "value", name: "Price", axisLabel: { color: "#94a3b8" } },
-      grid: { left: 55, right: 18, top: 16, bottom: 42 },
-      series: [
-        { name: "Actual_Price", type: "line", data: actual, smooth: true, symbol: "none", lineStyle: { color: "#22d3ee", width: 2 } },
-        { name: "GRU_Pred_Price", type: "line", data: pred, smooth: true, symbol: "none", lineStyle: { color: "#f59e0b", width: 2 } },
-      ],
-    });
-  }
-
-  if (returnChartRef.value && returnSeries.length) {
-    if (!returnChart) returnChart = ec.init(returnChartRef.value);
-    const dates = returnSeries.map((r: any) => r.Date_target || r.date);
-    const actual = returnSeries.map((r: any) => r.Actual_Return);
-    const pred = returnSeries.map((r: any) => r.GRU_Pred_Return);
-    returnChart.setOption({
-      backgroundColor: "transparent",
-      tooltip: { trigger: "axis" },
-      legend: { data: ["Actual_Return", "GRU_Pred_Return"], bottom: 0, textStyle: { color: "#94a3b8" } },
-      xAxis: { type: "category", data: dates, axisLabel: { color: "#94a3b8", rotate: 25, fontSize: 10 } },
-      yAxis: { type: "value", name: "Return", axisLabel: { color: "#94a3b8" } },
-      grid: { left: 55, right: 18, top: 16, bottom: 42 },
-      series: [
-        { name: "Actual_Return", type: "line", data: actual, smooth: true, symbol: "none", lineStyle: { color: "#38bdf8", width: 2 } },
-        { name: "GRU_Pred_Return", type: "line", data: pred, smooth: true, symbol: "none", lineStyle: { color: "#22c55e", width: 2 } },
-      ],
-    });
-  }
-}
-
-function resizeCharts() {
-  lossChart?.resize();
-  priceChart?.resize();
-  returnChart?.resize();
-}
-
-function disposeMonitorCharts() {
-  lossChart?.dispose();
-  priceChart?.dispose();
-  returnChart?.dispose();
-  lossChart = null;
-  priceChart = null;
-  returnChart = null;
-}
 
 async function submitRun() {
   if (!selectedRunFile.value) {
@@ -1773,8 +1636,7 @@ onBeforeUnmount(() => {
   transition: all 0.2s;
 }
 .field input:focus,
-.field select:focus,
-.ai-chat-input-row input:focus {
+.field select:focus {
   outline: none;
   border-color: rgba(34, 211, 238, 0.7);
   box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.12);
@@ -1872,91 +1734,6 @@ onBeforeUnmount(() => {
   color: rgba(148, 163, 184, 0.85);
   font-size: 12px;
 }
-.ai-chat-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(2, 6, 23, 0.45);
-  backdrop-filter: blur(2px);
-  z-index: 1200;
-  display: flex;
-  justify-content: flex-end;
-}
-.ai-chat-drawer {
-  width: min(460px, 92vw);
-  height: 100%;
-  border-left: 1px solid rgba(56, 189, 248, 0.24);
-  background:
-    linear-gradient(180deg, rgba(3, 10, 24, 0.96), rgba(2, 8, 20, 0.98)),
-    radial-gradient(circle at 80% 10%, rgba(56, 189, 248, 0.12), transparent 40%);
-  box-shadow: -10px 0 30px rgba(2, 6, 23, 0.55);
-}
-.ai-chat-inner {
-  height: 100%;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.ai-chat-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.ai-chat-head h3 {
-  margin: 0;
-  font-size: 16px;
-  color: #e2e8f0;
-}
-.ai-chat-head p {
-  margin: 2px 0 0;
-  font-size: 12px;
-  color: rgba(148, 163, 184, 0.8);
-}
-.ai-chat-messages {
-  flex: 1;
-  min-height: 220px;
-  max-height: none;
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding-right: 2px;
-}
-.ai-msg {
-  max-width: 85%;
-  padding: 8px 10px;
-  border-radius: 8px;
-  font-size: 12px;
-  line-height: 1.55;
-  white-space: pre-wrap;
-}
-.ai-msg--bot {
-  align-self: flex-start;
-  background: rgba(30, 41, 59, 0.75);
-  border: 1px solid rgba(56, 189, 248, 0.24);
-  color: #dbeafe;
-}
-.ai-msg--user {
-  align-self: flex-end;
-  background: rgba(59, 130, 246, 0.24);
-  border: 1px solid rgba(96, 165, 250, 0.4);
-  color: #eff6ff;
-}
-.ai-chat-input-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.ai-chat-input-row input {
-  flex: 1;
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  border-radius: 8px;
-  background: rgba(15, 23, 42, 0.55);
-  color: #e2e8f0;
-  padding: 9px 10px;
-  min-width: 0;
-}
-
 /* ─── KPI 卡片行 ─── */
 .kpi-row {
   display: grid;
