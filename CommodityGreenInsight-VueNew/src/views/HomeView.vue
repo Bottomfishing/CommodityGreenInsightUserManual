@@ -52,7 +52,7 @@
             />
           </svg>
           <span class="stat-label">当前目录</span>
-          <span class="stat-val stat-val--mono">/home/dashboard</span>
+          <span class="stat-val stat-val--mono">{{ currentPath }}</span>
         </div>
         <div class="stat-divider"></div>
         <div class="stat-item">
@@ -135,6 +135,32 @@
          主内容区域
          ══════════════════════════════════════════════════ -->
     <main class="main-content">
+      <section class="page-heading">
+        <div class="page-heading-inner">
+          <div class="heading-lines">
+            <span class="heading-line heading-line--left"></span>
+            <div class="heading-text">
+              <h1 class="heading-title">大宗绿测综合数据</h1>
+              <dv-decoration-5 class="heading-decoration" />
+            </div>
+            <span class="heading-line heading-line--right"></span>
+          </div>
+        </div>
+      </section>
+
+      <nav class="page-tabs">
+        <button
+          v-for="tab in pageTabs"
+          :key="tab.key"
+          class="page-tab-btn"
+          :class="{ active: activePage === tab.key }"
+          @click="activePage = tab.key"
+        >
+          {{ tab.label }}
+        </button>
+      </nav>
+
+      <template v-if="activePage === 'dashboard'">
       <!-- 顶部装饰线 -->
       <dv-decoration-5 style="width: 100%; height: 3px; margin-bottom: 4px" />
 
@@ -423,6 +449,28 @@
 
       <!-- 底部装饰线 -->
       <dv-decoration-5 style="width: 100%; height: 3px; margin-top: 8px" />
+      </template>
+
+      <section v-else class="feature-panel">
+        <dv-border-box-1 style="width: 100%; height: 100%">
+          <div class="feature-panel-inner">
+            <h2 class="feature-title">{{ currentTabTitle }}</h2>
+            <p class="feature-desc">{{ currentTabDesc }}</p>
+            <div class="feature-actions">
+              <button class="feature-btn" @click="activePage = 'dashboard'">
+                返回总览
+              </button>
+              <button
+                v-if="activePage === 'results'"
+                class="feature-btn feature-btn--primary"
+                @click="goToResults"
+              >
+                刷新结果
+              </button>
+            </div>
+          </div>
+        </dv-border-box-1>
+      </section>
     </main>
   </div>
 </template>
@@ -434,6 +482,24 @@ import { clearToken } from "@/api/auth";
 
 const router = useRouter();
 const username = localStorage.getItem("username") || "用户";
+const activePage = ref<"dashboard" | "run" | "monitor" | "results" | "download">("dashboard");
+const pageTabs = [
+  { key: "dashboard", label: "总览" },
+  { key: "run", label: "运行配置" },
+  { key: "monitor", label: "训练监控" },
+  { key: "results", label: "结果预览" },
+  { key: "download", label: "下载导出" },
+] as const;
+const pageMeta: Record<(typeof pageTabs)[number]["key"], { title: string; desc: string }> = {
+  dashboard: { title: "总览大屏", desc: "核心行情、功能入口与实时数据监控。" },
+  run: { title: "运行配置", desc: "配置数据上传、模型参数与任务启动流程。" },
+  monitor: { title: "训练监控", desc: "查看任务状态、训练进度与运行日志。" },
+  results: { title: "结果预览", desc: "查看指标结果、图表表现与分析摘要。" },
+  download: { title: "下载导出", desc: "导出报告、图表和模型输出文件。" },
+};
+const currentTabTitle = computed(() => pageMeta[activePage.value].title);
+const currentTabDesc = computed(() => pageMeta[activePage.value].desc);
+const currentPath = computed(() => `/home/${activePage.value}`);
 
 // ===== 搜索 =====
 const searchQuery = ref("");
@@ -485,14 +551,14 @@ const flylineConfig = reactive({
     width: 1,
     color: "#ffde93",
     orbitColor: "rgba(103, 224, 227, 0.2)",
-    duration: [20, 30],
+    duration: [24, 50],
     radius: 100,
   },
   halo: {
     show: true,
     duration: [20, 30],
     color: "#fb7293",
-    radius: 120,
+    radius: 40,
   },
   text: {
     show: true,
@@ -538,8 +604,7 @@ function handleLogout() {
 
 // ===== Bento 功能 =====
 function openAIChat() {
-  // TODO: 跳转 AI 对话页面
-  console.log("open AI chat");
+  activePage.value = "run";
 }
 
 function handleUpload() {
@@ -555,13 +620,11 @@ function handleUpload() {
 }
 
 function startTraining() {
-  // TODO: 调用后端训练接口
-  console.log("start training");
+  activePage.value = "monitor";
 }
 
 function goToResults() {
-  // TODO: 跳转结果页
-  console.log("go to results");
+  activePage.value = "results";
 }
 
 // ===== 生命周期 =====
@@ -810,6 +873,131 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 14px;
   overflow: auto;
+}
+
+.page-heading {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 4px 2px 2px;
+}
+.page-heading-inner {
+  width: 100%;
+}
+.heading-lines {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.heading-line {
+  flex: 1;
+  height: 2px;
+  position: relative;
+  background: linear-gradient(90deg, transparent, rgba(103, 232, 249, 0.8));
+}
+.heading-line::before {
+  content: "";
+  position: absolute;
+  top: -8px;
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(125, 211, 252, 0.55));
+}
+.heading-line::after {
+  content: "";
+  position: absolute;
+  bottom: -8px;
+  width: 72%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(56, 189, 248, 0.45));
+}
+.heading-line--left {
+  transform: scaleX(-1);
+}
+.heading-text {
+  min-width: 380px;
+  text-align: center;
+}
+.heading-title {
+  font-size: 34px;
+  line-height: 1.15;
+  color: #f8fafc;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-shadow: 0 0 18px rgba(56, 189, 248, 0.35);
+}
+
+.heading-decoration {
+  width: 300px;
+  height: 40px;
+  margin: -2px auto 0;
+}
+
+.page-tabs {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.page-tab-btn {
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(15, 23, 42, 0.55);
+  color: rgba(148, 163, 184, 0.8);
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.page-tab-btn:hover {
+  color: #cbd5e1;
+  border-color: rgba(59, 130, 246, 0.35);
+}
+.page-tab-btn.active {
+  color: #dbeafe;
+  border-color: rgba(96, 165, 250, 0.7);
+  background: rgba(59, 130, 246, 0.18);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.12) inset;
+}
+
+.feature-panel {
+  flex: 1;
+  min-height: 360px;
+}
+.feature-panel-inner {
+  height: 100%;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 12px;
+}
+.feature-title {
+  font-size: 24px;
+  color: #f8fafc;
+}
+.feature-desc {
+  color: rgba(148, 163, 184, 0.78);
+  max-width: 560px;
+}
+.feature-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+}
+.feature-btn {
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: rgba(15, 23, 42, 0.55);
+  color: #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+.feature-btn--primary {
+  border-color: rgba(59, 130, 246, 0.55);
+  background: rgba(59, 130, 246, 0.2);
 }
 
 /* ─── KPI 卡片行 ─── */
@@ -1227,6 +1415,16 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 900px) {
+  .heading-text {
+    min-width: 260px;
+  }
+  .heading-title {
+    font-size: 24px;
+  }
+  .heading-line::before,
+  .heading-line::after {
+    display: none;
+  }
   .kpi-row {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -1256,6 +1454,22 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 600px) {
+  .heading-lines {
+    gap: 8px;
+  }
+  .heading-text {
+    min-width: 0;
+    width: 100%;
+  }
+  .heading-line {
+    display: none;
+  }
+  .heading-title {
+    font-size: 20px;
+  }
+  .heading-decoration {
+    width: 220px;
+  }
   .kpi-row {
     grid-template-columns: 1fr;
   }
