@@ -76,8 +76,8 @@
         <div class="stat-divider"></div>
         <div class="stat-item">
           <span class="stat-dot stat-dot--blue"></span>
-          <span class="stat-label">运行测试</span>
-          <span class="stat-val stat-val--success">PASSED</span>
+          <span class="stat-label">历史运行</span>
+          <span class="stat-val stat-val--success">{{ runCount }}</span>
         </div>
       </div>
 
@@ -162,7 +162,7 @@
 
       <template v-if="activePage === 'dashboard'">
       <!-- 顶部装饰线 -->
-      <dv-decoration-5 style="width: 100%; height: 3px; margin-bottom: 4px" />
+      <dv-decoration-5 class="dashboard-top-line" />
 
       <!-- 核心指标行 -->
       <div class="kpi-row">
@@ -448,7 +448,7 @@
       </div>
 
       <!-- 底部装饰线 -->
-      <dv-decoration-5 style="width: 100%; height: 3px; margin-top: 8px" />
+      <dv-decoration-5 class="dashboard-bottom-line" />
       </template>
 
       <section v-else class="feature-panel">
@@ -458,6 +458,11 @@
             <p class="feature-desc">{{ currentTabDesc }}</p>
 
             <div v-if="activePage === 'run'" class="work-panel">
+              <div class="module-head">
+                <span class="module-head-tag">RUN CONFIG</span>
+                <span class="module-head-title">运行配置面板</span>
+              </div>
+              <dv-decoration-3 class="module-head-line" />
               <div class="form-grid">
                 <label class="field">
                   <span>数据 ZIP</span>
@@ -495,6 +500,20 @@
             </div>
 
             <div v-else-if="activePage === 'monitor'" class="work-panel">
+              <div class="module-head">
+                <span class="module-head-tag">MONITOR</span>
+                <span class="module-head-title">训练监控面板</span>
+              </div>
+              <dv-decoration-3 class="module-head-line" />
+              <div class="monitor-mode-row">
+                <label class="radio-item"><input v-model="monitorMode" type="radio" value="selected" /> 监控已选 Run</label>
+                <label class="radio-item"><input v-model="monitorMode" type="radio" value="latest" /> 监控最新 Run</label>
+                <label class="radio-item"><input v-model="monitorMode" type="radio" value="manual" /> 手动输入 RunId</label>
+              </div>
+              <label v-if="monitorMode === 'manual'" class="field">
+                <span>手动 RunId</span>
+                <input v-model.trim="manualRunId" type="text" placeholder="run_YYYYMMDD_HHMMSS_topN" />
+              </label>
               <div class="form-grid">
                 <label class="field">
                   <span>选择 run</span>
@@ -510,6 +529,34 @@
                 <button class="feature-btn feature-btn--primary" :disabled="monitorLoading" @click="refreshMonitor">
                   刷新监控
                 </button>
+                <label class="checkbox-field checkbox-inline">
+                  <input v-model="monitorAutoRefresh" type="checkbox" />
+                  <span>自动刷新</span>
+                </label>
+                <label class="field inline-field">
+                  <span>间隔(秒)</span>
+                  <input v-model.number="monitorRefreshSec" type="number" min="2" max="15" :disabled="!monitorAutoRefresh" />
+                </label>
+              </div>
+              <div class="monitor-status-grid">
+                <div class="status-chip">training_log.csv: {{ fileStatuses.trainingLog }}</div>
+                <div class="status-chip">prediction_results.csv: {{ fileStatuses.predResults }}</div>
+                <div class="status-chip">run.log: {{ fileStatuses.runLog }}</div>
+              </div>
+              <div class="data-block">
+                <h3>Loss 曲线（实时）</h3>
+                <div v-if="!hasLossSeries" class="chart-empty">暂无 Loss 数据</div>
+                <div v-else ref="lossChartRef" class="chart-box"></div>
+              </div>
+              <div class="data-block">
+                <h3>价格对比曲线（实时）</h3>
+                <div v-if="!hasPriceSeries" class="chart-empty">暂无价格对比数据</div>
+                <div v-else ref="priceChartRef" class="chart-box"></div>
+              </div>
+              <div class="data-block">
+                <h3>收益对比曲线（实时）</h3>
+                <div v-if="!hasReturnSeries" class="chart-empty">暂无收益对比数据</div>
+                <div v-else ref="returnChartRef" class="chart-box"></div>
               </div>
               <div class="data-block">
                 <h3>训练面板</h3>
@@ -522,6 +569,11 @@
             </div>
 
             <div v-else-if="activePage === 'results'" class="work-panel">
+              <div class="module-head">
+                <span class="module-head-tag">RESULTS</span>
+                <span class="module-head-title">结果预览面板</span>
+              </div>
+              <dv-decoration-3 class="module-head-line" />
               <div class="feature-actions">
                 <button class="feature-btn feature-btn--primary" :disabled="resultsLoading" @click="refreshResults">
                   刷新结果
@@ -545,6 +597,11 @@
             </div>
 
             <div v-else-if="activePage === 'download'" class="work-panel">
+              <div class="module-head">
+                <span class="module-head-tag">EXPORT</span>
+                <span class="module-head-title">下载导出面板</span>
+              </div>
+              <dv-decoration-3 class="module-head-line" />
               <div class="feature-actions">
                 <button class="feature-btn feature-btn--primary" :disabled="filesLoading" @click="refreshFiles">
                   刷新文件列表
@@ -573,13 +630,56 @@
         </dv-border-box-1>
       </section>
     </main>
+
+    <Teleport to="body">
+      <div v-if="aiChatOpen" class="ai-chat-overlay" @click.self="aiChatOpen = false">
+        <aside class="ai-chat-drawer">
+          <div class="ai-chat-inner">
+            <div class="ai-chat-head">
+              <div>
+                <h3>AI 助手</h3>
+                <p>可结合当前 Run 上下文进行问答与分析</p>
+              </div>
+              <button class="feature-btn" @click="aiChatOpen = false">关闭</button>
+            </div>
+            <div ref="aiChatMessagesRef" class="ai-chat-messages">
+              <div
+                v-for="(msg, idx) in aiChatMessages"
+                :key="idx"
+                class="ai-msg"
+                :class="msg.role === 'user' ? 'ai-msg--user' : 'ai-msg--bot'"
+              >
+                {{ msg.content }}
+              </div>
+              <div v-if="aiChatLoading" class="ai-msg ai-msg--bot">思考中...</div>
+            </div>
+            <div class="ai-chat-input-row">
+              <input
+                v-model="aiChatInput"
+                type="text"
+                placeholder="例如：请总结本次训练的主要结论"
+                @keydown.enter="sendDashboardAIMessage"
+              />
+              <button
+                class="feature-btn feature-btn--primary"
+                :disabled="aiChatLoading || !aiChatInput.trim()"
+                @click="sendDashboardAIMessage"
+              >
+                发送
+              </button>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onBeforeUnmount, computed, watch } from "vue";
+import { ref, reactive, onMounted, onBeforeUnmount, computed, watch, nextTick } from "vue";
 import { useRouter } from "vue-router";
 import { clearToken } from "../api/auth";
+import worldMap from "../assets/world-map.svg";
 import {
   createOilRun,
   fetchAnalytics,
@@ -592,6 +692,8 @@ import {
   generateAIReport,
   getZipExportUrl,
   downloadOilRunFile,
+  resolveMonitor,
+  sendAIChat,
   stopOilRun,
 } from "../api/index";
 
@@ -639,6 +741,33 @@ const analyticsData = ref<any>(null);
 const aiReportText = ref("");
 const runFiles = ref<any[]>([]);
 let refreshTimer: number | undefined;
+const monitorMode = ref<"selected" | "latest" | "manual">("selected");
+const manualRunId = ref("");
+const monitorAutoRefresh = ref(true);
+const monitorRefreshSec = ref(3);
+const fileStatuses = reactive({
+  trainingLog: "未知",
+  predResults: "未知",
+  runLog: "未知",
+});
+const aiChatOpen = ref(false);
+const aiChatInput = ref("");
+const aiChatLoading = ref(false);
+const aiChatMessagesRef = ref<HTMLDivElement | null>(null);
+const aiChatMessages = ref<{ role: "user" | "bot"; content: string }[]>([
+  {
+    role: "bot",
+    content:
+      "你好，我是总览 AI 助手。你可以让我解读当前训练状态、结果指标，或给出下一步训练建议。",
+  },
+]);
+const lossChartRef = ref<HTMLDivElement | null>(null);
+const priceChartRef = ref<HTMLDivElement | null>(null);
+const returnChartRef = ref<HTMLDivElement | null>(null);
+const echartsReady = ref(false);
+let lossChart: any = null;
+let priceChart: any = null;
+let returnChart: any = null;
 
 const dashboardPreview = computed(() =>
   dashboardData.value ? JSON.stringify(dashboardData.value, null, 2) : "暂无训练面板数据",
@@ -648,6 +777,21 @@ const overviewPreview = computed(() =>
 );
 const analyticsPreview = computed(() =>
   analyticsData.value ? JSON.stringify(analyticsData.value, null, 2) : "暂无分析数据",
+);
+const runCount = computed(() => runList.value.length);
+const activeMonitorRunId = computed(() => {
+  if (monitorMode.value === "manual") return manualRunId.value || "";
+  if (monitorMode.value === "latest") return runList.value?.[0]?.run_id || "";
+  return selectedRunId.value;
+});
+const hasLossSeries = computed(
+  () => Array.isArray(dashboardData.value?.loss_series) && dashboardData.value.loss_series.length > 0,
+);
+const hasPriceSeries = computed(
+  () => Array.isArray(dashboardData.value?.price_series) && dashboardData.value.price_series.length > 0,
+);
+const hasReturnSeries = computed(
+  () => Array.isArray(dashboardData.value?.return_series) && dashboardData.value.return_series.length > 0,
 );
 
 // ===== 搜索 =====
@@ -715,7 +859,7 @@ const flylineConfig = reactive({
     color: "#ffdb5c",
     fontSize: 12,
   },
-  bgImgSrc: "@/assets/世界.png",
+  bgImgSrc: worldMap,
   curvature: 5,
   relative: true,
 });
@@ -724,24 +868,24 @@ const flylineConfig = reactive({
 const scrollConfig = reactive({
   header: ["标的", "最新价", "涨跌幅", "成交量", "状态"],
   data: [
-    ["Brent 原油", "$78.42", "+2.34%", "2.4M", "📈 买入"],
-    ["WTI 原油", "$74.56", "+1.87%", "1.8M", "📈 买入"],
-    ["CSI 新能源", "3,847", "+1.82%", "862亿", "📈 买入"],
-    ["光伏产业", "4,126", "+0.95%", "423亿", "📊 持有"],
-    ["新能源车", "2,934", "-0.42%", "312亿", "📉 观望"],
-    ["10Y 国债", "2.34%", "-2bp", "1.2万亿", "📊 持有"],
-    ["SHIBOR", "1.68%", "0bp", "-", "📊 持有"],
-    ["LPR 1Y", "3.45%", "-5bp", "-", "📉 下降"],
+    ["Brent", "$78.42", "+2.34%", "2.4M", "买入"],
+    ["WTI", "$74.56", "+1.87%", "1.8M", "买入"],
+    ["新能源", "3,847", "+1.82%", "862亿", "买入"],
+    ["光伏", "4,126", "+0.95%", "423亿", "持有"],
+    ["新能车", "2,934", "-0.42%", "312亿", "观望"],
+    ["10Y 国债", "2.34%", "-2bp", "1.2万亿", "持有"],
+    ["SHIBOR", "1.68%", "0bp", "-", "持有"],
+    ["LPR 1Y", "3.45%", "-5bp", "-", "下降"],
   ],
-  rowNum: 7,
+  rowNum: 6,
   headerBGC: "rgba(59,130,246,0.08)",
   oddRowBGC: "transparent",
   evenRowBGC: "rgba(255,255,255,0.015)",
-  headerHeight: 36,
-  rowHeight: 32,
+  headerHeight: 34,
+  rowHeight: 30,
   align: ["left", "right", "right", "right", "center"],
-  headerFontSize: 12,
-  fontSize: 12,
+  headerFontSize: 11,
+  fontSize: 11,
   color: "rgba(148,163,184,0.7)",
 });
 
@@ -753,7 +897,38 @@ function handleLogout() {
 
 // ===== Bento 功能 =====
 function openAIChat() {
-  activePage.value = "results";
+  aiChatOpen.value = true;
+}
+
+async function sendDashboardAIMessage() {
+  const prompt = aiChatInput.value.trim();
+  if (!prompt || aiChatLoading.value) return;
+  aiChatMessages.value.push({ role: "user", content: prompt });
+  aiChatInput.value = "";
+  aiChatLoading.value = true;
+  await nextTick();
+  if (aiChatMessagesRef.value) aiChatMessagesRef.value.scrollTop = aiChatMessagesRef.value.scrollHeight;
+
+  try {
+    const data = await sendAIChat({
+      mode: "oil",
+      prompt,
+      run_id: selectedRunId.value || undefined,
+    });
+    aiChatMessages.value.push({
+      role: "bot",
+      content: data?.answer || data?.content || "已收到请求，但没有返回有效内容。",
+    });
+  } catch (err: any) {
+    aiChatMessages.value.push({
+      role: "bot",
+      content: `请求失败：${err?.message || "网络异常"}`,
+    });
+  } finally {
+    aiChatLoading.value = false;
+    await nextTick();
+    if (aiChatMessagesRef.value) aiChatMessagesRef.value.scrollTop = aiChatMessagesRef.value.scrollHeight;
+  }
 }
 
 function handleUpload() {
@@ -766,12 +941,127 @@ function onRunFileSelected(event: Event) {
 }
 
 async function refreshRuns() {
-  const [status, runs] = await Promise.all([fetchSystemStatus(), fetchRunList()]);
-  systemBusy.value = !!status?.global_busy;
-  runList.value = Array.isArray(runs) ? runs : [];
-  if (!selectedRunId.value && runList.value.length) {
-    selectedRunId.value = runList.value[0].run_id || "";
+  try {
+    const [status, runs] = await Promise.all([fetchSystemStatus(), fetchRunList()]);
+    systemBusy.value = !!status?.global_busy;
+    runList.value = Array.isArray(runs) ? runs : [];
+    if (!selectedRunId.value && runList.value.length) {
+      selectedRunId.value = runList.value[0].run_id || "";
+    }
+  } catch {
+    systemBusy.value = false;
   }
+}
+
+function getEcharts() {
+  return (window as any).echarts || null;
+}
+
+async function ensureEchartsReady() {
+  if (echartsReady.value && getEcharts()) return;
+  if (getEcharts()) {
+    echartsReady.value = true;
+    return;
+  }
+  await new Promise<void>((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js";
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("ECharts 加载失败"));
+    document.head.appendChild(script);
+  });
+  echartsReady.value = true;
+}
+
+function renderMonitorCharts() {
+  const ec = getEcharts();
+  if (!ec || activePage.value !== "monitor") return;
+
+  const lossSeries = Array.isArray(dashboardData.value?.loss_series) ? dashboardData.value.loss_series : [];
+  const priceSeries = Array.isArray(dashboardData.value?.price_series) ? dashboardData.value.price_series : [];
+  const returnSeries = Array.isArray(dashboardData.value?.return_series) ? dashboardData.value.return_series : [];
+
+  if (lossChartRef.value && lossSeries.length) {
+    if (!lossChart) lossChart = ec.init(lossChartRef.value);
+    const epochs = lossSeries.map((r: any) => r.epoch);
+    const losses = lossSeries.map((r: any) => r.loss ?? r.train_loss);
+    const valLosses = lossSeries.map((r: any) => r.val_loss);
+    const chartSeries: any[] = [
+      { name: "train_loss", type: "line", data: losses, smooth: true, symbol: "none", lineStyle: { color: "#38bdf8", width: 2 } },
+    ];
+    if (valLosses.some((v: any) => v !== null && v !== undefined)) {
+      chartSeries.push({
+        name: "val_loss",
+        type: "line",
+        data: valLosses,
+        smooth: true,
+        symbol: "none",
+        lineStyle: { color: "#22c55e", width: 2 },
+      });
+    }
+    lossChart.setOption({
+      backgroundColor: "transparent",
+      tooltip: { trigger: "axis" },
+      legend: { data: chartSeries.map((s) => s.name), bottom: 0, textStyle: { color: "#94a3b8" } },
+      xAxis: { type: "category", data: epochs, name: "Epoch", axisLabel: { color: "#94a3b8" } },
+      yAxis: { type: "value", name: "Loss", axisLabel: { color: "#94a3b8" } },
+      grid: { left: 45, right: 18, top: 16, bottom: 34 },
+      series: chartSeries,
+    });
+  }
+
+  if (priceChartRef.value && priceSeries.length) {
+    if (!priceChart) priceChart = ec.init(priceChartRef.value);
+    const dates = priceSeries.map((r: any) => r.Date_target || r.date);
+    const actual = priceSeries.map((r: any) => r.Actual_P_t_plus_H ?? r.actual);
+    const pred = priceSeries.map((r: any) => r.GRU_Pred_P_t_plus_H ?? r.pred);
+    priceChart.setOption({
+      backgroundColor: "transparent",
+      tooltip: { trigger: "axis" },
+      legend: { data: ["Actual_Price", "GRU_Pred_Price"], bottom: 0, textStyle: { color: "#94a3b8" } },
+      xAxis: { type: "category", data: dates, axisLabel: { color: "#94a3b8", rotate: 25, fontSize: 10 } },
+      yAxis: { type: "value", name: "Price", axisLabel: { color: "#94a3b8" } },
+      grid: { left: 55, right: 18, top: 16, bottom: 42 },
+      series: [
+        { name: "Actual_Price", type: "line", data: actual, smooth: true, symbol: "none", lineStyle: { color: "#22d3ee", width: 2 } },
+        { name: "GRU_Pred_Price", type: "line", data: pred, smooth: true, symbol: "none", lineStyle: { color: "#f59e0b", width: 2 } },
+      ],
+    });
+  }
+
+  if (returnChartRef.value && returnSeries.length) {
+    if (!returnChart) returnChart = ec.init(returnChartRef.value);
+    const dates = returnSeries.map((r: any) => r.Date_target || r.date);
+    const actual = returnSeries.map((r: any) => r.Actual_Return);
+    const pred = returnSeries.map((r: any) => r.GRU_Pred_Return);
+    returnChart.setOption({
+      backgroundColor: "transparent",
+      tooltip: { trigger: "axis" },
+      legend: { data: ["Actual_Return", "GRU_Pred_Return"], bottom: 0, textStyle: { color: "#94a3b8" } },
+      xAxis: { type: "category", data: dates, axisLabel: { color: "#94a3b8", rotate: 25, fontSize: 10 } },
+      yAxis: { type: "value", name: "Return", axisLabel: { color: "#94a3b8" } },
+      grid: { left: 55, right: 18, top: 16, bottom: 42 },
+      series: [
+        { name: "Actual_Return", type: "line", data: actual, smooth: true, symbol: "none", lineStyle: { color: "#38bdf8", width: 2 } },
+        { name: "GRU_Pred_Return", type: "line", data: pred, smooth: true, symbol: "none", lineStyle: { color: "#22c55e", width: 2 } },
+      ],
+    });
+  }
+}
+
+function resizeCharts() {
+  lossChart?.resize();
+  priceChart?.resize();
+  returnChart?.resize();
+}
+
+function disposeMonitorCharts() {
+  lossChart?.dispose();
+  priceChart?.dispose();
+  returnChart?.dispose();
+  lossChart = null;
+  priceChart = null;
+  returnChart = null;
 }
 
 async function submitRun() {
@@ -816,18 +1106,46 @@ async function stopCurrentRun() {
 }
 
 async function refreshMonitor() {
-  if (!selectedRunId.value) {
+  let runId = activeMonitorRunId.value;
+  if (!runId) {
     await refreshRuns();
-    if (!selectedRunId.value) return;
+    runId = activeMonitorRunId.value;
+    if (!runId) return;
   }
+
+  try {
+    const resolved = await resolveMonitor({
+      mode: monitorMode.value,
+      selected_run_id: monitorMode.value === "selected" ? selectedRunId.value || undefined : undefined,
+      manual_dir: monitorMode.value === "manual" ? manualRunId.value || undefined : undefined,
+    });
+    if (resolved?.run_id) {
+      runId = resolved.run_id;
+      if (monitorMode.value !== "manual") selectedRunId.value = resolved.run_id;
+    }
+  } catch {
+    // 后端不支持 resolve 时回退到当前前端 runId
+  }
+
   monitorLoading.value = true;
   try {
+    await ensureEchartsReady();
     const [dashboard, runLog] = await Promise.all([
-      fetchTrainingDashboard(selectedRunId.value),
-      fetchRunLog(selectedRunId.value, 300),
+      fetchTrainingDashboard(runId),
+      fetchRunLog(runId, 300),
     ]);
     dashboardData.value = dashboard;
     logText.value = typeof runLog === "string" ? runLog : JSON.stringify(runLog, null, 2);
+    const hasLoss = Array.isArray(dashboard?.loss_series) && dashboard.loss_series.length > 0;
+    const hasPrice =
+      (Array.isArray(dashboard?.price_series) && dashboard.price_series.length > 0) ||
+      (Array.isArray(dashboard?.return_series) && dashboard.return_series.length > 0);
+    const hasLog = !!logText.value;
+    fileStatuses.trainingLog = hasLoss ? "已生成" : "未找到/为空";
+    fileStatuses.predResults = hasPrice ? "已生成" : "未找到/为空";
+    fileStatuses.runLog = hasLog ? "已生成" : "未找到/为空";
+    await nextTick();
+    renderMonitorCharts();
   } catch (err: any) {
     logText.value = `读取监控失败：${err?.message || "未知错误"}`;
   } finally {
@@ -908,13 +1226,13 @@ function setupAutoRefresh() {
   refreshTimer = window.setInterval(async () => {
     try {
       await refreshRuns();
-      if (activePage.value === "monitor" && selectedRunId.value) {
+      if (activePage.value === "monitor" && monitorAutoRefresh.value && activeMonitorRunId.value) {
         await refreshMonitor();
       }
     } catch {
       // keep polling without interrupting UI
     }
-  }, 5000);
+  }, Math.max(2, monitorRefreshSec.value) * 1000);
 }
 
 async function setActivePage(page: (typeof pageTabs)[number]["key"]) {
@@ -928,7 +1246,16 @@ async function warmupData() {
 }
 
 function cleanupTimers() {
-  if (refreshTimer) clearInterval(refreshTimer);
+  if (refreshTimer) {
+    clearInterval(refreshTimer);
+    refreshTimer = undefined;
+  }
+}
+
+function handleGlobalKeydown(event: KeyboardEvent) {
+  if (event.key === "Escape" && aiChatOpen.value) {
+    aiChatOpen.value = false;
+  }
 }
 
 function openUploadDialog() {
@@ -958,9 +1285,14 @@ onMounted(() => {
   clockTimer = setInterval(updateClock, 1000);
   warmupData();
   setupAutoRefresh();
+  window.addEventListener("resize", resizeCharts);
+  window.addEventListener("keydown", handleGlobalKeydown);
 });
 
 watch(activePage, () => {
+  if (activePage.value !== "monitor") {
+    disposeMonitorCharts();
+  }
   handlePageChange();
 });
 
@@ -968,9 +1300,21 @@ watch(selectedRunId, () => {
   handlePageChange();
 });
 
+watch([monitorMode, manualRunId], () => {
+  if (activePage.value === "monitor") refreshMonitor();
+});
+
+watch([monitorAutoRefresh, monitorRefreshSec], () => {
+  cleanupTimers();
+  setupAutoRefresh();
+});
+
 onBeforeUnmount(() => {
   clearInterval(clockTimer);
   cleanupTimers();
+  window.removeEventListener("resize", resizeCharts);
+  window.removeEventListener("keydown", handleGlobalKeydown);
+  disposeMonitorCharts();
 });
 </script>
 
@@ -1210,6 +1554,13 @@ onBeforeUnmount(() => {
   gap: 14px;
   overflow: auto;
 }
+.dashboard-top-line,
+.dashboard-bottom-line {
+  width: 100%;
+  height: 3px;
+}
+.dashboard-top-line { margin-bottom: 4px; }
+.dashboard-bottom-line { margin-top: 8px; }
 
 .page-heading {
   border: none;
@@ -1324,26 +1675,68 @@ onBeforeUnmount(() => {
   margin-top: 6px;
 }
 .feature-btn {
-  border: 1px solid rgba(148, 163, 184, 0.24);
-  background: rgba(15, 23, 42, 0.55);
-  color: #cbd5e1;
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  background: rgba(7, 25, 52, 0.68);
+  color: #bae6fd;
   border-radius: 8px;
   padding: 8px 14px;
   cursor: pointer;
+  transition: all 0.2s;
 }
 .feature-btn--primary {
-  border-color: rgba(59, 130, 246, 0.55);
-  background: rgba(59, 130, 246, 0.2);
+  border-color: rgba(34, 211, 238, 0.55);
+  background: linear-gradient(135deg, rgba(14, 116, 144, 0.62), rgba(37, 99, 235, 0.55));
+  color: #ecfeff;
+  box-shadow: 0 4px 16px rgba(14, 116, 144, 0.3);
 }
 .feature-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+.feature-btn:hover {
+  border-color: rgba(34, 211, 238, 0.55);
+  color: #e0f2fe;
+  transform: translateY(-1px);
 }
 .work-panel {
   width: 100%;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(56, 189, 248, 0.16);
+  background:
+    linear-gradient(180deg, rgba(8, 18, 38, 0.68), rgba(3, 9, 24, 0.72)),
+    radial-gradient(circle at 90% 10%, rgba(56, 189, 248, 0.09), transparent 45%);
+  box-shadow:
+    inset 0 0 24px rgba(56, 189, 248, 0.05),
+    0 10px 24px rgba(2, 6, 23, 0.24);
+}
+.module-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.module-head-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: #67e8f9;
+  background: rgba(8, 145, 178, 0.18);
+  border: 1px solid rgba(34, 211, 238, 0.32);
+}
+.module-head-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #e2e8f0;
+}
+.module-head-line {
+  width: 220px;
+  height: 18px;
 }
 .form-grid {
   width: 100%;
@@ -1364,25 +1757,42 @@ onBeforeUnmount(() => {
   align-items: center;
   margin-top: 20px;
 }
+.checkbox-inline {
+  margin-top: 0;
+}
+.inline-field {
+  max-width: 120px;
+}
 .field input,
 .field select {
-  border: 1px solid rgba(148, 163, 184, 0.25);
+  border: 1px solid rgba(56, 189, 248, 0.25);
   border-radius: 8px;
-  background: rgba(15, 23, 42, 0.55);
-  color: #e2e8f0;
+  background: rgba(4, 16, 38, 0.72);
+  color: #e0f2fe;
   padding: 8px 10px;
+  transition: all 0.2s;
+}
+.field input:focus,
+.field select:focus,
+.ai-chat-input-row input:focus {
+  outline: none;
+  border-color: rgba(34, 211, 238, 0.7);
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.12);
 }
 .data-block {
   width: 100%;
-  border: 1px solid rgba(59, 130, 246, 0.18);
+  border: 1px solid rgba(56, 189, 248, 0.2);
   border-radius: 8px;
   padding: 10px;
-  background: rgba(2, 6, 23, 0.35);
+  background:
+    linear-gradient(180deg, rgba(2, 12, 28, 0.8), rgba(1, 8, 20, 0.82)),
+    radial-gradient(circle at 0% 0%, rgba(45, 212, 191, 0.08), transparent 40%);
 }
 .data-block h3 {
   margin-bottom: 8px;
   font-size: 13px;
-  color: rgba(191, 219, 254, 0.95);
+  color: rgba(186, 230, 253, 0.98);
+  letter-spacing: 0.03em;
 }
 .data-block pre {
   margin: 0;
@@ -1403,14 +1813,148 @@ onBeforeUnmount(() => {
   text-align: left;
   border: 1px solid rgba(34, 211, 238, 0.24);
   border-radius: 8px;
-  background: rgba(15, 23, 42, 0.5);
+  background: linear-gradient(135deg, rgba(8, 47, 73, 0.28), rgba(15, 23, 42, 0.5));
   color: #bae6fd;
   padding: 8px 10px;
   cursor: pointer;
+  transition: all 0.2s;
+}
+.file-item:hover {
+  border-color: rgba(45, 212, 191, 0.6);
+  color: #e0f2fe;
+  transform: translateY(-1px);
 }
 .empty-text {
   color: rgba(148, 163, 184, 0.8);
   font-size: 12px;
+}
+.monitor-mode-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 2px;
+}
+.radio-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: rgba(191, 219, 254, 0.92);
+}
+.monitor-status-grid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.status-chip {
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  background: linear-gradient(135deg, rgba(6, 78, 59, 0.25), rgba(8, 47, 73, 0.24));
+  color: #ccfbf1;
+  font-size: 11px;
+  border-radius: 999px;
+  padding: 6px 10px;
+  text-align: center;
+}
+.chart-box {
+  width: 100%;
+  height: 220px;
+  background: linear-gradient(180deg, rgba(2, 6, 23, 0.78), rgba(5, 16, 32, 0.62));
+  border: 1px solid rgba(56, 189, 248, 0.18);
+  border-radius: 8px;
+}
+.chart-empty {
+  border: 1px dashed rgba(148, 163, 184, 0.35);
+  border-radius: 8px;
+  padding: 22px 12px;
+  text-align: center;
+  color: rgba(148, 163, 184, 0.85);
+  font-size: 12px;
+}
+.ai-chat-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.45);
+  backdrop-filter: blur(2px);
+  z-index: 1200;
+  display: flex;
+  justify-content: flex-end;
+}
+.ai-chat-drawer {
+  width: min(460px, 92vw);
+  height: 100%;
+  border-left: 1px solid rgba(56, 189, 248, 0.24);
+  background:
+    linear-gradient(180deg, rgba(3, 10, 24, 0.96), rgba(2, 8, 20, 0.98)),
+    radial-gradient(circle at 80% 10%, rgba(56, 189, 248, 0.12), transparent 40%);
+  box-shadow: -10px 0 30px rgba(2, 6, 23, 0.55);
+}
+.ai-chat-inner {
+  height: 100%;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ai-chat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.ai-chat-head h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #e2e8f0;
+}
+.ai-chat-head p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: rgba(148, 163, 184, 0.8);
+}
+.ai-chat-messages {
+  flex: 1;
+  min-height: 220px;
+  max-height: none;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 2px;
+}
+.ai-msg {
+  max-width: 85%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+.ai-msg--bot {
+  align-self: flex-start;
+  background: rgba(30, 41, 59, 0.75);
+  border: 1px solid rgba(56, 189, 248, 0.24);
+  color: #dbeafe;
+}
+.ai-msg--user {
+  align-self: flex-end;
+  background: rgba(59, 130, 246, 0.24);
+  border: 1px solid rgba(96, 165, 250, 0.4);
+  color: #eff6ff;
+}
+.ai-chat-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ai-chat-input-row input {
+  flex: 1;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.55);
+  color: #e2e8f0;
+  padding: 9px 10px;
+  min-width: 0;
 }
 
 /* ─── KPI 卡片行 ─── */
@@ -1422,14 +1966,26 @@ onBeforeUnmount(() => {
 }
 .kpi-card {
   min-height: 120px;
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(2, 12, 28, 0.72), rgba(1, 8, 20, 0.74)),
+    radial-gradient(circle at 100% 0%, rgba(45, 212, 191, 0.08), transparent 45%);
+  border: 1px solid rgba(56, 189, 248, 0.12);
+  box-shadow: 0 8px 22px rgba(2, 6, 23, 0.24);
 }
 
 /* ─── 主要内容网格布局 ─── */
 .main-content-grid {
   display: grid;
-  grid-template-columns: 4fr 1fr;
+  grid-template-columns: 3.5fr 1.2fr;
   gap: 16px;
   margin-bottom: 16px;
+  border: 1px solid rgba(56, 189, 248, 0.14);
+  border-radius: 12px;
+  padding: 12px;
+  background:
+    linear-gradient(180deg, rgba(2, 12, 28, 0.65), rgba(1, 8, 20, 0.68)),
+    radial-gradient(circle at 90% 12%, rgba(56, 189, 248, 0.06), transparent 45%);
 }
 
 /* 左侧功能区 */
@@ -1628,7 +2184,7 @@ onBeforeUnmount(() => {
 .panel-title {
   font-size: 14px;
   font-weight: 600;
-  color: #cbd5e1;
+  color: #dbeafe;
 }
 .panel-live {
   display: flex;
@@ -1663,7 +2219,8 @@ onBeforeUnmount(() => {
   padding: 16px;
 }
 .bento-inner:hover {
-  opacity: 0.85;
+  opacity: 0.9;
+  transform: translateY(-2px);
 }
 .bento-icon {
   width: 48px;
@@ -1794,6 +2351,10 @@ onBeforeUnmount(() => {
 .data-table-area {
   flex: 1;
   min-height: 0;
+  border: 1px solid rgba(56, 189, 248, 0.12);
+  border-radius: 8px;
+  padding: 6px;
+  background: rgba(2, 6, 23, 0.35);
 }
 .panel-foot {
   display: flex;
