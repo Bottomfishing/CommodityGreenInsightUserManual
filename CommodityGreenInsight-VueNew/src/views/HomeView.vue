@@ -32,7 +32,7 @@
         <div class="stat-item">
           <span class="stat-dot stat-dot--green"></span>
           <span class="stat-label">当前状态</span>
-          <span class="stat-val">运行中</span>
+          <span class="stat-val">{{ systemBusy ? "运行中" : "空闲" }}</span>
         </div>
         <div class="stat-divider"></div>
         <div class="stat-item">
@@ -456,17 +456,118 @@
           <div class="feature-panel-inner">
             <h2 class="feature-title">{{ currentTabTitle }}</h2>
             <p class="feature-desc">{{ currentTabDesc }}</p>
+
+            <div v-if="activePage === 'run'" class="work-panel">
+              <div class="form-grid">
+                <label class="field">
+                  <span>数据 ZIP</span>
+                  <input type="file" accept=".zip" @change="onRunFileSelected" />
+                </label>
+                <label class="field">
+                  <span>TopN</span>
+                  <input v-model.number="runForm.topN" type="number" min="1" />
+                </label>
+                <label class="field">
+                  <span>Epochs</span>
+                  <input v-model.number="runForm.epochs" type="number" min="1" />
+                </label>
+                <label class="field">
+                  <span>预测步长</span>
+                  <input v-model.number="runForm.forecastSteps" type="number" min="1" />
+                </label>
+                <label class="field">
+                  <span>截止日期（可选）</span>
+                  <input v-model="runForm.cutoffDate" type="date" />
+                </label>
+                <label class="checkbox-field">
+                  <input v-model="runForm.enableEarlyStopping" type="checkbox" />
+                  <span>启用早停</span>
+                </label>
+              </div>
+              <div class="feature-actions">
+                <button class="feature-btn feature-btn--primary" :disabled="runLoading" @click="submitRun">
+                  {{ runLoading ? "启动中..." : "开始运行" }}
+                </button>
+                <button class="feature-btn" :disabled="!selectedRunId || runLoading" @click="stopCurrentRun">
+                  停止当前运行
+                </button>
+              </div>
+            </div>
+
+            <div v-else-if="activePage === 'monitor'" class="work-panel">
+              <div class="form-grid">
+                <label class="field">
+                  <span>选择 run</span>
+                  <select v-model="selectedRunId">
+                    <option value="">自动选择最新</option>
+                    <option v-for="run in runList" :key="run.run_id" :value="run.run_id">
+                      {{ run.run_id }}（{{ run.status || "unknown" }}）
+                    </option>
+                  </select>
+                </label>
+              </div>
+              <div class="feature-actions">
+                <button class="feature-btn feature-btn--primary" :disabled="monitorLoading" @click="refreshMonitor">
+                  刷新监控
+                </button>
+              </div>
+              <div class="data-block">
+                <h3>训练面板</h3>
+                <pre>{{ dashboardPreview }}</pre>
+              </div>
+              <div class="data-block">
+                <h3>运行日志</h3>
+                <pre>{{ logText || "暂无日志" }}</pre>
+              </div>
+            </div>
+
+            <div v-else-if="activePage === 'results'" class="work-panel">
+              <div class="feature-actions">
+                <button class="feature-btn feature-btn--primary" :disabled="resultsLoading" @click="refreshResults">
+                  刷新结果
+                </button>
+                <button class="feature-btn" :disabled="resultsLoading || !selectedRunId" @click="generateReport">
+                  生成 AI 报告
+                </button>
+              </div>
+              <div class="data-block">
+                <h3>概览</h3>
+                <pre>{{ overviewPreview }}</pre>
+              </div>
+              <div class="data-block">
+                <h3>分析指标</h3>
+                <pre>{{ analyticsPreview }}</pre>
+              </div>
+              <div class="data-block">
+                <h3>AI 报告</h3>
+                <pre>{{ aiReportText || "暂无报告" }}</pre>
+              </div>
+            </div>
+
+            <div v-else-if="activePage === 'download'" class="work-panel">
+              <div class="feature-actions">
+                <button class="feature-btn feature-btn--primary" :disabled="filesLoading" @click="refreshFiles">
+                  刷新文件列表
+                </button>
+                <button class="feature-btn" :disabled="!selectedRunId" @click="exportZip">
+                  下载整包 ZIP
+                </button>
+              </div>
+              <div class="file-list">
+                <button
+                  v-for="file in runFiles"
+                  :key="file.name || file"
+                  class="file-item"
+                  @click="downloadFile(file.name || file)"
+                >
+                  {{ file.name || file }}
+                </button>
+                <p v-if="!runFiles.length" class="empty-text">暂无可下载文件</p>
+              </div>
+            </div>
+
             <div class="feature-actions">
-              <button class="feature-btn" @click="activePage = 'dashboard'">
-                返回总览
-              </button>
-              <button
-                v-if="activePage === 'results'"
-                class="feature-btn feature-btn--primary"
-                @click="goToResults"
-              >
-                刷新结果
-              </button>
+              <button class="feature-btn" @click="activePage = 'dashboard'">返回总览</button>
             </div>
           </div>
         </dv-border-box-1>
@@ -476,9 +577,23 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onBeforeUnmount, computed } from "vue";
+import { ref, reactive, onMounted, onBeforeUnmount, computed, watch } from "vue";
 import { useRouter } from "vue-router";
-import { clearToken } from "@/api/auth";
+import { clearToken } from "../api/auth";
+import {
+  createOilRun,
+  fetchAnalytics,
+  fetchFiles,
+  fetchOverview,
+  fetchRunList,
+  fetchRunLog,
+  fetchSystemStatus,
+  fetchTrainingDashboard,
+  generateAIReport,
+  getZipExportUrl,
+  downloadOilRunFile,
+  stopOilRun,
+} from "../api/index";
 
 const router = useRouter();
 const username = localStorage.getItem("username") || "用户";
@@ -500,6 +615,40 @@ const pageMeta: Record<(typeof pageTabs)[number]["key"], { title: string; desc: 
 const currentTabTitle = computed(() => pageMeta[activePage.value].title);
 const currentTabDesc = computed(() => pageMeta[activePage.value].desc);
 const currentPath = computed(() => `/home/${activePage.value}`);
+const systemBusy = ref(false);
+const runList = ref<any[]>([]);
+const selectedRunId = ref("");
+
+const runForm = reactive({
+  topN: 50,
+  epochs: 100,
+  forecastSteps: 15,
+  cutoffDate: "",
+  enableEarlyStopping: true,
+  autoBondAfterOil: false,
+});
+const selectedRunFile = ref<File | null>(null);
+const runLoading = ref(false);
+const monitorLoading = ref(false);
+const resultsLoading = ref(false);
+const filesLoading = ref(false);
+const logText = ref("");
+const dashboardData = ref<any>(null);
+const overviewData = ref<any>(null);
+const analyticsData = ref<any>(null);
+const aiReportText = ref("");
+const runFiles = ref<any[]>([]);
+let refreshTimer: number | undefined;
+
+const dashboardPreview = computed(() =>
+  dashboardData.value ? JSON.stringify(dashboardData.value, null, 2) : "暂无训练面板数据",
+);
+const overviewPreview = computed(() =>
+  overviewData.value ? JSON.stringify(overviewData.value, null, 2) : "暂无概览数据",
+);
+const analyticsPreview = computed(() =>
+  analyticsData.value ? JSON.stringify(analyticsData.value, null, 2) : "暂无分析数据",
+);
 
 // ===== 搜索 =====
 const searchQuery = ref("");
@@ -604,37 +753,224 @@ function handleLogout() {
 
 // ===== Bento 功能 =====
 function openAIChat() {
-  activePage.value = "run";
+  activePage.value = "results";
 }
 
 function handleUpload() {
+  openUploadDialog();
+}
+
+function onRunFileSelected(event: Event) {
+  const target = event.target as HTMLInputElement;
+  selectedRunFile.value = target.files?.[0] || null;
+}
+
+async function refreshRuns() {
+  const [status, runs] = await Promise.all([fetchSystemStatus(), fetchRunList()]);
+  systemBusy.value = !!status?.global_busy;
+  runList.value = Array.isArray(runs) ? runs : [];
+  if (!selectedRunId.value && runList.value.length) {
+    selectedRunId.value = runList.value[0].run_id || "";
+  }
+}
+
+async function submitRun() {
+  if (!selectedRunFile.value) {
+    window.alert("请先选择 ZIP 文件");
+    return;
+  }
+  runLoading.value = true;
+  try {
+    const formData = new FormData();
+    formData.append("zip_file", selectedRunFile.value);
+    formData.append("top_n", String(runForm.topN));
+    formData.append("epochs", String(runForm.epochs));
+    formData.append("forecast_steps", String(runForm.forecastSteps));
+    if (runForm.cutoffDate) formData.append("cutoff_date", runForm.cutoffDate);
+    formData.append("enable_early_stopping", String(runForm.enableEarlyStopping));
+    formData.append("auto_bond_after_oil", String(runForm.autoBondAfterOil));
+
+    const result = await createOilRun(formData);
+    selectedRunId.value = result?.run_id || selectedRunId.value;
+    activePage.value = "monitor";
+    await refreshRuns();
+    await refreshMonitor();
+  } catch (err: any) {
+    window.alert(`启动运行失败：${err?.message || "未知错误"}`);
+  } finally {
+    runLoading.value = false;
+  }
+}
+
+async function stopCurrentRun() {
+  if (!selectedRunId.value) return;
+  runLoading.value = true;
+  try {
+    await stopOilRun(selectedRunId.value);
+    await refreshRuns();
+  } catch (err: any) {
+    window.alert(`停止失败：${err?.message || "未知错误"}`);
+  } finally {
+    runLoading.value = false;
+  }
+}
+
+async function refreshMonitor() {
+  if (!selectedRunId.value) {
+    await refreshRuns();
+    if (!selectedRunId.value) return;
+  }
+  monitorLoading.value = true;
+  try {
+    const [dashboard, runLog] = await Promise.all([
+      fetchTrainingDashboard(selectedRunId.value),
+      fetchRunLog(selectedRunId.value, 300),
+    ]);
+    dashboardData.value = dashboard;
+    logText.value = typeof runLog === "string" ? runLog : JSON.stringify(runLog, null, 2);
+  } catch (err: any) {
+    logText.value = `读取监控失败：${err?.message || "未知错误"}`;
+  } finally {
+    monitorLoading.value = false;
+  }
+}
+
+async function refreshResults() {
+  if (!selectedRunId.value) {
+    await refreshRuns();
+    if (!selectedRunId.value) return;
+  }
+  resultsLoading.value = true;
+  try {
+    const [overview, analytics] = await Promise.all([
+      fetchOverview(selectedRunId.value),
+      fetchAnalytics(selectedRunId.value),
+    ]);
+    overviewData.value = overview;
+    analyticsData.value = analytics;
+  } catch (err: any) {
+    window.alert(`读取结果失败：${err?.message || "未知错误"}`);
+  } finally {
+    resultsLoading.value = false;
+  }
+}
+
+async function generateReport() {
+  if (!selectedRunId.value) return;
+  resultsLoading.value = true;
+  try {
+    const data = await generateAIReport(selectedRunId.value);
+    aiReportText.value = typeof data === "string" ? data : JSON.stringify(data, null, 2);
+  } catch (err: any) {
+    window.alert(`生成报告失败：${err?.message || "未知错误"}`);
+  } finally {
+    resultsLoading.value = false;
+  }
+}
+
+async function refreshFiles() {
+  if (!selectedRunId.value) {
+    await refreshRuns();
+    if (!selectedRunId.value) return;
+  }
+  filesLoading.value = true;
+  try {
+    const files = await fetchFiles(selectedRunId.value);
+    runFiles.value = Array.isArray(files) ? files : files?.items || [];
+  } catch (err: any) {
+    window.alert(`读取文件失败：${err?.message || "未知错误"}`);
+  } finally {
+    filesLoading.value = false;
+  }
+}
+
+async function downloadFile(name: string) {
+  if (!selectedRunId.value) return;
+  try {
+    await downloadOilRunFile(selectedRunId.value, name);
+  } catch (err: any) {
+    window.alert(`下载失败：${err?.message || "未知错误"}`);
+  }
+}
+
+function exportZip() {
+  if (!selectedRunId.value) return;
+  window.open(getZipExportUrl(selectedRunId.value), "_blank");
+}
+
+async function handlePageChange() {
+  if (activePage.value === "monitor") await refreshMonitor();
+  if (activePage.value === "results") await refreshResults();
+  if (activePage.value === "download") await refreshFiles();
+}
+
+function setupAutoRefresh() {
+  refreshTimer = window.setInterval(async () => {
+    try {
+      await refreshRuns();
+      if (activePage.value === "monitor" && selectedRunId.value) {
+        await refreshMonitor();
+      }
+    } catch {
+      // keep polling without interrupting UI
+    }
+  }, 5000);
+}
+
+async function setActivePage(page: (typeof pageTabs)[number]["key"]) {
+  activePage.value = page;
+  await handlePageChange();
+}
+
+async function warmupData() {
+  await refreshRuns();
+  await handlePageChange();
+}
+
+function cleanupTimers() {
+  if (refreshTimer) clearInterval(refreshTimer);
+}
+
+function openUploadDialog() {
   const input = document.createElement("input");
   input.type = "file";
-  input.accept = ".csv,.xlsx,.xls,.json";
+  input.accept = ".zip";
   input.onchange = () => {
     if (input.files?.length) {
-      console.log("upload:", input.files[0].name);
+      selectedRunFile.value = input.files[0];
+      activePage.value = "run";
     }
   };
   input.click();
 }
 
 function startTraining() {
-  activePage.value = "monitor";
+  setActivePage("run");
 }
 
 function goToResults() {
-  activePage.value = "results";
+  setActivePage("results");
 }
 
 // ===== 生命周期 =====
 onMounted(() => {
   updateClock();
   clockTimer = setInterval(updateClock, 1000);
+  warmupData();
+  setupAutoRefresh();
+});
+
+watch(activePage, () => {
+  handlePageChange();
+});
+
+watch(selectedRunId, () => {
+  handlePageChange();
 });
 
 onBeforeUnmount(() => {
   clearInterval(clockTimer);
+  cleanupTimers();
 });
 </script>
 
@@ -929,7 +1265,7 @@ onBeforeUnmount(() => {
 }
 
 .heading-decoration {
-  width: 300px;
+  width: 304px;
   height: 40px;
   margin: -2px auto 0;
 }
@@ -998,6 +1334,83 @@ onBeforeUnmount(() => {
 .feature-btn--primary {
   border-color: rgba(59, 130, 246, 0.55);
   background: rgba(59, 130, 246, 0.2);
+}
+.feature-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.work-panel {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.form-grid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.field,
+.checkbox-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: rgba(191, 219, 254, 0.92);
+  font-size: 12px;
+}
+.checkbox-field {
+  flex-direction: row;
+  align-items: center;
+  margin-top: 20px;
+}
+.field input,
+.field select {
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.55);
+  color: #e2e8f0;
+  padding: 8px 10px;
+}
+.data-block {
+  width: 100%;
+  border: 1px solid rgba(59, 130, 246, 0.18);
+  border-radius: 8px;
+  padding: 10px;
+  background: rgba(2, 6, 23, 0.35);
+}
+.data-block h3 {
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: rgba(191, 219, 254, 0.95);
+}
+.data-block pre {
+  margin: 0;
+  max-height: 220px;
+  overflow: auto;
+  font-size: 11px;
+  line-height: 1.5;
+  color: rgba(226, 232, 240, 0.9);
+  font-family: "Cascadia Code", "Consolas", monospace;
+}
+.file-list {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.file-item {
+  text-align: left;
+  border: 1px solid rgba(34, 211, 238, 0.24);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.5);
+  color: #bae6fd;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+.empty-text {
+  color: rgba(148, 163, 184, 0.8);
+  font-size: 12px;
 }
 
 /* ─── KPI 卡片行 ─── */
