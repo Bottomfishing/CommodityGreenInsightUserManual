@@ -33,6 +33,12 @@
 
 [rework_Vue](rework_Vue)    -（新增）新前端
 
+[wti_gru_sequence.py](wti_gru_sequence.py)  -reworkmodel 建模
+
+[wti_live_predict.py](wti_live_predict.py)  -reworkmodel 实盘
+
+[optuna_best_params_full.json](optuna_best_params_full.json)    -wti_gru用的配置json
+
 启动命令：
 web :streamlit run streamlit_app_0325.py
 oilprice :python oil_price_prediction_main_0309.py
