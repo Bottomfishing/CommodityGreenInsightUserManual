@@ -457,47 +457,15 @@
             <h2 class="feature-title">{{ currentTabTitle }}</h2>
             <p class="feature-desc">{{ currentTabDesc }}</p>
 
-            <div v-if="activePage === 'run'" class="work-panel">
-              <div class="module-head">
-                <span class="module-head-tag">RUN CONFIG</span>
-                <span class="module-head-title">运行配置面板</span>
-              </div>
-              <dv-decoration-3 class="module-head-line" />
-              <div class="form-grid">
-                <label class="field">
-                  <span>数据 ZIP</span>
-                  <input type="file" accept=".zip" @change="onRunFileSelected" />
-                </label>
-                <label class="field">
-                  <span>TopN</span>
-                  <input v-model.number="runForm.topN" type="number" min="1" />
-                </label>
-                <label class="field">
-                  <span>Epochs</span>
-                  <input v-model.number="runForm.epochs" type="number" min="1" />
-                </label>
-                <label class="field">
-                  <span>预测步长</span>
-                  <input v-model.number="runForm.forecastSteps" type="number" min="1" />
-                </label>
-                <label class="field">
-                  <span>截止日期（可选）</span>
-                  <input v-model="runForm.cutoffDate" type="date" />
-                </label>
-                <label class="checkbox-field">
-                  <input v-model="runForm.enableEarlyStopping" type="checkbox" />
-                  <span>启用早停</span>
-                </label>
-              </div>
-              <div class="feature-actions">
-                <button class="feature-btn feature-btn--primary" :disabled="runLoading" @click="submitRun">
-                  {{ runLoading ? "启动中..." : "开始运行" }}
-                </button>
-                <button class="feature-btn" :disabled="!selectedRunId || runLoading" @click="stopCurrentRun">
-                  停止当前运行
-                </button>
-              </div>
-            </div>
+            <RunPanel
+              v-if="activePage === 'run'"
+              :run-form="runForm"
+              :run-loading="runLoading"
+              :selected-run-id="selectedRunId"
+              @file-selected="onRunFileSelected"
+              @submit="submitRun"
+              @stop="stopCurrentRun"
+            />
 
             <div v-else-if="activePage === 'monitor'" class="work-panel">
               <div class="module-head">
@@ -568,60 +536,26 @@
               </div>
             </div>
 
-            <div v-else-if="activePage === 'results'" class="work-panel">
-              <div class="module-head">
-                <span class="module-head-tag">RESULTS</span>
-                <span class="module-head-title">结果预览面板</span>
-              </div>
-              <dv-decoration-3 class="module-head-line" />
-              <div class="feature-actions">
-                <button class="feature-btn feature-btn--primary" :disabled="resultsLoading" @click="refreshResults">
-                  刷新结果
-                </button>
-                <button class="feature-btn" :disabled="resultsLoading || !selectedRunId" @click="generateReport">
-                  生成 AI 报告
-                </button>
-              </div>
-              <div class="data-block">
-                <h3>概览</h3>
-                <pre>{{ overviewPreview }}</pre>
-              </div>
-              <div class="data-block">
-                <h3>分析指标</h3>
-                <pre>{{ analyticsPreview }}</pre>
-              </div>
-              <div class="data-block">
-                <h3>AI 报告</h3>
-                <pre>{{ aiReportText || "暂无报告" }}</pre>
-              </div>
-            </div>
+            <ResultsPanel
+              v-else-if="activePage === 'results'"
+              :loading="resultsLoading"
+              :selected-run-id="selectedRunId"
+              :overview-preview="overviewPreview"
+              :analytics-preview="analyticsPreview"
+              :ai-report-text="aiReportText"
+              @refresh="refreshResults"
+              @generate="generateReport"
+            />
 
-            <div v-else-if="activePage === 'download'" class="work-panel">
-              <div class="module-head">
-                <span class="module-head-tag">EXPORT</span>
-                <span class="module-head-title">下载导出面板</span>
-              </div>
-              <dv-decoration-3 class="module-head-line" />
-              <div class="feature-actions">
-                <button class="feature-btn feature-btn--primary" :disabled="filesLoading" @click="refreshFiles">
-                  刷新文件列表
-                </button>
-                <button class="feature-btn" :disabled="!selectedRunId" @click="exportZip">
-                  下载整包 ZIP
-                </button>
-              </div>
-              <div class="file-list">
-                <button
-                  v-for="file in runFiles"
-                  :key="file.name || file"
-                  class="file-item"
-                  @click="downloadFile(file.name || file)"
-                >
-                  {{ file.name || file }}
-                </button>
-                <p v-if="!runFiles.length" class="empty-text">暂无可下载文件</p>
-              </div>
-            </div>
+            <DownloadPanel
+              v-else-if="activePage === 'download'"
+              :loading="filesLoading"
+              :selected-run-id="selectedRunId"
+              :files="runFiles"
+              @refresh="refreshFiles"
+              @export="exportZip"
+              @download="downloadFile"
+            />
 
             <div class="feature-actions">
               <button class="feature-btn" @click="activePage = 'dashboard'">返回总览</button>
@@ -650,6 +584,9 @@ import { clearToken } from "../api/auth";
 import worldMap from "../assets/world-map.svg";
 import HomeAiDrawer from "../components/home/HomeAiDrawer.vue";
 import { useMonitorDashboard } from "../composables/useMonitorDashboard";
+import RunPanel from "../components/home/RunPanel.vue";
+import ResultsPanel from "../components/home/ResultsPanel.vue";
+import DownloadPanel from "../components/home/DownloadPanel.vue";
 import {
   createOilRun,
   fetchAnalytics,
