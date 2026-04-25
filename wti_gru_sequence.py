@@ -2053,7 +2053,10 @@ DEFAULT_ARGS: dict[str, object] = {
     "optuna_quick": False,
     "optuna_n_trials": 40,
     "optuna_seed": 42,
-    "optuna_best_path": "optuna_best_params_full.json",
+    "optuna_best_path": (
+        r"C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本"
+        r"\技术文档\源代码\crude-oil-price-prediction-master\optuna_best_params_full.json"
+    ),
     # Optuna 评分函数权重（当前偏重方向准确率）
     "optuna_score_w_r2": 0.25,
     "optuna_score_w_dir": 0.70,
@@ -2732,6 +2735,128 @@ def main() -> None:
         print(f"Baseline(AR(1) on returns) R2_ret: {r2_ret_ar1:.4f}  (phi={phi:.3f})")
         print(f"Baseline(收益均值) R2_ret: {r2_ret_mean:.4f}  (mu={mu_tr:.6f})")
 
+    # -----------------------------
+    # 7) 结果页图表 CSV 导出（前端可直接绘图）
+    # -----------------------------
+    losses = history.history.get("loss", [])
+    val_losses = history.history.get("val_loss", [])
+    epochs_x = np.arange(1, len(losses) + 1)
+
+    pd.DataFrame(
+        {
+            "test_index": np.arange(len(y)),
+            "actual_return": y.reshape(-1),
+            "pred_return": p.reshape(-1),
+            "actual_price": y_price.reshape(-1),
+            "pred_price": p_price.reshape(-1),
+        }
+    ).to_csv("chart_test_predictions.csv", index=False, encoding="utf-8-sig")
+    print("结果图表CSV已保存: chart_test_predictions.csv")
+
+    pd.DataFrame(
+        {
+            "epoch": epochs_x,
+            "train_loss": np.asarray(losses, dtype=np.float64),
+            "val_loss": (
+                np.asarray(val_losses, dtype=np.float64)
+                if len(val_losses) == len(losses) and len(val_losses) > 0
+                else np.full(len(losses), np.nan, dtype=np.float64)
+            ),
+        }
+    ).to_csv("chart_train_val_loss.csv", index=False, encoding="utf-8-sig")
+    print("结果图表CSV已保存: chart_train_val_loss.csv")
+
+    residuals = (y - p).ravel()
+    pd.DataFrame({"residual": residuals}).to_csv(
+        "chart_residual_distribution.csv", index=False, encoding="utf-8-sig"
+    )
+    print("结果图表CSV已保存: chart_residual_distribution.csv")
+
+    pd.DataFrame({"y_true": y.reshape(-1), "y_pred": p.reshape(-1)}).to_csv(
+        "chart_return_scatter.csv", index=False, encoding="utf-8-sig"
+    )
+    print("结果图表CSV已保存: chart_return_scatter.csv")
+
+    strat_signal = np.sign(p.reshape(-1))
+    strat_ret = strat_signal * y.reshape(-1)
+    bh_ret = y.reshape(-1)
+    strat_nav = np.cumprod(1.0 + strat_ret)
+    bh_nav = np.cumprod(1.0 + bh_ret)
+    pd.DataFrame(
+        {
+            "test_index": np.arange(len(strat_nav)),
+            "strategy_nav": strat_nav,
+            "buy_hold_nav": bh_nav,
+            "strategy_return": strat_ret,
+            "buy_hold_return": bh_ret,
+            "signal": strat_signal,
+        }
+    ).to_csv("chart_backtest_nav_curve.csv", index=False, encoding="utf-8-sig")
+    print("结果图表CSV已保存: chart_backtest_nav_curve.csv")
+
+    if use_multi and per_dir is not None and ydir_test is not None:
+        true_dir = ydir_test.ravel().astype(np.int32)
+        pred_dir = (per_dir.ravel() >= 0.5).astype(np.int32)
+        pd.DataFrame(
+            {
+                "test_index": np.arange(len(true_dir)),
+                "true_direction": true_dir,
+                "pred_direction": pred_dir,
+                "pred_prob_up": per_dir.ravel(),
+            }
+        ).to_csv("chart_direction_prediction.csv", index=False, encoding="utf-8-sig")
+        print("结果图表CSV已保存: chart_direction_prediction.csv")
+
+        if cm is not None:
+            pd.DataFrame(
+                [
+                    {"true_label": "down", "pred_label": "down", "count": int(cm[0, 0])},
+                    {"true_label": "down", "pred_label": "up", "count": int(cm[0, 1])},
+                    {"true_label": "up", "pred_label": "down", "count": int(cm[1, 0])},
+                    {"true_label": "up", "pred_label": "up", "count": int(cm[1, 1])},
+                ]
+            ).to_csv("chart_direction_confusion_matrix.csv", index=False, encoding="utf-8-sig")
+            print("结果图表CSV已保存: chart_direction_confusion_matrix.csv")
+
+        pd.DataFrame({"pred_prob_up": per_dir.ravel()}).to_csv(
+            "chart_direction_prob_distribution.csv", index=False, encoding="utf-8-sig"
+        )
+        print("结果图表CSV已保存: chart_direction_prob_distribution.csv")
+
+    n_cmp = min(len(raw_returns), len(training_set), len(training_set_scaled))
+    if n_cmp > 0:
+        pd.DataFrame(
+            {
+                "sample_index": np.arange(n_cmp),
+                "raw_returns": raw_returns[:n_cmp].ravel(),
+                "training_returns": training_set[:n_cmp].ravel(),
+                "scaled_returns": training_set_scaled[:n_cmp].ravel(),
+            }
+        ).to_csv("chart_preprocess_before_after_returns.csv", index=False, encoding="utf-8-sig")
+        print("结果图表CSV已保存: chart_preprocess_before_after_returns.csv")
+
+    if feat_mat is not None and feat_scaled is not None and feat_mat.shape[1] > 0:
+        m = min(len(feat_mat), len(feat_scaled))
+        pd.DataFrame(
+            {
+                "sample_index": np.arange(m),
+                "raw_feature_0": feat_mat[:m, 0],
+                "scaled_feature_0": feat_scaled[:m, 0],
+            }
+        ).to_csv("chart_preprocess_feature_compare.csv", index=False, encoding="utf-8-sig")
+        print("结果图表CSV已保存: chart_preprocess_feature_compare.csv")
+
+    if target_original is not None and training_set is not None:
+        n_v = min(len(target_original), len(training_set))
+        pd.DataFrame(
+            {
+                "sample_index": np.arange(n_v),
+                "before_vmd_return": target_original[:n_v].ravel(),
+                "after_vmd_return": training_set[:n_v].ravel(),
+            }
+        ).to_csv("chart_vmd_before_after.csv", index=False, encoding="utf-8-sig")
+        print("结果图表CSV已保存: chart_vmd_before_after.csv")
+
     if args.forecast_next:
         # -----------------------------
         # 7) 下一天预测（最后窗口）
@@ -3034,11 +3159,6 @@ def main() -> None:
             print("方向概率分布图已保存: direction_prob_distribution.png")
 
         # 简易回测净值曲线（信号=预测收益符号）
-        strat_signal = np.sign(p.reshape(-1))
-        strat_ret = strat_signal * y.reshape(-1)
-        bh_ret = y.reshape(-1)
-        strat_nav = np.cumprod(1.0 + strat_ret)
-        bh_nav = np.cumprod(1.0 + bh_ret)
         fig_nav, ax_nav = plt.subplots(1, 1, figsize=(11, 4), constrained_layout=True)
         ax_nav.plot(strat_nav, label="Strategy NAV", color="tab:green", linewidth=1.1)
         ax_nav.plot(bh_nav, label="Buy&Hold NAV", color="tab:gray", linewidth=1.0, alpha=0.8)

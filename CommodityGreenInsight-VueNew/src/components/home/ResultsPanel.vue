@@ -7,38 +7,22 @@
     <dv-decoration-3 class="module-head-line" />
 
     <div class="feature-actions">
-      <button class="feature-btn feature-btn--primary" :disabled="loading" @click="emit('refresh')">
-        刷新结果
-      </button>
-      <button class="feature-btn" :disabled="loading || !selectedRunId" @click="emit('generate')">
-        生成 AI 报告
-      </button>
+      <button class="feature-btn feature-btn--primary" :disabled="loading" @click="emit('refresh')">刷新结果</button>
+      <button class="feature-btn" :disabled="loading || !selectedRunId" @click="emit('generate')">生成 AI 报告</button>
     </div>
 
     <div class="data-block">
       <h3>AI 报告</h3>
       <div class="ai-report-md" v-html="FIXED_AI_REPORT_HTML"></div>
     </div>
+
     <div class="data-block">
-      <h3>固定结果图</h3>
-      <div class="ratio-rows">
-        <div v-for="row in ratioRows" :key="row.key" class="ratio-row">
-          <div class="ratio-row-head">
-            <span class="ratio-row-title">比例接近：{{ row.title }}</span>
-            <span class="ratio-row-sub">本行 {{ row.items.length }} 张</span>
-          </div>
-          <div class="ratio-row-grid" :style="row.gridStyle">
-            <figure
-              v-for="item in row.items"
-              :key="item.name"
-              class="fixed-image-item"
-              :class="imageSizeClass(item.name)"
-            >
-              <img v-if="item.url" :src="item.url" :alt="item.name" loading="lazy" />
-              <div v-else class="image-missing">外部目录中暂无该图</div>
-              <figcaption>{{ item.label }}</figcaption>
-            </figure>
-          </div>
+      <h3>训练结果图</h3>
+      <div class="charts-grid">
+        <div v-for="item in chartItems" :key="item.key" class="chart-card">
+          <div class="chart-title">{{ item.title }}</div>
+          <div v-if="!item.hasData" class="chart-empty">暂无数据（{{ item.filename }}）</div>
+          <div v-else :ref="(el) => setChartRef(item.key, el)" class="chart-box"></div>
         </div>
       </div>
     </div>
@@ -46,12 +30,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from "vue";
-import { fetchStaticResultFiles, getStaticResultImageObjectUrl } from "@/api/index";
+import { computed, nextTick, onBeforeUnmount, reactive, watch } from "vue";
 
 const props = defineProps<{
   loading: boolean;
   selectedRunId: string;
+  resultChartsData: any;
   overviewPreview: string;
   analyticsPreview: string;
   aiReportText: string;
@@ -144,212 +128,222 @@ function renderMarkdown(md: string): string {
 
 const FIXED_AI_REPORT_HTML = computed(() => renderMarkdown(FIXED_AI_REPORT_MD));
 
-const FIXED_IMAGE_FILES: Array<{ candidates: string[]; label: string }> = [
-  { candidates: ["gru_predictions.png", "future_forecast.png"], label: "价格预测对比" },
-  { candidates: ["gru_returns.png"], label: "收益率预测对比" },
-  { candidates: ["direction_confusion_matrix.png"], label: "方向混淆矩阵" },
-  { candidates: ["direction_prob_distribution.png"], label: "方向概率分布" },
-  { candidates: ["direction_prediction.png"], label: "方向预测结果" },
-  { candidates: ["train_val_loss.png"], label: "训练/验证损失" },
-  { candidates: ["return_scatter.png"], label: "收益散点图" },
-  { candidates: ["residual_distribution.png"], label: "残差分布" },
-  { candidates: ["backtest_nav_curve.png"], label: "回测净值曲线" },
-  { candidates: ["rf_feature_importance.png", "top_drivers_rf_importance.png"], label: "RF 特征重要性" },
-  { candidates: ["shap_feature_importance.png", "top_drivers_spearman.png"], label: "SHAP/相关性重要性" },
-  { candidates: ["preprocess_distribution_compare.png"], label: "预处理分布对比" },
-  { candidates: ["preprocess_before_after_returns.png"], label: "预处理前后收益" },
-  { candidates: ["preprocess_feature_compare.png"], label: "特征预处理对比" },
-  { candidates: ["vmd_before_after.png"], label: "VMD 前后对比" },
+const CHART_SPECS: Array<{ key: string; title: string; filename: string }> = [
+  { key: "test_predictions", title: "测试集价格/收益预测", filename: "chart_test_predictions.csv" },
+  { key: "train_val_loss", title: "训练/验证损失", filename: "chart_train_val_loss.csv" },
+  { key: "return_scatter", title: "收益散点图", filename: "chart_return_scatter.csv" },
+  { key: "residual_distribution", title: "残差分布", filename: "chart_residual_distribution.csv" },
+  { key: "direction_prediction", title: "方向预测", filename: "chart_direction_prediction.csv" },
+  { key: "direction_confusion_matrix", title: "方向混淆矩阵", filename: "chart_direction_confusion_matrix.csv" },
+  { key: "direction_prob_distribution", title: "方向概率分布", filename: "chart_direction_prob_distribution.csv" },
+  { key: "backtest_nav_curve", title: "回测净值曲线", filename: "chart_backtest_nav_curve.csv" },
+  { key: "vmd_before_after", title: "VMD 前后对比", filename: "chart_vmd_before_after.csv" },
 ];
 
-type FixedImageItem = { name: string; label: string; url: string | null };
-const fixedImagesState = ref<Record<string, string | null>>({});
-const fixedRatios = ref<Record<string, number | null>>({});
+const chartRefs = reactive<Record<string, HTMLDivElement | null>>({});
+const chartInstances = reactive<Record<string, any>>({});
 
-const fixedImages = computed<FixedImageItem[]>(() =>
-  FIXED_IMAGE_FILES.map((item) => ({
-    name: item.candidates[0],
-    label: item.label,
-    url: fixedImagesState.value[item.candidates[0]] ?? null,
-  })),
+const chartItems = computed(() =>
+  CHART_SPECS.map((s) => {
+    const payload = props.resultChartsData?.charts?.[s.key];
+    const rows = Array.isArray(payload?.rows) ? payload.rows : [];
+    return { ...s, rows, hasData: rows.length > 0 };
+  }),
 );
 
-type RatioRow = {
-  key: string;
-  title: string;
-  items: FixedImageItem[];
-  gridStyle: Record<string, string>;
-};
-
-function _fmtRatio(r: number | null | undefined): string {
-  if (!r || !Number.isFinite(r)) return "未知";
-  return r.toFixed(2);
+function setChartRef(key: string, el: any) {
+  chartRefs[key] = (el as HTMLDivElement) || null;
 }
 
-function _gridMinWidthByRatio(r: number | null | undefined): number {
-  // 越宽的图越需要更大的最小宽度，否则一行会太挤
-  if (!r || !Number.isFinite(r)) return 300;
-  if (r >= 2.2) return 520;
-  if (r >= 1.8) return 440;
-  if (r >= 1.4) return 360;
-  return 280; // 方/近方
+function getEcharts() {
+  return (window as any).echarts || null;
 }
 
-const ratioRows = computed<RatioRow[]>(() => {
-  const pinnedNames = new Set(["return_scatter.png", "shap_feature_importance.png", "backtest_nav_curve.png"]);
-  const pinnedItems = fixedImages.value.filter((x) => pinnedNames.has(x.name));
-  const normalItems = fixedImages.value.filter((x) => !pinnedNames.has(x.name));
-
-  const imgs = normalItems
-    .map((img) => ({ ...img, ratio: fixedRatios.value[img.name] }))
-    .sort((a, b) => {
-      const ra = a.ratio ?? 999;
-      const rb = b.ratio ?? 999;
-      return ra - rb;
-    });
-
-  // 将“比例差不多”的聚成一行：相邻差值 <= 0.18 认为接近
-  const rows: Array<Array<(FixedImageItem & { ratio: number | null | undefined })>> = [];
-  let cur: Array<(FixedImageItem & { ratio: number | null | undefined })> = [];
-  let base: number | null | undefined = undefined;
-  const TH = 0.18;
-
-  for (const it of imgs) {
-    const r = it.ratio;
-    if (!cur.length) {
-      cur = [it];
-      base = r;
-      continue;
-    }
-
-    const baseNum: number | undefined =
-      typeof base === "number" && Number.isFinite(base) ? base :
-      typeof r === "number" && Number.isFinite(r) ? r :
-      undefined;
-    const rNum: number | undefined =
-      typeof r === "number" && Number.isFinite(r) ? r : baseNum;
-
-    if (baseNum === undefined || rNum === undefined || Math.abs(rNum - baseNum) <= TH) {
-      cur.push(it);
-      // 用滑动平均稳定分组
-      if (typeof baseNum === "number" && typeof rNum === "number") {
-        base = (baseNum * (cur.length - 1) + rNum) / cur.length;
-      }
-    } else {
-      rows.push(cur);
-      cur = [it];
-      base = r;
-    }
-  }
-  if (cur.length) rows.push(cur);
-
-  const autoRows: RatioRow[] = rows.map((items, idx) => {
-    const ratios = items
-      .map((x) => x.ratio)
-      .filter((x): x is number => typeof x === "number" && Number.isFinite(x));
-    const minR = ratios.length ? Math.min(...ratios) : null;
-    const maxR = ratios.length ? Math.max(...ratios) : null;
-    const avgR = ratios.length ? ratios.reduce((a, b) => a + b, 0) / ratios.length : null;
-    const minW = _gridMinWidthByRatio(avgR);
-    return {
-      key: `row_${idx}_${_fmtRatio(avgR)}`,
-      title: minR !== null && maxR !== null ? `${_fmtRatio(minR)} ~ ${_fmtRatio(maxR)}` : "未知",
-      items: items.map(({ ratio: _r, ...rest }) => rest),
-      gridStyle: {
-        gridTemplateColumns: `repeat(auto-fit, minmax(${minW}px, 1fr))`,
-      },
-    };
-  });
-
-  if (pinnedItems.length) {
-    const pinnedRow: RatioRow = {
-      key: "row_pinned_scatter_shap",
-      title: "重点图：收益散点图 + SHAP + 回测净值曲线",
-      items: pinnedItems,
-      gridStyle: {
-        gridTemplateColumns: "repeat(3, minmax(300px, 1fr))",
-      },
-    };
-    return [pinnedRow, ...autoRows];
-  }
-
-  return autoRows;
-});
-
-function readImageRatio(url: string): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      const w = Number(img.naturalWidth || 0);
-      const h = Number(img.naturalHeight || 0);
-      if (w > 0 && h > 0) resolve(w / h);
-      else reject(new Error("invalid image size"));
-    };
-    img.onerror = () => reject(new Error("image load failed"));
-    img.src = url;
+async function ensureEchartsReady() {
+  if (getEcharts()) return;
+  await new Promise<void>((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js";
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("ECharts 加载失败"));
+    document.head.appendChild(script);
   });
 }
 
-function imageSizeClass(name: string): string {
-  const key = String(name || "").toLowerCase();
-  // 这两张图在网格里观感容易“过大”，单独做紧凑展示
-  if (key.includes("return_scatter") || key.includes("shap_feature_importance")) return "is-compact";
-  return "";
-}
+function renderChart(key: string, rows: any[]) {
+  const ec = getEcharts();
+  const el = chartRefs[key];
+  if (!ec || !el || !rows.length) return;
+  const safeRows = rows.filter((r) => !!r && typeof r === "object");
+  if (!safeRows.length) return;
+  if (!chartInstances[key]) chartInstances[key] = ec.init(el);
+  const chart = chartInstances[key];
 
-function cleanupObjectUrls() {
-  Object.values(fixedImagesState.value).forEach((url) => {
-    if (url) URL.revokeObjectURL(url);
-  });
-  fixedImagesState.value = {};
-  fixedRatios.value = {};
-}
+  const base = {
+    backgroundColor: "transparent",
+    tooltip: { trigger: "axis" },
+    grid: { left: 44, right: 16, top: 18, bottom: 32 },
+    xAxis: { type: "category", axisLabel: { color: "#94a3b8" }, axisLine: { lineStyle: { color: "#334155" } } },
+    yAxis: { type: "value", axisLabel: { color: "#94a3b8" }, splitLine: { lineStyle: { color: "rgba(148,163,184,0.14)" } } },
+  } as any;
 
-async function loadFixedImages() {
-  cleanupObjectUrls();
-  let fileSet = new Set<string>();
   try {
-    const filesRes = await fetchStaticResultFiles();
-    const list = filesRes?.files || [];
-    fileSet = new Set<string>(list.map((x: any) => String(x?.name || x || "")));
-  } catch {
-    fileSet = new Set<string>();
+    if (key === "test_predictions") {
+      chart.setOption({
+        ...base,
+        legend: { textStyle: { color: "#94a3b8" } },
+        xAxis: { ...base.xAxis, data: safeRows.map((r) => r.test_index) },
+        series: [
+          { name: "actual_price", type: "line", data: safeRows.map((r) => r.actual_price), smooth: true, symbol: "none", lineStyle: { color: "#22d3ee", width: 2 } },
+          { name: "pred_price", type: "line", data: safeRows.map((r) => r.pred_price), smooth: true, symbol: "none", lineStyle: { color: "#f59e0b", width: 2 } },
+        ],
+      });
+    } else if (key === "train_val_loss") {
+      chart.setOption({
+        ...base,
+        legend: { textStyle: { color: "#94a3b8" } },
+        xAxis: { ...base.xAxis, data: safeRows.map((r) => r.epoch) },
+        series: [
+          { name: "train_loss", type: "line", data: safeRows.map((r) => r.train_loss), smooth: true, symbol: "none", lineStyle: { color: "#38bdf8", width: 2 } },
+          { name: "val_loss", type: "line", data: safeRows.map((r) => r.val_loss), smooth: true, symbol: "none", lineStyle: { color: "#22c55e", width: 2 } },
+        ],
+      });
+    } else if (key === "return_scatter") {
+      chart.setOption({
+        backgroundColor: "transparent",
+        tooltip: { trigger: "item" },
+        grid: { left: 44, right: 16, top: 18, bottom: 32 },
+        xAxis: { type: "value", axisLabel: { color: "#94a3b8" }, splitLine: { lineStyle: { color: "rgba(148,163,184,0.14)" } } },
+        yAxis: { type: "value", axisLabel: { color: "#94a3b8" }, splitLine: { lineStyle: { color: "rgba(148,163,184,0.14)" } } },
+        series: [{ type: "scatter", data: safeRows.map((r) => [r.y_true, r.y_pred]), symbolSize: 6, itemStyle: { color: "rgba(56,189,248,0.8)" } }],
+      });
+    } else if (key === "direction_confusion_matrix") {
+      const xLabels = ["down", "up"]; // Pred
+      const yLabels = ["down", "up"]; // True
+      const normDir = (v: any): "down" | "up" | null => {
+        const s = String(v ?? "").trim().toLowerCase();
+        if (s === "down" || s === "0" || s === "false") return "down";
+        if (s === "up" || s === "1" || s === "true") return "up";
+        return null;
+      };
+      const cm = [
+        [0, 0], // true down -> pred down/up
+        [0, 0], // true up -> pred down/up
+      ];
+      for (const r of safeRows) {
+        const t = normDir(r.true_label ?? r.TrueLabel ?? r.true ?? r.True ?? r["\ufefftrue_label"]);
+        const p = normDir(r.pred_label ?? r.PredLabel ?? r.pred ?? r.Pred ?? r["\ufeffpred_label"]);
+        const c = Number(r.count ?? r.Count ?? r.value ?? r.Value ?? 0);
+        if (!t || !p || !Number.isFinite(c)) continue;
+        const yi = t === "down" ? 0 : 1;
+        const xi = p === "down" ? 0 : 1;
+        cm[yi][xi] += c;
+      }
+      const matrixData = [
+        [0, 0, cm[0][0]],
+        [1, 0, cm[0][1]],
+        [0, 1, cm[1][0]],
+        [1, 1, cm[1][1]],
+      ];
+      const maxVal = Math.max(cm[0][0], cm[0][1], cm[1][0], cm[1][1], 1);
+      chart.clear();
+      chart.setOption({
+        backgroundColor: "transparent",
+        tooltip: {
+          trigger: "item",
+          formatter: (params: any) => {
+            const d = Array.isArray(params?.data) ? params.data : [0, 0, 0];
+            const x = Number(d[0] ?? 0);
+            const y = Number(d[1] ?? 0);
+            const v = Number(d[2] ?? 0);
+            return `True: ${yLabels[y]}<br/>Pred: ${xLabels[x]}<br/>Count: ${v}`;
+          },
+        },
+        grid: { left: 52, right: 42, top: 18, bottom: 42 },
+        xAxis: {
+          type: "category",
+          data: xLabels,
+          name: "Pred",
+          boundaryGap: false,
+          axisLabel: { color: "#94a3b8" },
+          axisLine: { lineStyle: { color: "#334155" } },
+        },
+        yAxis: {
+          type: "category",
+          data: yLabels,
+          name: "True",
+          boundaryGap: false,
+          axisLabel: { color: "#94a3b8" },
+          axisLine: { lineStyle: { color: "#334155" } },
+        },
+        visualMap: {
+          min: 0,
+          max: maxVal,
+          calculable: false,
+          orient: "vertical",
+          right: 6,
+          top: "middle",
+          textStyle: { color: "#94a3b8" },
+          inRange: { color: ["#0b1f3a", "#2563eb", "#67e8f9"] },
+        },
+        series: [
+          {
+            type: "heatmap",
+            data: matrixData,
+            label: { show: true, color: "#e2e8f0", fontWeight: 700, formatter: (p: any) => `${Number(p?.data?.[2] ?? 0)}` },
+            itemStyle: { borderColor: "rgba(148,163,184,0.35)", borderWidth: 1, opacity: 1 },
+            emphasis: {
+              itemStyle: {
+                shadowBlur: 6,
+                shadowColor: "rgba(56,189,248,0.35)",
+              },
+            },
+          },
+        ],
+      }, true);
+    } else {
+      const first = safeRows.at(0);
+      if (!first || typeof first !== "object") return;
+      const xKey =
+        first.sample_index !== undefined ? "sample_index" : first.test_index !== undefined ? "test_index" : "index";
+      const xData = safeRows.map((r: any, i: number) => (xKey === "index" ? i : r[xKey]));
+      const seriesKeys = Object.keys(first).filter((c) => c !== xKey && typeof first[c] !== "string");
+      if (!seriesKeys.length) return;
+      const palette = ["#22d3ee", "#f59e0b", "#38bdf8", "#22c55e", "#a78bfa", "#f87171"];
+      chart.setOption({
+        ...base,
+        legend: { textStyle: { color: "#94a3b8" } },
+        xAxis: { ...base.xAxis, data: xData },
+        series: seriesKeys.slice(0, 4).map((k, i) => ({
+          name: k,
+          type: "line",
+          data: safeRows.map((r: any) => r[k]),
+          smooth: true,
+          symbol: "none",
+          lineStyle: { width: 2, color: palette[i % palette.length] },
+        })),
+      });
+    }
+    chart.resize();
+  } catch (err) {
+    console.warn(`[results-chart] render failed: ${key}`, err);
   }
-
-  await Promise.all(
-    FIXED_IMAGE_FILES.map(async (item) => {
-      const hit = item.candidates.find((name) => fileSet.has(name));
-      if (!hit) {
-        fixedImagesState.value = { ...fixedImagesState.value, [item.candidates[0]]: null };
-        return;
-      }
-      try {
-        const objectUrl = await getStaticResultImageObjectUrl(hit);
-        fixedImagesState.value = { ...fixedImagesState.value, [item.candidates[0]]: objectUrl };
-        try {
-          const ratio = await readImageRatio(objectUrl);
-          fixedRatios.value = { ...fixedRatios.value, [item.candidates[0]]: ratio };
-        } catch {
-          fixedRatios.value = { ...fixedRatios.value, [item.candidates[0]]: null };
-        }
-      } catch {
-        fixedImagesState.value = { ...fixedImagesState.value, [item.candidates[0]]: null };
-        fixedRatios.value = { ...fixedRatios.value, [item.candidates[0]]: null };
-      }
-    }),
-  );
 }
 
 watch(
-  () => props.selectedRunId,
+  () => [props.selectedRunId, props.resultChartsData],
   async () => {
-    await loadFixedImages();
+    await ensureEchartsReady();
+    await nextTick();
+    for (const item of chartItems.value) {
+      if (item.hasData) renderChart(item.key, item.rows);
+    }
   },
   { immediate: true },
 );
 
 onBeforeUnmount(() => {
-  cleanupObjectUrls();
+  Object.values(chartInstances).forEach((ins) => ins?.dispose?.());
 });
 
 const emit = defineEmits<{
@@ -490,101 +484,35 @@ const emit = defineEmits<{
   color: #fef08a;
   font-weight: 700;
 }
-.ratio-rows {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.ratio-row {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.ratio-row-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-}
-.ratio-row-title {
-  font-size: 12px;
-  font-weight: 700;
-  color: rgba(186, 230, 253, 0.98);
-}
-.ratio-row-sub {
-  font-size: 11px;
-  color: rgba(148, 163, 184, 0.75);
-}
-.ratio-row-grid {
+.charts-grid {
   display: grid;
   gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
 }
-.fixed-image-item {
-  margin: 0;
-  border: 1px solid rgba(56, 189, 248, 0.25);
+.chart-card {
+  border: 1px solid rgba(56, 189, 248, 0.2);
   border-radius: 8px;
+  background: rgba(2, 10, 24, 0.75);
   padding: 8px;
-  background: rgba(2, 12, 28, 0.75);
-  overflow: hidden;
 }
-.fixed-image-item.is-compact {
-  max-width: 520px;
-  margin: 0 auto;
+.chart-title {
+  font-size: 12px;
+  color: #bae6fd;
+  margin-bottom: 6px;
 }
-.fixed-image-item.is-compact img {
-  max-height: 260px !important;
-}
-.fixed-image-item img {
+.chart-box {
   width: 100%;
-  height: auto;
-  display: block;
-  border-radius: 6px;
-  object-fit: contain;
-  object-position: center center;
-  background: #07142a;
+  height: 240px;
 }
-.fixed-image-item--wide img,
-.fixed-image-item--wide .image-missing {
-  max-height: 420px;
-}
-.fixed-image-item--square img,
-.fixed-image-item--square .image-missing {
-  max-height: 360px;
-}
-.image-missing {
-  min-height: 220px;
-  border: 1px dashed rgba(148, 163, 184, 0.4);
-  border-radius: 6px;
+.chart-empty {
+  min-height: 120px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  border: 1px dashed rgba(148, 163, 184, 0.4);
+  border-radius: 6px;
   color: rgba(148, 163, 184, 0.9);
-}
-.fixed-image-item figcaption {
-  margin-top: 8px;
-  font-size: 11px;
-  color: rgba(186, 230, 253, 0.95);
-  text-align: center;
-}
-.empty-hint {
   font-size: 12px;
-  color: rgba(148, 163, 184, 0.85);
-}
-@media (max-width: 1200px) {
-  .fixed-image-item--wide img,
-  .fixed-image-item--wide .image-missing {
-    max-height: 360px;
-  }
-  .fixed-image-item--square img,
-  .fixed-image-item--square .image-missing {
-    max-height: 320px;
-  }
-}
-@media (max-width: 900px) {
-  .ratio-row-grid {
-    grid-template-columns: 1fr !important;
-  }
 }
 </style>
 

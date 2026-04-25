@@ -481,6 +481,7 @@
               v-else-if="activePage === 'results'"
               :loading="resultsLoading"
               :selected-run-id="selectedRunId"
+              :result-charts-data="resultChartsData"
               :overview-preview="overviewPreview"
               :analytics-preview="analyticsPreview"
               :ai-report-text="aiReportText"
@@ -531,6 +532,7 @@ import DownloadPanel from "../components/home/DownloadPanel.vue";
 import {
   createOilRun,
   fetchAnalytics,
+  fetchResultCharts,
   fetchFiles,
   fetchOverview,
   fetchRunList,
@@ -587,6 +589,7 @@ const logText = ref("");
 const dashboardData = ref<any>(null);
 const overviewData = ref<any>(null);
 const analyticsData = ref<any>(null);
+const resultChartsData = ref<any>(null);
 const aiReportText = ref("");
 const runFiles = ref<any[]>([]);
 let refreshTimer: number | undefined;
@@ -982,12 +985,14 @@ async function refreshResults() {
   }
   resultsLoading.value = true;
   try {
-    const [overview, analytics] = await Promise.all([
+    const [overview, analytics, charts] = await Promise.all([
       fetchOverview(selectedRunId.value),
       fetchAnalytics(selectedRunId.value),
+      fetchResultCharts(selectedRunId.value),
     ]);
     overviewData.value = overview;
     analyticsData.value = analytics;
+    resultChartsData.value = charts;
   } catch (err: any) {
     window.alert(`读取结果失败：${err?.message || "未知错误"}`);
   } finally {

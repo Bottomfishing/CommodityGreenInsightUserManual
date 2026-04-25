@@ -681,6 +681,68 @@ def _read_csv_preview(path: Path, rows: int = 50) -> dict[str, Any]:
     return {"exists": True, "columns": df.columns.tolist(), "rows": df.to_dict(orient="records")}
 
 
+def _read_chart_csv(run_dir: Path, filename: str, rows: int = 5000) -> dict[str, Any]:
+    path = run_dir / filename
+    if not path.is_file():
+        return {"exists": False, "file": filename, "columns": [], "rows": []}
+    try:
+        df = pd.read_csv(path).head(rows)
+        return {"exists": True, "file": filename, "columns": df.columns.tolist(), "rows": df.to_dict(orient="records")}
+    except Exception:
+        return {"exists": False, "file": filename, "columns": [], "rows": []}
+
+
+def _build_legacy_chart_data(run_dir: Path, chart_key: str, rows: int = 5000) -> dict[str, Any]:
+    def _pack(file_hint: str, df: pd.DataFrame | None) -> dict[str, Any]:
+        if df is None or df.empty:
+            return {"exists": False, "file": file_hint, "columns": [], "rows": []}
+        dfx = df.head(rows)
+        return {"exists": True, "file": file_hint, "columns": dfx.columns.tolist(), "rows": dfx.to_dict(orient="records")}
+
+    try:
+        if chart_key == "train_val_loss":
+            p = run_dir / "training_log.csv"
+            if p.is_file():
+                df = pd.read_csv(p)
+                cols = [c for c in ["epoch", "loss", "train_loss", "val_loss"] if c in df.columns]
+                if cols:
+                    return _pack("training_log.csv", df[cols].rename(columns={"loss": "train_loss"}))
+        elif chart_key == "test_predictions":
+            p = run_dir / "prediction_results.csv"
+            if p.is_file():
+                df = pd.read_csv(p)
+                required = ["Actual_Return", "GRU_Pred_Return", "Actual_P_t_plus_H", "GRU_Pred_P_t_plus_H"]
+                if all(c in df.columns for c in required):
+                    out = pd.DataFrame(
+                        {
+                            "test_index": list(range(len(df))),
+                            "actual_return": df["Actual_Return"],
+                            "pred_return": df["GRU_Pred_Return"],
+                            "actual_price": df["Actual_P_t_plus_H"],
+                            "pred_price": df["GRU_Pred_P_t_plus_H"],
+                        }
+                    )
+                    return _pack("prediction_results.csv", out)
+        elif chart_key == "backtest_nav_curve":
+            p = run_dir / "backtest_results.csv"
+            if p.is_file():
+                df = pd.read_csv(p)
+                cands = [c for c in df.columns if "nav" in c.lower() or "value" in c.lower()]
+                if len(cands) >= 2:
+                    out = pd.DataFrame(
+                        {
+                            "test_index": list(range(len(df))),
+                            "strategy_nav": pd.to_numeric(df[cands[0]], errors="coerce"),
+                            "buy_hold_nav": pd.to_numeric(df[cands[1]], errors="coerce"),
+                        }
+                    )
+                    return _pack("backtest_results.csv", out)
+    except Exception:
+        return {"exists": False, "file": "", "columns": [], "rows": []}
+
+    return {"exists": False, "file": "", "columns": [], "rows": []}
+
+
 def _start_background_cmd(
     cmd: list[str],
     *,
@@ -1811,6 +1873,44 @@ def get_run_analytics(run_id: str, user: dict[str, Any] = Depends(_require_auth_
     elif report_md.is_file():
         out["bank_report_draft"] = report_md.read_text(encoding="utf-8", errors="replace")
 
+    return out
+
+
+@app.get("/api/oil/runs/{run_id}/result-charts", summary="结果页图表数据（CSV聚合）")
+def get_result_charts(
+    run_id: str,
+    rows: int = Query(5000, ge=100, le=50000),
+    user: dict[str, Any] = Depends(_require_auth_user),
+) -> dict[str, Any]:
+    _assert_run_access(run_id, int(user["id"]))
+    run_dir = WEB_RUNS_DIR / run_id
+    if not run_dir.is_dir():
+        raise HTTPException(status_code=404, detail="run_id 不存在")
+
+    chart_files = {
+        "test_predictions": "chart_test_predictions.csv",
+        "train_val_loss": "chart_train_val_loss.csv",
+        "residual_distribution": "chart_residual_distribution.csv",
+        "return_scatter": "chart_return_scatter.csv",
+        "direction_prediction": "chart_direction_prediction.csv",
+        "direction_confusion_matrix": "chart_direction_confusion_matrix.csv",
+        "direction_prob_distribution": "chart_direction_prob_distribution.csv",
+        "backtest_nav_curve": "chart_backtest_nav_curve.csv",
+        "preprocess_before_after_returns": "chart_preprocess_before_after_returns.csv",
+        "preprocess_feature_compare": "chart_preprocess_feature_compare.csv",
+        "vmd_before_after": "chart_vmd_before_after.csv",
+    }
+
+    out: dict[str, Any] = {"run_id": run_id, "charts": {}}
+    for key, filename in chart_files.items():
+        # 固定优先读取项目根目录 chart_*.csv
+        payload = _read_chart_csv(APP_DIR, filename, rows=rows)
+        # 根目录不存在时，再回退读取 run 目录
+        if not payload.get("exists"):
+            payload = _read_chart_csv(run_dir, filename, rows=rows)
+        if not payload.get("exists"):
+            payload = _build_legacy_chart_data(run_dir, key, rows=rows)
+        out["charts"][key] = payload
     return out
 
 

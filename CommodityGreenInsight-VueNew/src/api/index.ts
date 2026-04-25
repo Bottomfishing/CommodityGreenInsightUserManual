@@ -159,6 +159,10 @@ export async function fetchAnalytics(runId: string) {
   return request('GET', `/oil/runs/${runId}/analytics`)
 }
 
+export async function fetchResultCharts(runId: string, rows = 5000) {
+  return request('GET', `/oil/runs/${runId}/result-charts`, undefined, false, { rows })
+}
+
 export async function generateAIReport(runId: string, force = false) {
   return request('POST', `/oil/runs/${runId}/ai-report`, undefined, false, { force })
 }
