@@ -33,16 +33,22 @@
 
 [rework_Vue](rework_Vue)    -（新增）新前端
 
-[wti_gru_sequence.py](wti_gru_sequence.py)  -reworkmodel 建模
+[wti_gru_sequence.py](wti_gru_sequence.py)  -（新增）reworkmodel 建模
 
-[wti_live_predict.py](wti_live_predict.py)  -reworkmodel 实盘
+[wti_live_predict.py](wti_live_predict.py)  -（新增）reworkmodel 实盘
 
-[optuna_best_params_full.json](optuna_best_params_full.json)    -wti_gru用的配置json
+[optuna_best_params_full.json](optuna_best_params_full.json)    -（新增）wti_gru用的配置json
+
+[pachong](pachong)  -（新增）爬虫
+
+[crude-oil-price-prediction-master](crude-oil-price-prediction-master)  -（新增）新模型
 
 启动命令：
 web :streamlit run streamlit_app_0325.py
 oilprice :python oil_price_prediction_main_0309.py
 fastapi:uvicorn backend_api:app --host 127.0.0.1 --port 8000 --reload
+vuenew:cd CommodityGreenInsight-VueNew
+       npm run dev
 
 网址：http://47.110.235.34:8501
 

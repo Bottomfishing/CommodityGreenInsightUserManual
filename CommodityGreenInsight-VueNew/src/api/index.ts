@@ -4,6 +4,13 @@ const BASE = '/api'
 
 type QueryValue = string | number | boolean | null | undefined
 
+function handleUnauthorized(): void {
+  clearToken()
+  if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+    window.location.href = '/'
+  }
+}
+
 function authHeaders(): Record<string, string> {
   const token = getToken()
   return token ? { Authorization: `Bearer ${token}` } : {}
@@ -49,6 +56,7 @@ async function request<T = any>(
   const res = await fetch(url, opts)
   if (!res.ok) {
     const txt = await res.text().catch(() => '')
+    if (res.status === 401) handleUnauthorized()
     throw new Error(`HTTP ${res.status}: ${txt}`)
   }
 
@@ -62,6 +70,7 @@ async function requestBlob(path: string, params?: Record<string, QueryValue>): P
   const res = await fetch(url, { headers: { ...authHeaders() } })
   if (!res.ok) {
     const txt = await res.text().catch(() => '')
+    if (res.status === 401) handleUnauthorized()
     throw new Error(`HTTP ${res.status}: ${txt}`)
   }
   return res.blob()
@@ -90,6 +99,10 @@ export async function fetchSystemStatus() {
     started_at: raw?.started_at || lock?.started_at || null,
     global_busy: typeof raw?.global_busy === 'boolean' ? raw.global_busy : !!lock,
   }
+}
+
+export async function fetchWtiLast20Candles() {
+  return request<any>('GET', '/market/wti-last20-candles')
 }
 
 export async function fetchRunList() {
@@ -194,6 +207,15 @@ export async function downloadOilRunFile(runId: string, name: string): Promise<v
 
 export async function getOilRunFileObjectUrl(runId: string, name: string): Promise<string> {
   const blob = await requestBlob(`/oil/runs/${runId}/download`, { name })
+  return URL.createObjectURL(blob)
+}
+
+export async function fetchStaticResultFiles() {
+  return request('GET', '/static-results/files')
+}
+
+export async function getStaticResultImageObjectUrl(name: string): Promise<string> {
+  const blob = await requestBlob('/static-results/image', { name })
   return URL.createObjectURL(blob)
 }
 

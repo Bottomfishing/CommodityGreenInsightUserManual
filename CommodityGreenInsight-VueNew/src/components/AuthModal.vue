@@ -306,13 +306,6 @@ watch(() => props.visible, (val) => {
 
 function handleClose() { emit('update:visible', false) }
 
-// ===== 写死默认账号 =====
-const DEFAULT_ACCOUNTS: Record<string, string> = {
-  admin: 'admin123',
-  demo: 'demo123',
-  test: 'test123',
-}
-
 async function handleSubmit() {
   if (!username.value || !password.value) { error.value = '请输入用户名和密码'; return }
   if (password.value.length < 4) { error.value = '密码至少需要 4 位字符'; return }
@@ -320,19 +313,7 @@ async function handleSubmit() {
 
   try {
     if (mode.value === 'login') {
-      // 先检查本地写死账号
-      const localPwd = DEFAULT_ACCOUNTS[username.value]
-      if (localPwd !== undefined && localPwd === password.value) {
-        localStorage.setItem('username', username.value)
-        localStorage.setItem('token', 'local_' + username.value)
-        successState.value = true
-        setTimeout(() => {
-          emit('update:visible', false)
-          emit('success')
-        }, 1200)
-        return
-      }
-      // 写死账号不匹配，走后端 API
+      // 统一走后端真实登录，避免本地假 token 导致 401
       const { login: apiLogin, fetchMe } = await import('@/api/auth')
       await apiLogin(username.value, password.value)
       const me = await fetchMe()

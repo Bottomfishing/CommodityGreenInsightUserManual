@@ -19,6 +19,13 @@ export function clearToken(): void {
   localStorage.removeItem('username')
 }
 
+function handleUnauthorized(): void {
+  clearToken()
+  if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+    window.location.href = '/'
+  }
+}
+
 function authHeaders(): Record<string, string> {
   const token = getToken()
   return token ? { Authorization: `Bearer ${token}` } : {}
@@ -45,6 +52,7 @@ async function request<T = any>(
   const res = await fetch(url, opts)
   if (!res.ok) {
     const txt = await res.text().catch(() => '')
+    if (res.status === 401) handleUnauthorized()
     throw new Error(`HTTP ${res.status}: ${txt}`)
   }
   const ct = res.headers.get('content-type') || ''

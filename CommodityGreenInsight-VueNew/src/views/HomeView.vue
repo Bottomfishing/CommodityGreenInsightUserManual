@@ -227,114 +227,72 @@
 
       <!-- 主要内容区域：左侧功能区 + 右侧监控区 -->
       <div class="main-content-grid">
-        <!-- 左侧：Bento Grid 功能区 -->
+        <!-- 左侧：重构功能区 -->
         <div class="left-section">
-          <div class="bento-grid">
-            <!-- AI 助手大卡片 -->
-            <div class="bento-card bento-card--large">
-              <dv-border-box-1 style="width: 100%; height: 100%">
-                <div class="bento-inner bento-ai">
-                  <div class="bento-icon ai-icon">
-                    <svg
-                      width="28"
-                      height="28"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.8"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                      <path
-                        d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5"
-                      />
-                      <path d="M8.5 8.5v.01" />
-                      <path d="M16 15.5v.01" />
-                      <path d="M12 12v.01" />
-                      <path d="M11 17v.01" />
-                      <path d="M7 14v.01" />
-                    </svg>
+          <div class="left-top-row">
+            <div class="action-squares-row">
+              <div class="bento-card action-square">
+                <dv-border-box-8 style="width: 100%; height: 100%">
+                  <div class="bento-inner bento-upload" @click="handleUpload">
+                    <div class="bento-icon upload-icon">
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="17 8 12 3 7 8" />
+                        <line x1="12" y1="3" x2="12" y2="15" />
+                      </svg>
+                    </div>
+                    <div class="bento-title">上传数据</div>
+                    <div class="bento-desc">CSV / Excel / JSON</div>
                   </div>
-                  <div class="bento-title">AI 助手</div>
-                  <div class="bento-desc">智能问答 · 数据分析 · 报告生成</div>
-                  <button
-                    class="bento-btn bento-btn--primary"
-                    @click="openAIChat"
-                  >
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                      <path
-                        d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
-                      />
-                    </svg>
-                    开始对话
-                  </button>
+                </dv-border-box-8>
+              </div>
+              <div class="bento-card action-square">
+                <dv-border-box-8 style="width: 100%; height: 100%">
+                  <div class="bento-inner bento-train" @click="startTraining">
+                    <div class="bento-icon train-icon">
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                      </svg>
+                    </div>
+                    <div class="bento-title">开始训练</div>
+                    <div class="bento-desc">GRU / LSTM 模型</div>
+                  </div>
+                </dv-border-box-8>
+              </div>
+              <div class="bento-card action-square bento-card--clickable" @click="goToResults">
+                <dv-border-box-8 style="width: 100%; height: 100%">
+                  <div class="bento-inner bento-results">
+                    <div class="bento-icon result-icon">
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <polyline points="14 2 14 8 20 8" />
+                        <line x1="16" y1="13" x2="8" y2="13" />
+                        <line x1="16" y1="17" x2="8" y2="17" />
+                        <polyline points="10 9 9 9 8 9" />
+                      </svg>
+                    </div>
+                    <div class="bento-title">结果分析</div>
+                    <div class="bento-desc">点击查看详情</div>
+                  </div>
+                </dv-border-box-8>
+              </div>
+            </div>
+          </div>
+          <div class="left-candle-row">
+            <div class="left-candle-square">
+              <dv-border-box-1 style="width: 100%; height: 100%">
+                <div class="panel-inner panel-inner--tight">
+                  <div class="panel-head">
+                    <div class="panel-title-row">
+                      <span class="panel-tag">WTI</span>
+                      <span class="panel-title">近20日蜡烛图</span>
+                    </div>
+                  </div>
+                  <div ref="wtiCandleChartRef" class="candle-chart-box"></div>
                 </div>
               </dv-border-box-1>
             </div>
-
-            <!-- 上传数据 -->
-            <div class="bento-card">
-              <dv-border-box-8 style="width: 100%; height: 100%">
-                <div class="bento-inner bento-upload" @click="handleUpload">
-                  <div class="bento-icon upload-icon">
-                    <svg
-                      width="22"
-                      height="22"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.8"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                      <polyline points="17 8 12 3 7 8" />
-                      <line x1="12" y1="3" x2="12" y2="15" />
-                    </svg>
-                  </div>
-                  <div class="bento-title">上传数据</div>
-                  <div class="bento-desc">CSV / Excel / JSON</div>
-                </div>
-              </dv-border-box-8>
-            </div>
-
-            <!-- 开始训练 -->
-            <div class="bento-card">
-              <dv-border-box-8 style="width: 100%; height: 100%">
-                <div class="bento-inner bento-train" @click="startTraining">
-                  <div class="bento-icon train-icon">
-                    <svg
-                      width="22"
-                      height="22"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.8"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                      <polygon
-                        points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"
-                      />
-                    </svg>
-                  </div>
-                  <div class="bento-title">开始训练</div>
-                  <div class="bento-desc">GRU / LSTM 模型</div>
-                </div>
-              </dv-border-box-8>
-            </div>
-
-            <!-- 训练监控 -->
-            <div class="bento-card">
+            <div class="left-mini-monitor">
               <dv-border-box-8 style="width: 100%; height: 100%">
                 <div class="bento-inner bento-monitor">
                   <div class="bento-icon monitor-icon">
@@ -364,39 +322,21 @@
                 </div>
               </dv-border-box-8>
             </div>
-
-            <!-- 结果显示 -->
-            <div class="bento-card bento-card--clickable" @click="goToResults">
-              <dv-border-box-8 style="width: 100%; height: 100%">
-                <div class="bento-inner bento-results">
-                  <div class="bento-icon result-icon">
-                    <svg
-                      width="22"
-                      height="22"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.8"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                      <path
-                        d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
-                      />
-                      <polyline points="14 2 14 8 20 8" />
-                      <line x1="16" y1="13" x2="8" y2="13" />
-                      <line x1="16" y1="17" x2="8" y2="17" />
-                      <polyline points="10 9 9 9 8 9" />
+            <div class="ai-mini-card">
+              <dv-border-box-1 style="width: 100%; height: 100%">
+                <div class="bento-inner bento-ai-mini">
+                  <div class="bento-icon ai-icon">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5" />
+                      <path d="M8.5 8.5v.01" />
+                      <path d="M16 15.5v.01" />
+                      <path d="M12 12v.01" />
                     </svg>
                   </div>
-                  <div class="bento-title">结果预览</div>
-                  <div class="bento-desc">点击查看详情 →</div>
-                  <div class="result-preview">
-                    <span class="rp-item">MAE: 0.023</span>
-                    <span class="rp-item">RMSE: 0.041</span>
-                  </div>
+                  <div class="bento-title">AI 助手</div>
+                  <button class="bento-btn bento-btn--primary bento-btn--mini" @click="openAIChat">对话</button>
                 </div>
-              </dv-border-box-8>
+              </dv-border-box-1>
             </div>
           </div>
         </div>
@@ -444,6 +384,7 @@
               </div>
             </dv-border-box-1>
           </div>
+
         </div>
       </div>
 
@@ -595,6 +536,7 @@ import {
   fetchRunList,
   fetchRunLog,
   fetchSystemStatus,
+  fetchWtiLast20Candles,
   fetchTrainingDashboard,
   generateAIReport,
   getZipExportUrl,
@@ -679,6 +621,9 @@ const {
 void lossChartRef;
 void priceChartRef;
 void returnChartRef;
+const wtiCandleChartRef = ref<HTMLDivElement | null>(null);
+const wtiCandleData = ref<any[]>([]);
+let wtiCandleChart: any = null;
 
 const dashboardPreview = computed(() =>
   dashboardData.value ? JSON.stringify(dashboardData.value, null, 2) : "暂无训练面板数据",
@@ -863,10 +808,79 @@ async function refreshRuns() {
   }
 }
 
+async function refreshWtiCandles() {
+  if (activePage.value !== "dashboard") return;
+  try {
+    await ensureEchartsReady();
+    const ec = (window as any).echarts;
+    if (!ec || !wtiCandleChartRef.value) return;
+    const res = await fetchWtiLast20Candles();
+    wtiCandleData.value = Array.isArray(res?.items) ? res.items : [];
+    const rows = wtiCandleData.value;
+    if (!rows.length) return;
+
+    const xData = rows.map((r: any) => r.date);
+    const candleData = rows.map((r: any) => [r.open, r.close, r.low, r.high]);
+    await nextTick();
+    if (wtiCandleChart) {
+      wtiCandleChart.dispose();
+      wtiCandleChart = null;
+    }
+    wtiCandleChart = ec.init(wtiCandleChartRef.value);
+    wtiCandleChart.setOption({
+      backgroundColor: "transparent",
+      animation: false,
+      tooltip: { trigger: "axis" },
+      grid: { left: 34, right: 10, top: 8, bottom: 22 },
+      xAxis: {
+        type: "category",
+        data: xData,
+        scale: true,
+        axisLabel: { color: "#94a3b8", fontSize: 9, interval: "auto" },
+        axisLine: { lineStyle: { color: "#334155" } },
+        axisTick: { show: false },
+      },
+      yAxis: {
+        scale: true,
+        axisLabel: { color: "#94a3b8", fontSize: 9 },
+        axisLine: { show: false },
+        splitLine: { lineStyle: { color: "rgba(148,163,184,0.12)" } },
+      },
+      series: [
+        {
+          name: "WTI K线",
+          type: "candlestick",
+          data: candleData,
+          itemStyle: {
+            color: "#22c55e",
+            color0: "#ef4444",
+            borderColor: "#22c55e",
+            borderColor0: "#ef4444",
+          },
+        },
+      ],
+    });
+    wtiCandleChart.resize();
+  } catch {
+    // ignore dashboard candle chart errors
+  }
+}
 
 async function submitRun() {
   if (!selectedRunFile.value) {
     window.alert("请先选择 ZIP 文件");
+    return;
+  }
+  if (runForm.topN < 5 || runForm.topN > 200) {
+    window.alert("TopN 必须在 5~200 之间");
+    return;
+  }
+  if (runForm.epochs < 1 || runForm.epochs > 2000) {
+    window.alert("Epochs 必须在 1~2000 之间");
+    return;
+  }
+  if (runForm.forecastSteps < 0 || runForm.forecastSteps > 90) {
+    window.alert("预测步长必须在 0~90 之间");
     return;
   }
   runLoading.value = true;
@@ -919,9 +933,12 @@ async function refreshMonitor() {
       selected_run_id: monitorMode.value === "selected" ? selectedRunId.value || undefined : undefined,
       manual_dir: monitorMode.value === "manual" ? manualRunId.value || undefined : undefined,
     });
-    if (resolved?.run_id) {
-      runId = resolved.run_id;
-      if (monitorMode.value !== "manual") selectedRunId.value = resolved.run_id;
+    const resolvedRunId =
+      resolved?.run_id ||
+      (typeof resolved?.monitor_dir === "string" ? resolved.monitor_dir.split(/[/\\]/).pop() : "");
+    if (resolvedRunId) {
+      runId = resolvedRunId;
+      if (monitorMode.value !== "manual") selectedRunId.value = resolvedRunId;
     }
   } catch {
     // 后端不支持 resolve 时回退到当前前端 runId
@@ -935,7 +952,12 @@ async function refreshMonitor() {
       fetchRunLog(runId, 300),
     ]);
     dashboardData.value = dashboard;
-    logText.value = typeof runLog === "string" ? runLog : JSON.stringify(runLog, null, 2);
+    logText.value =
+      typeof runLog === "string"
+        ? runLog
+        : typeof runLog?.log_tail === "string"
+          ? runLog.log_tail
+          : JSON.stringify(runLog, null, 2);
     const hasLoss = Array.isArray(dashboard?.loss_series) && dashboard.loss_series.length > 0;
     const hasPrice =
       (Array.isArray(dashboard?.price_series) && dashboard.price_series.length > 0) ||
@@ -1017,6 +1039,9 @@ function exportZip() {
 }
 
 async function handlePageChange() {
+  if (activePage.value === "dashboard") {
+    await refreshWtiCandles();
+  }
   if (activePage.value === "monitor") await refreshMonitor();
   if (activePage.value === "results") await refreshResults();
   if (activePage.value === "download") await refreshFiles();
@@ -1042,7 +1067,13 @@ async function setActivePage(page: (typeof pageTabs)[number]["key"]) {
 
 async function warmupData() {
   await refreshRuns();
+  await refreshWtiCandles();
   await handlePageChange();
+}
+
+function handleWindowResize() {
+  resizeCharts();
+  wtiCandleChart?.resize?.();
 }
 
 function cleanupTimers() {
@@ -1085,7 +1116,7 @@ onMounted(() => {
   clockTimer = setInterval(updateClock, 1000);
   warmupData();
   setupAutoRefresh();
-  window.addEventListener("resize", resizeCharts);
+  window.addEventListener("resize", handleWindowResize);
   window.addEventListener("keydown", handleGlobalKeydown);
 });
 
@@ -1112,9 +1143,11 @@ watch([monitorAutoRefresh, monitorRefreshSec], () => {
 onBeforeUnmount(() => {
   clearInterval(clockTimer);
   cleanupTimers();
-  window.removeEventListener("resize", resizeCharts);
+  window.removeEventListener("resize", handleWindowResize);
   window.removeEventListener("keydown", handleGlobalKeydown);
   disposeMonitorCharts();
+  wtiCandleChart?.dispose();
+  wtiCandleChart = null;
 });
 </script>
 
@@ -1125,11 +1158,52 @@ onBeforeUnmount(() => {
    ================================================================ */
 .home-page {
   min-height: 100vh;
-  background: #050a14;
+  background:
+    radial-gradient(circle at 18% 22%, rgba(14, 116, 144, 0.24), transparent 32%),
+    radial-gradient(circle at 82% 18%, rgba(79, 70, 229, 0.22), transparent 34%),
+    radial-gradient(circle at 50% 78%, rgba(34, 197, 94, 0.14), transparent 30%),
+    linear-gradient(145deg, #040813 0%, #071228 45%, #061733 70%, #050d1f 100%);
   color: #e2e8f0;
   display: flex;
   flex-direction: column;
   overflow-x: hidden;
+  position: relative;
+}
+.home-page::before,
+.home-page::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+.home-page::before {
+  background:
+    radial-gradient(circle at 30% 30%, rgba(56, 189, 248, 0.2), transparent 36%),
+    radial-gradient(circle at 70% 65%, rgba(99, 102, 241, 0.16), transparent 38%);
+  filter: blur(18px);
+  animation: bgFlowA 14s ease-in-out infinite alternate;
+}
+.home-page::after {
+  background:
+    linear-gradient(120deg, rgba(34, 211, 238, 0.08), transparent 35%, rgba(99, 102, 241, 0.08) 68%, transparent 100%);
+  mix-blend-mode: screen;
+  animation: bgFlowB 18s linear infinite;
+}
+.home-page > * {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes bgFlowA {
+  0% { transform: translate3d(-1.2%, -1%, 0) scale(1); }
+  100% { transform: translate3d(1.2%, 1%, 0) scale(1.04); }
+}
+
+@keyframes bgFlowB {
+  0% { opacity: 0.35; transform: translateX(-4%); }
+  50% { opacity: 0.6; }
+  100% { opacity: 0.35; transform: translateX(4%); }
 }
 
 /* ══════════════════════════════════════════════════
@@ -1348,10 +1422,10 @@ onBeforeUnmount(() => {
    ══════════════════════════════════════════════════ */
 .main-content {
   flex: 1;
-  padding: 16px 24px 24px;
+  padding: 12px 20px 16px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
   overflow: auto;
 }
 .dashboard-top-line,
@@ -1675,11 +1749,11 @@ onBeforeUnmount(() => {
 .kpi-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 14px;
-  margin-bottom: 16px;
+  gap: 10px;
+  margin-bottom: 10px;
 }
 .kpi-card {
-  min-height: 120px;
+  min-height: 102px;
   border-radius: 10px;
   background:
     linear-gradient(180deg, rgba(2, 12, 28, 0.72), rgba(1, 8, 20, 0.74)),
@@ -1691,12 +1765,12 @@ onBeforeUnmount(() => {
 /* ─── 主要内容网格布局 ─── */
 .main-content-grid {
   display: grid;
-  grid-template-columns: 3.5fr 1.2fr;
-  gap: 16px;
-  margin-bottom: 16px;
+  grid-template-columns: 3.3fr 1.2fr;
+  gap: 12px;
+  margin-bottom: 10px;
   border: 1px solid rgba(56, 189, 248, 0.14);
   border-radius: 12px;
-  padding: 12px;
+  padding: 10px;
   background:
     linear-gradient(180deg, rgba(2, 12, 28, 0.65), rgba(1, 8, 20, 0.68)),
     radial-gradient(circle at 90% 12%, rgba(56, 189, 248, 0.06), transparent 45%);
@@ -1706,29 +1780,66 @@ onBeforeUnmount(() => {
 .left-section {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 10px;
+}
+.left-top-row {
+  display: grid;
+  height: 126px;
+}
+.action-squares-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(120px, 1fr));
+  gap: 10px;
+  height: 100%;
+}
+.action-square {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+.ai-mini-card {
+  width: 100%;
+  height: 100%;
 }
 
 /* 右侧监控区 */
 .right-section {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 /* 飞线图区域 */
 .flyline-row {
   flex: 1;
-  min-height: 220px;
+  min-height: 180px;
 }
 
 /* 实时数据监控区域 */
 .monitor-row {
   flex: 2;
-  min-height: 300px;
+  min-height: 240px;
+}
+.left-candle-row {
+  height: 248px;
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 10px;
+  align-self: stretch;
+  margin-top: 2px;
+}
+.left-candle-square {
+  width: 100%;
+  height: 100%;
+}
+.left-mini-monitor {
+  width: 100%;
+  min-width: 0;
 }
 .kpi-inner {
-  padding: 18px 20px;
+  padding: 14px 16px;
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -1795,7 +1906,7 @@ onBeforeUnmount(() => {
 }
 
 .kpi-price {
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 800;
   color: #f1f5f9;
   letter-spacing: -0.03em;
@@ -1823,7 +1934,7 @@ onBeforeUnmount(() => {
 
 /* ─── 飞线图行 ─── */
 .flyline-row {
-  height: 260px;
+  height: 220px;
   flex-shrink: 0;
 }
 .flyline-inner {
@@ -1858,8 +1969,13 @@ onBeforeUnmount(() => {
 
 /* ─── 底部监控行 ─── */
 .monitor-row {
-  height: 220px;
+  height: 190px;
   flex-shrink: 0;
+}
+.candle-chart-box {
+  width: 100%;
+  height: 100%;
+  min-height: 198px;
 }
 
 /* 通用面板 */
@@ -1871,6 +1987,23 @@ onBeforeUnmount(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
+}
+.panel-inner--tight {
+  padding: 8px;
+}
+.left-mini-monitor .bento-inner {
+  padding: 12px 10px;
+}
+.left-mini-monitor .bento-title {
+  font-size: 18px;
+}
+.bento-ai-mini .bento-title {
+  font-size: 18px;
+  margin-bottom: 8px;
+}
+.bento-btn--mini {
+  padding: 8px 16px;
+  font-size: 13px;
 }
 .panel-head {
   display: flex;
@@ -1913,14 +2046,26 @@ onBeforeUnmount(() => {
 /* 左侧占位区 → 替换为 Bento Grid */
 .bento-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  grid-template-rows: 1fr 1fr;
-  gap: 12px;
-  height: 100%;
+  grid-template-columns: 1.1fr 0.9fr;
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  grid-template-areas:
+    "ai upload"
+    "ai train"
+    "ai result";
+  gap: 10px;
+  height: 248px;
 }
 .bento-card--large {
-  grid-row: 1 / 3;
-  grid-column: 1 / 2;
+  grid-area: ai;
+}
+.bento-card--upload {
+  grid-area: upload;
+}
+.bento-card--train {
+  grid-area: train;
+}
+.bento-card--result {
+  grid-area: result;
 }
 .bento-inner {
   height: 100%;
@@ -1930,20 +2075,20 @@ onBeforeUnmount(() => {
   justify-content: center;
   cursor: pointer;
   transition: opacity 0.2s;
-  padding: 16px;
+  padding: 12px;
 }
 .bento-inner:hover {
   opacity: 0.9;
   transform: translateY(-2px);
 }
 .bento-icon {
-  width: 48px;
-  height: 48px;
+  width: 42px;
+  height: 42px;
   border-radius: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 .ai-icon {
   background: linear-gradient(
@@ -1952,8 +2097,8 @@ onBeforeUnmount(() => {
     rgba(59, 130, 246, 0.15)
   );
   color: #a78bfa;
-  width: 56px;
-  height: 56px;
+  width: 50px;
+  height: 50px;
   border-radius: 16px;
   box-shadow: 0 0 24px rgba(139, 92, 246, 0.1);
 }
@@ -1974,32 +2119,38 @@ onBeforeUnmount(() => {
   color: #f87171;
 }
 .bento-title {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
   color: #e2e8f0;
   letter-spacing: 0.02em;
   margin-bottom: 4px;
 }
 .bento-desc {
-  font-size: 11px;
+  font-size: 10px;
   color: rgba(148, 163, 184, 0.4);
   letter-spacing: 0.03em;
 }
+.action-square .bento-title {
+  font-size: 18px;
+}
+.action-square .bento-desc {
+  font-size: 11px;
+}
 .bento-ai .bento-title {
-  font-size: 20px;
-  margin-bottom: 6px;
+  font-size: 18px;
+  margin-bottom: 4px;
 }
 .bento-ai .bento-desc {
-  font-size: 12px;
-  margin-bottom: 20px;
+  font-size: 11px;
+  margin-bottom: 12px;
 }
 .bento-btn {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 24px;
+  padding: 8px 18px;
   border-radius: 10px;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   border: none;
   cursor: pointer;

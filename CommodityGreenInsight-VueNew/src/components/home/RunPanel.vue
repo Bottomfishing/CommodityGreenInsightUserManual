@@ -13,15 +13,15 @@
       </label>
       <label class="field">
         <span>TopN</span>
-        <input v-model.number="runForm.topN" type="number" min="1" />
+        <input v-model.number="runForm.topN" type="number" min="5" max="200" />
       </label>
       <label class="field">
         <span>Epochs</span>
-        <input v-model.number="runForm.epochs" type="number" min="1" />
+        <input v-model.number="runForm.epochs" type="number" min="1" max="2000" />
       </label>
       <label class="field">
         <span>预测步长</span>
-        <input v-model.number="runForm.forecastSteps" type="number" min="1" />
+        <input v-model.number="runForm.forecastSteps" type="number" min="0" max="90" />
       </label>
       <label class="field">
         <span>截止日期（可选）</span>

@@ -47,6 +47,12 @@ AI_MODEL = os.environ.get("YIBU_MODEL", "gpt-4o")
 MYSQL_URL = os.environ.get("MYSQL_URL", "").strip()
 DB_ENABLED = bool(_SQLALCHEMY_AVAILABLE and MYSQL_URL)
 AUTH_SECRET = os.environ.get("AUTH_SECRET", "change-this-auth-secret")
+STATIC_RESULT_IMAGE_DIR = Path(
+    os.environ.get("STATIC_RESULT_IMAGE_DIR", r"F:\下载\crude-oil-price-prediction-master")
+).resolve()
+WTI_LAST20_CSV = Path(
+    os.environ.get("WTI_LAST20_CSV", r"C:\Users\12725\Desktop\pachong\wti_clf_last20days.csv")
+).resolve()
 
 _GLOBAL_MUTEX = threading.Lock()
 _PROCESS_POOL: dict[str, subprocess.Popen[str]] = {}
@@ -929,6 +935,55 @@ def get_system_status() -> dict[str, Any]:
     }
 
 
+@app.get("/api/market/wti-last20-candles", summary="WTI近20日K线数据")
+def get_wti_last20_candles(user: dict[str, Any] = Depends(_require_auth_user)) -> dict[str, Any]:
+    _ = user
+    if not WTI_LAST20_CSV.is_file():
+        raise HTTPException(status_code=404, detail=f"CSV 不存在: {WTI_LAST20_CSV}")
+    try:
+        df = pd.read_csv(WTI_LAST20_CSV)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"读取 CSV 失败: {exc}") from exc
+
+    required = ["date", "open", "high", "low", "close"]
+    cols_lower = {c.lower(): c for c in df.columns}
+    if not all(k in cols_lower for k in required):
+        raise HTTPException(status_code=400, detail=f"CSV 缺少列，要求: {required}")
+
+    date_col = cols_lower["date"]
+    open_col = cols_lower["open"]
+    high_col = cols_lower["high"]
+    low_col = cols_lower["low"]
+    close_col = cols_lower["close"]
+    vol_col = cols_lower.get("volume")
+
+    out_df = pd.DataFrame(
+        {
+            "date": pd.to_datetime(df[date_col], errors="coerce"),
+            "open": pd.to_numeric(df[open_col], errors="coerce"),
+            "high": pd.to_numeric(df[high_col], errors="coerce"),
+            "low": pd.to_numeric(df[low_col], errors="coerce"),
+            "close": pd.to_numeric(df[close_col], errors="coerce"),
+            "volume": pd.to_numeric(df[vol_col], errors="coerce") if vol_col else 0.0,
+        }
+    ).dropna(subset=["date", "open", "high", "low", "close"])
+
+    out_df = out_df.sort_values("date").reset_index(drop=True)
+    items: list[dict[str, Any]] = []
+    for _, r in out_df.iterrows():
+        items.append(
+            {
+                "date": str(r["date"].date()),
+                "open": float(r["open"]),
+                "high": float(r["high"]),
+                "low": float(r["low"]),
+                "close": float(r["close"]),
+                "volume": float(r["volume"]) if pd.notna(r["volume"]) else 0.0,
+            }
+        )
+    return {"source": str(WTI_LAST20_CSV), "count": len(items), "items": items}
+
+
 @app.get("/api/oil/monitor/resolve", summary="解析训练监控目录")
 def resolve_monitor_dir(
     mode: str = Query("latest", description="running|active_by_log|selected|latest|manual"),
@@ -1447,6 +1502,37 @@ def export_oil_run_zip(run_id: str, user: dict[str, Any] = Depends(_require_auth
     mem.seek(0)
     headers = {"Content-Disposition": f'attachment; filename="{run_id}.zip"'}
     return StreamingResponse(mem, media_type="application/zip", headers=headers)
+
+
+@app.get("/api/static-results/files", summary="外部固定结果图列表")
+def get_static_result_files(user: dict[str, Any] = Depends(_require_auth_user)) -> dict[str, Any]:
+    _ = user
+    if not STATIC_RESULT_IMAGE_DIR.is_dir():
+        raise HTTPException(status_code=404, detail=f"目录不存在: {STATIC_RESULT_IMAGE_DIR}")
+    allowed = {".png", ".jpg", ".jpeg", ".webp"}
+    files = []
+    for p in sorted(STATIC_RESULT_IMAGE_DIR.iterdir(), key=lambda x: x.name.lower()):
+        if p.is_file() and p.suffix.lower() in allowed:
+            files.append({"name": p.name, "size": p.stat().st_size})
+    return {"base_dir": str(STATIC_RESULT_IMAGE_DIR), "files": files}
+
+
+@app.get("/api/static-results/image", summary="下载外部固定结果图")
+def download_static_result_image(
+    name: str = Query(..., description="图片文件名"),
+    user: dict[str, Any] = Depends(_require_auth_user),
+) -> FileResponse:
+    _ = user
+    if not STATIC_RESULT_IMAGE_DIR.is_dir():
+        raise HTTPException(status_code=404, detail=f"目录不存在: {STATIC_RESULT_IMAGE_DIR}")
+    target = (STATIC_RESULT_IMAGE_DIR / name).resolve()
+    if target.parent != STATIC_RESULT_IMAGE_DIR:
+        raise HTTPException(status_code=400, detail="非法路径")
+    if target.suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp"}:
+        raise HTTPException(status_code=400, detail="仅支持图片文件")
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail="文件不存在")
+    return FileResponse(path=str(target), filename=target.name)
 
 
 @app.post("/api/oil/runs/{run_id}/new-energy", summary="启动新能源整合预测")
