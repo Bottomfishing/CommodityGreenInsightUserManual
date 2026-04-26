@@ -233,21 +233,6 @@
             <div class="action-squares-row">
               <div class="bento-card action-square">
                 <dv-border-box-8 style="width: 100%; height: 100%">
-                  <div class="bento-inner bento-upload" @click="handleUpload">
-                    <div class="bento-icon upload-icon">
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                        <polyline points="17 8 12 3 7 8" />
-                        <line x1="12" y1="3" x2="12" y2="15" />
-                      </svg>
-                    </div>
-                    <div class="bento-title">上传数据</div>
-                    <div class="bento-desc">CSV / Excel / JSON</div>
-                  </div>
-                </dv-border-box-8>
-              </div>
-              <div class="bento-card action-square">
-                <dv-border-box-8 style="width: 100%; height: 100%">
                   <div class="bento-inner bento-train" @click="startTraining">
                     <div class="bento-icon train-icon">
                       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -256,6 +241,21 @@
                     </div>
                     <div class="bento-title">开始训练</div>
                     <div class="bento-desc">GRU / LSTM 模型</div>
+                  </div>
+                </dv-border-box-8>
+              </div>
+              <div class="bento-card action-square">
+                <dv-border-box-8 style="width: 100%; height: 100%">
+                  <div class="bento-inner bento-monitor" @click="goToMonitor">
+                    <div class="bento-icon monitor-icon">
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                        <line x1="8" y1="21" x2="16" y2="21" />
+                        <line x1="12" y1="17" x2="12" y2="21" />
+                      </svg>
+                    </div>
+                    <div class="bento-title">训练监控</div>
+                    <div class="bento-desc">实时进度 / 日志</div>
                   </div>
                 </dv-border-box-8>
               </div>
@@ -276,6 +276,21 @@
                   </div>
                 </dv-border-box-8>
               </div>
+              <div class="bento-card action-square">
+                <dv-border-box-8 style="width: 100%; height: 100%">
+                  <div class="bento-inner bento-upload" @click="goToDownload">
+                    <div class="bento-icon upload-icon">
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="17 8 12 3 7 8" />
+                        <line x1="12" y1="3" x2="12" y2="15" />
+                      </svg>
+                    </div>
+                    <div class="bento-title">下载导出</div>
+                    <div class="bento-desc">报告 / 图表 / ZIP</div>
+                  </div>
+                </dv-border-box-8>
+              </div>
             </div>
           </div>
           <div class="left-candle-row">
@@ -291,36 +306,6 @@
                   <div ref="wtiCandleChartRef" class="candle-chart-box"></div>
                 </div>
               </dv-border-box-1>
-            </div>
-            <div class="left-mini-monitor">
-              <dv-border-box-8 style="width: 100%; height: 100%">
-                <div class="bento-inner bento-monitor">
-                  <div class="bento-icon monitor-icon">
-                    <svg
-                      width="22"
-                      height="22"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.8"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                      <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-                      <line x1="8" y1="21" x2="16" y2="21" />
-                      <line x1="12" y1="17" x2="12" y2="21" />
-                    </svg>
-                  </div>
-                  <div class="bento-title">训练监控</div>
-                  <div class="bento-status">
-                    <span class="status-dot status-dot--idle"></span>
-                    <span>空闲</span>
-                  </div>
-                  <div class="mini-progress">
-                    <div class="mini-bar" style="width: 0%"></div>
-                  </div>
-                </div>
-              </dv-border-box-8>
             </div>
             <div class="ai-mini-card">
               <dv-border-box-1 style="width: 100%; height: 100%">
@@ -338,6 +323,15 @@
                 </div>
               </dv-border-box-1>
             </div>
+          </div>
+        </div>
+
+        <!-- 中间：Globe -->
+        <div class="center-section">
+          <div class="center-globe-card">
+            <dv-border-box-1 style="width: 100%; height: 100%">
+              <ReactGlobePanel />
+            </dv-border-box-1>
           </div>
         </div>
 
@@ -567,6 +561,7 @@ import { useRouter } from "vue-router";
 import { clearToken } from "../api/auth";
 import worldMap from "../assets/world-map.svg";
 import HomeAiDrawer from "../components/home/HomeAiDrawer.vue";
+import ReactGlobePanel from "../components/home/ReactGlobePanel.vue";
 import { useMonitorDashboard } from "../composables/useMonitorDashboard";
 import RunPanel from "../components/home/RunPanel.vue";
 import ResultsPanel from "../components/home/ResultsPanel.vue";
@@ -860,10 +855,6 @@ async function sendDashboardAIMessage() {
   } finally {
     aiChatLoading.value = false;
   }
-}
-
-function handleUpload() {
-  openUploadDialog();
 }
 
 function onRunFileSelected(event: Event) {
@@ -1167,25 +1158,20 @@ function handleGlobalKeydown(event: KeyboardEvent) {
   }
 }
 
-function openUploadDialog() {
-  const input = document.createElement("input");
-  input.type = "file";
-  input.accept = ".zip";
-  input.onchange = () => {
-    if (input.files?.length) {
-      selectedRunFile.value = input.files[0];
-      activePage.value = "run";
-    }
-  };
-  input.click();
-}
-
 function startTraining() {
   setActivePage("run");
 }
 
 function goToResults() {
   setActivePage("results");
+}
+
+function goToMonitor() {
+  setActivePage("monitor");
+}
+
+function goToDownload() {
+  setActivePage("download");
 }
 
 // ===== 生命周期 =====
@@ -1922,7 +1908,7 @@ onBeforeUnmount(() => {
 /* ─── 主要内容网格布局 ─── */
 .main-content-grid {
   display: grid;
-  grid-template-columns: 3.3fr 1.2fr;
+  grid-template-columns: 1.5fr 1.5fr 0.85fr;
   gap: 12px;
   margin-bottom: 10px;
   border: 1px solid rgba(56, 189, 248, 0.14);
@@ -1939,13 +1925,21 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 10px;
 }
+.center-section {
+  display: flex;
+  flex-direction: column;
+}
+.center-globe-card {
+  flex: 1;
+  min-height: 0;
+}
 .left-top-row {
   display: grid;
   height: 126px;
 }
 .action-squares-row {
   display: grid;
-  grid-template-columns: repeat(3, minmax(120px, 1fr));
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
   gap: 10px;
   height: 100%;
 }
@@ -1958,7 +1952,6 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 100%;
 }
-
 /* 右侧监控区 */
 .right-section {
   display: flex;
@@ -1981,7 +1974,7 @@ onBeforeUnmount(() => {
   height: 248px;
   flex-shrink: 0;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: stretch;
   gap: 10px;
   align-self: stretch;
@@ -2412,6 +2405,12 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 900px) {
+  .main-content-grid {
+    grid-template-columns: 1fr;
+  }
+  .center-section {
+    min-height: 220px;
+  }
   .heading-text {
     min-width: 260px;
   }
