@@ -5,7 +5,7 @@
         <div class="ai-chat-inner">
           <div class="ai-chat-head">
             <div>
-              <h3>AI 助手</h3>
+              <h3>新手助手小绿</h3>
               <p>可结合当前 Run 上下文进行问答与分析</p>
             </div>
             <button class="feature-btn" @click="emit('update:open', false)">关闭</button>

@@ -50,7 +50,7 @@
         <!-- 用户手册 -->
         <a class="sidebar-btn" href="/用户手册.pdf" target="_blank">📖 用户手册</a>
 
-        <!-- AI 助手 -->
+        <!-- 新手助手小绿 -->
         <details class="sidebar-expander">
             <summary>🤖 AI 助手</summary>
           <div class="sidebar-chat-messages" ref="sidebarRef">

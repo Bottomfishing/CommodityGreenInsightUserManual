@@ -105,6 +105,10 @@ export async function fetchWtiLast20Candles() {
   return request<any>('GET', '/market/wti-last20-candles')
 }
 
+export async function fetchLiveWtiPredict() {
+  return request<any>('GET', '/live/wti/predict')
+}
+
 export async function fetchRunList() {
   const res = await request<any>('GET', '/oil/runs')
   if (Array.isArray(res)) return res

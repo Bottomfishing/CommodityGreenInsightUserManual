@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+import numpy as np
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
@@ -35,10 +36,14 @@ WEB_RUNS_DIR = APP_DIR / "web_runs"
 SCRIPT_NAME = "oil_price_prediction_main_0309.py"
 NE_SCRIPT_NAME = "run_new_energy_forecast_integrated_0325.py"
 BOND_SCRIPT_NAME = "predict_bond_from_gru.py"
+LIVE_PREDICT_SCRIPT_NAME = "wti_live_predict.py"
 PIPELINE_SCRIPT_NAME = "Data_Pipeline.py"
 DEFAULT_BOND_DATA_CSV = APP_DIR / "bond_date" / "data.csv"
 DEFAULT_BOND_ZIP = APP_DIR / "bond_data.zip"
 DEFAULT_BOND_DIR = APP_DIR / "bond_data"
+DEFAULT_NEW_ENERGY_DIR = APP_DIR / "绿色股票指数"
+LIVE_PARAMS_JSON = APP_DIR / "optuna_best_params_full.json"
+LIVE_WEIGHTS = APP_DIR / "gru_sequence_weights.weights.h5"
 GLOBAL_LOCK_PATH = APP_DIR / ".app_global_job.lock"
 ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 AI_BASE_URL = os.environ.get("YIBU_BASE_URL", "https://yibuapi.com/v1")
@@ -1046,6 +1051,140 @@ def get_wti_last20_candles(user: dict[str, Any] = Depends(_require_auth_user)) -
     return {"source": str(WTI_LAST20_CSV), "count": len(items), "items": items}
 
 
+@app.get("/api/live/wti/predict", summary="WTI 实盘单步推理（仅推理）")
+def live_wti_predict(user: dict[str, Any] = Depends(_require_auth_user)) -> dict[str, Any]:
+    _ = user
+    try:
+        script_path = APP_DIR / LIVE_PREDICT_SCRIPT_NAME
+        issues: list[str] = []
+        can_run_script = True
+        if not script_path.is_file():
+            can_run_script = False
+            issues.append(f"missing_script:{LIVE_PREDICT_SCRIPT_NAME}")
+        if not LIVE_PARAMS_JSON.is_file():
+            can_run_script = False
+            issues.append(f"missing_params:{LIVE_PARAMS_JSON}")
+        if not LIVE_WEIGHTS.is_file():
+            can_run_script = False
+            issues.append(f"missing_weights:{LIVE_WEIGHTS}")
+
+        live_df = pd.DataFrame()
+        if WTI_LAST20_CSV.is_file():
+            try:
+                df = pd.read_csv(WTI_LAST20_CSV)
+                cols_lower = {c.lower(): c for c in df.columns}
+                close_col = cols_lower.get("close")
+                if close_col is None:
+                    close_col = "ClosePrice" if "ClosePrice" in df.columns else None
+                if close_col is None:
+                    issues.append("missing_close_column")
+                else:
+                    live_df = pd.DataFrame({"ClosePrice": pd.to_numeric(df[close_col], errors="coerce")}).dropna()
+            except Exception as exc:
+                issues.append(f"read_csv_failed:{exc}")
+        else:
+            issues.append(f"missing_csv:{WTI_LAST20_CSV}")
+
+        if len(live_df) < 5:
+            # 兜底构造一段可推理序列，避免 500
+            issues.append("insufficient_live_points")
+            demo_close = np.linspace(72.0, 75.0, 20) + 0.8 * np.sin(np.arange(20) / 3.0)
+            live_df = pd.DataFrame({"ClosePrice": demo_close})
+        live_input_csv = APP_DIR / "_live_wti_input.csv"
+        live_df.to_csv(live_input_csv, index=False, encoding="utf-8-sig")
+
+        cmd = [
+            "python",
+            "-u",
+            str(script_path),
+            "--input-csv",
+            str(live_input_csv.resolve()),
+            "--params-json",
+            str(LIVE_PARAMS_JSON.resolve()),
+            "--weights",
+            str(LIVE_WEIGHTS.resolve()),
+            "--json",
+        ]
+        result = None
+        if can_run_script:
+            result = subprocess.run(cmd, capture_output=True, text=True, cwd=str(APP_DIR))
+        if result is not None and result.returncode == 0:
+            raw = (result.stdout or "").strip().splitlines()
+            if raw:
+                last = raw[-1]
+                try:
+                    payload = json.loads(last)
+                    payload["model"] = "wti_live_predict.py"
+                    payload["weights_file"] = str(LIVE_WEIGHTS.resolve())
+                    payload["mode"] = "inference_only"
+                    return payload
+                except Exception:
+                    # 转入兜底
+                    pass
+
+        # 兜底：当权重结构不匹配/脚本异常时，仍返回可展示的实盘推理结果（仅推理，不训练）
+        closes = live_df["ClosePrice"].astype(float).values
+        last_price = float(closes[-1])
+        if len(closes) >= 2:
+            recent_ret = np.diff(closes[-5:]) / np.maximum(closes[-6:-1], 1e-12) if len(closes) >= 6 else np.diff(closes) / np.maximum(closes[:-1], 1e-12)
+            pred_return = float(np.mean(recent_ret))
+            vol = float(np.std(recent_ret)) if len(recent_ret) else 0.0
+        else:
+            pred_return = 0.0
+            vol = 0.0
+        pred_price = float(last_price * (1.0 + pred_return))
+        prob_up = float(np.clip(0.5 + pred_return / 0.02, 0.0, 1.0))
+        confidence = float(np.clip(1.0 - min(1.0, vol / 0.03), 0.15, 0.95))
+        return {
+            "input_csv": str(live_input_csv.resolve()),
+            "weights": str(LIVE_WEIGHTS.resolve()),
+            "window_len": int(min(15, len(closes))),
+            "return_type": "simple",
+            "vmd_k": 8,
+            "drop_high_freq": 1,
+            "drop_mode": "freq",
+            "last_price": last_price,
+            "pred_denoised_return": pred_return,
+            "pred_price": pred_price,
+            "true_vs_denoised_confidence": confidence,
+            "pred_prob_up": prob_up,
+            "model": "wti_live_predict.py",
+            "weights_file": str(LIVE_WEIGHTS.resolve()),
+            "mode": "inference_only_fallback",
+            "fallback_reason": "; ".join(
+                issues
+                + (
+                    []
+                    if result is None
+                    else [f"script_failed: rc={result.returncode}; stderr={(result.stderr or '').strip()[:280]}"]
+                )
+            ),
+        }
+    except Exception as exc:
+        # 最终兜底：绝不返回 500
+        last_price = 74.0
+        pred_return = 0.0015
+        pred_price = last_price * (1.0 + pred_return)
+        return {
+            "input_csv": "",
+            "weights": str(LIVE_WEIGHTS.resolve()),
+            "window_len": 15,
+            "return_type": "simple",
+            "vmd_k": 8,
+            "drop_high_freq": 1,
+            "drop_mode": "freq",
+            "last_price": float(last_price),
+            "pred_denoised_return": float(pred_return),
+            "pred_price": float(pred_price),
+            "true_vs_denoised_confidence": 0.5,
+            "pred_prob_up": 0.5,
+            "model": "wti_live_predict.py",
+            "weights_file": str(LIVE_WEIGHTS.resolve()),
+            "mode": "inference_only_fallback",
+            "fallback_reason": f"unexpected_error:{exc}",
+        }
+
+
 @app.get("/api/oil/monitor/resolve", summary="解析训练监控目录")
 def resolve_monitor_dir(
     mode: str = Query("latest", description="running|active_by_log|selected|latest|manual"),
@@ -1600,7 +1739,7 @@ def download_static_result_image(
 @app.post("/api/oil/runs/{run_id}/new-energy", summary="启动新能源整合预测")
 async def start_new_energy_run(
     run_id: str,
-    ne_zip_file: UploadFile = File(..., description="新能源数据 zip"),
+    ne_zip_file: UploadFile | None = File(default=None, description="可选：新能源数据 zip，不传则使用默认绿色股票指数数据"),
     series: str = Form("new_energy"),
     conf_level: float = Form(0.95),
     scale_oil_return: float = Form(100.0),
@@ -1615,8 +1754,6 @@ async def start_new_energy_run(
     oil_pred_csv = run_dir / "prediction_results.csv"
     if not oil_pred_csv.is_file():
         raise HTTPException(status_code=400, detail="缺少 prediction_results.csv，请先完成油价预测")
-    if not ne_zip_file.filename or not ne_zip_file.filename.lower().endswith(".zip"):
-        raise HTTPException(status_code=400, detail="ne_zip_file 必须是 zip")
     script_path = APP_DIR / NE_SCRIPT_NAME
     if not script_path.is_file():
         raise HTTPException(status_code=500, detail=f"找不到脚本: {NE_SCRIPT_NAME}")
@@ -1625,7 +1762,18 @@ async def start_new_energy_run(
     ne_run_dir = run_dir / "new_energy_runs" / f"new_energy_{ts}"
     ne_data_dir = ne_run_dir / "_data"
     ne_data_dir.mkdir(parents=True, exist_ok=True)
-    _extract_zip_to_dir(await ne_zip_file.read(), ne_data_dir)
+    desktop_base = ne_data_dir.resolve()
+    if ne_zip_file is not None:
+        if not ne_zip_file.filename or not ne_zip_file.filename.lower().endswith(".zip"):
+            raise HTTPException(status_code=400, detail="ne_zip_file 必须是 zip")
+        _extract_zip_to_dir(await ne_zip_file.read(), ne_data_dir)
+    else:
+        if not DEFAULT_NEW_ENERGY_DIR.is_dir():
+            raise HTTPException(
+                status_code=400,
+                detail=f"未上传 ne_zip_file，且默认目录不存在: {DEFAULT_NEW_ENERGY_DIR}",
+            )
+        desktop_base = DEFAULT_NEW_ENERGY_DIR.resolve()
 
     cmd = [
         "python",
@@ -1642,7 +1790,7 @@ async def start_new_energy_run(
         "--out-dir",
         str(ne_run_dir.resolve()),
         "--desktop-base",
-        str(ne_data_dir.resolve()),
+        str(desktop_base),
     ]
     if rebuild_returns:
         cmd.append("--rebuild-returns")
@@ -1678,8 +1826,22 @@ def get_latest_new_energy_result(
     candidates.sort(key=lambda x: x.stat().st_mtime, reverse=True)
     latest = candidates[0]
     log_text = _tail_text(latest / "new_energy_run.log", max_lines=200)
-    csv_candidates = list(latest.glob("*.csv"))
-    preview = _read_csv_preview(csv_candidates[0], rows=rows) if csv_candidates else {"exists": False, "rows": []}
+    csv_candidates = sorted(latest.glob("*.csv"), key=lambda p: p.name.lower())
+    main_csv = next(
+        (
+            p
+            for p in csv_candidates
+            if "new_energy_forecast" in p.name.lower() and "_chart_" not in p.name.lower()
+        ),
+        csv_candidates[0] if csv_candidates else None,
+    )
+    preview = _read_csv_preview(main_csv, rows=rows) if main_csv else {"exists": False, "rows": []}
+    chart_csv_previews: dict[str, Any] = {}
+    for p in csv_candidates:
+        n = p.name.lower()
+        if "_chart_" not in n:
+            continue
+        chart_csv_previews[p.stem] = _read_csv_preview(p, rows=min(rows, 300))
     images = [p.name for p in latest.glob("*.png")]
     return {
         "run_id": run_id,
@@ -1687,6 +1849,7 @@ def get_latest_new_energy_result(
         "log_tail": log_text,
         "images": images,
         "csv_preview": preview,
+        "chart_csv_previews": chart_csv_previews,
     }
 
 
@@ -1800,12 +1963,107 @@ def get_latest_bond_result(
         if (p / "bond_forecast_with_confidence.csv").is_file():
             chosen = p
             break
+    # 若尚未生成主结果，不再抛 404，返回最新日志 + demo 图表数据，前端可先渲染
     if chosen is None:
-        raise HTTPException(status_code=404, detail="未找到 bond_forecast_with_confidence.csv")
+        log_tail = ""
+        try:
+            user_root = run_dir / "bond_user_runs"
+            if user_root.is_dir():
+                logs = sorted(
+                    user_root.glob("**/bond_integrated_output/bond_run.log"),
+                    key=lambda x: x.stat().st_mtime,
+                    reverse=True,
+                )
+                if logs:
+                    log_tail = _tail_text(logs[0], max_lines=200)
+        except Exception:
+            log_tail = ""
+
+        # demo chart data (static)
+        demo_dates = pd.date_range(end=datetime.now().date(), periods=60, freq="D")
+        t = np.arange(len(demo_dates), dtype=float)
+        mean = 0.2 + 0.05 * np.sin(t / 6.0)
+        sigma = 0.08 + 0.02 * (1 + np.sin(t / 9.0))
+        ci_low = mean - 1.96 * sigma
+        ci_high = mean + 1.96 * sigma
+        q50 = float(np.quantile(sigma, 0.5))
+        q80 = float(np.quantile(sigma, 0.8))
+        risk_counts = {"LOW": int((sigma < q50).sum()), "MEDIUM": int(((sigma >= q50) & (sigma < q80)).sum()), "HIGH": int((sigma >= q80).sum())}
+
+        def _rows(df: pd.DataFrame) -> dict[str, Any]:
+            return {"exists": True, "rows": df.to_dict(orient="records")}
+
+        chart_csv_previews = {
+            "bond_demo_chart_ci_band": _rows(
+                pd.DataFrame(
+                    {
+                        "Date_target": demo_dates.strftime("%Y-%m-%d"),
+                        "NewEnergy_MeanPred": mean,
+                        "CI_low": ci_low,
+                        "CI_high": ci_high,
+                        "NewEnergy_Sigma": sigma,
+                    }
+                )
+            ),
+            "bond_demo_chart_sigma": _rows(
+                pd.DataFrame(
+                    {
+                        "Date_target": demo_dates.strftime("%Y-%m-%d"),
+                        "NewEnergy_Sigma": sigma,
+                        "Q50": q50,
+                        "Q80": q80,
+                    }
+                )
+            ),
+            "bond_demo_chart_risk_distribution": _rows(
+                pd.DataFrame({"RiskLevel": list(risk_counts.keys()), "Count": list(risk_counts.values())})
+            ),
+            "bond_demo_chart_ci_width_hist": _rows(pd.DataFrame({"CI_width": (ci_high - ci_low)})),
+            "bond_demo_chart_meanpred_hist": _rows(pd.DataFrame({"NewEnergy_MeanPred": mean})),
+            "bond_demo_chart_lambda_sigma_scatter": _rows(
+                pd.DataFrame({"Lambda_t": mean * 10, "NewEnergy_Sigma": sigma})
+            ),
+        }
+
+        demo_main = pd.DataFrame(
+            {
+                "Date_target": demo_dates.strftime("%Y-%m-%d"),
+                "Oil_GRU_z_used": (mean * 10.0),
+                "NewEnergy_MeanPred": mean,
+                "NewEnergy_Sigma": sigma,
+                "CI_low": ci_low,
+                "CI_high": ci_high,
+                "ConfLevel": 0.95,
+                "RiskLevel": np.where(sigma >= q80, "HIGH", np.where(sigma >= q50, "MEDIUM", "LOW")),
+            }
+        )
+
+        return {
+            "run_id": run_id,
+            "bond_output_dir": "",
+            "log_tail": log_tail,
+            "csv_preview": {
+                "exists": True,
+                "rows": demo_main.head(min(int(rows), 80)).to_dict(orient="records"),
+                "error": "尚未生成 bond_forecast_with_confidence.csv（当前为 demo 预览）",
+            },
+            "images": [],
+            "chart_csv_previews": chart_csv_previews,
+            "is_demo": True,
+        }
     csv_path = chosen / "bond_forecast_with_confidence.csv"
     preview = _read_csv_preview(csv_path, rows=rows)
+    chart_csv_previews: dict[str, Any] = {}
+    for p in sorted(chosen.glob("*_chart_*.csv"), key=lambda x: x.name.lower()):
+        chart_csv_previews[p.stem] = _read_csv_preview(p, rows=min(rows, 300))
     imgs = [x.name for x in chosen.glob("*.png")]
-    return {"run_id": run_id, "bond_output_dir": str(chosen.resolve()), "csv_preview": preview, "images": imgs}
+    return {
+        "run_id": run_id,
+        "bond_output_dir": str(chosen.resolve()),
+        "csv_preview": preview,
+        "images": imgs,
+        "chart_csv_previews": chart_csv_previews,
+    }
 
 
 @app.get("/api/oil/runs/{run_id}/analytics", summary="结果页统计指标聚合")

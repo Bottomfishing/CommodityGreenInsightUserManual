@@ -3,6 +3,65 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+def export_chart_csvs(out: pd.DataFrame, output_csv_path: str) -> list[str]:
+    """
+    导出前端可直接渲染的图表 CSV（尽量多图，先用写死图）。
+    返回生成的文件路径列表。
+    """
+    stem = output_csv_path.rsplit(".", 1)[0]
+    saved: list[str] = []
+
+    # 1) 均值预测 + CI
+    ci_df = out[
+        ["Date_target", "NewEnergy_MeanPred", "CI_low", "CI_high", "NewEnergy_Sigma"]
+    ].copy()
+    ci_path = f"{stem}_chart_ci_band.csv"
+    ci_df.to_csv(ci_path, index=False, encoding="utf-8-sig")
+    saved.append(ci_path)
+
+    # 2) Sigma + 阈值线
+    q50 = float(out["NewEnergy_Sigma"].quantile(0.5))
+    q80 = float(out["NewEnergy_Sigma"].quantile(0.8))
+    sigma_df = out[["Date_target", "NewEnergy_Sigma"]].copy()
+    sigma_df["Q50"] = q50
+    sigma_df["Q80"] = q80
+    sigma_path = f"{stem}_chart_sigma.csv"
+    sigma_df.to_csv(sigma_path, index=False, encoding="utf-8-sig")
+    saved.append(sigma_path)
+
+    # 3) 风险等级分布
+    risk_order = ["LOW", "MEDIUM", "HIGH"]
+    risk_counts = out["RiskLevel"].value_counts().reindex(risk_order, fill_value=0)
+    risk_df = pd.DataFrame(
+        {"RiskLevel": risk_counts.index, "Count": risk_counts.values}
+    )
+    risk_path = f"{stem}_chart_risk_distribution.csv"
+    risk_df.to_csv(risk_path, index=False, encoding="utf-8-sig")
+    saved.append(risk_path)
+
+    # 4) CI 宽度分布
+    ciw_df = pd.DataFrame({"CI_width": (out["CI_high"] - out["CI_low"]).astype(float)})
+    ciw_path = f"{stem}_chart_ci_width_hist.csv"
+    ciw_df.to_csv(ciw_path, index=False, encoding="utf-8-sig")
+    saved.append(ciw_path)
+
+    # 5) 均值预测分布
+    mean_df = pd.DataFrame({"NewEnergy_MeanPred": out["NewEnergy_MeanPred"].astype(float)})
+    mean_path = f"{stem}_chart_meanpred_hist.csv"
+    mean_df.to_csv(mean_path, index=False, encoding="utf-8-sig")
+    saved.append(mean_path)
+
+    # 6) Lambda-Sigma 散点
+    scatter_df = out[["Date_target"]].copy()
+    scatter_df["Lambda_t"] = np.nan
+    scatter_df["NewEnergy_Sigma"] = out["NewEnergy_Sigma"].astype(float).values
+    # Lambda 来自外部变量，由调用方补充
+    scatter_path = f"{stem}_chart_lambda_sigma_scatter.csv"
+    scatter_df.to_csv(scatter_path, index=False, encoding="utf-8-sig")
+    saved.append(scatter_path)
+
+    return saved
+
 
 def egarch_arji_variance_from_oil_return(
     oil_ret: np.ndarray,
@@ -269,9 +328,23 @@ def main():
         "HIGH",
         np.where(out["NewEnergy_Sigma"] >= sigma_q50, "MEDIUM", "LOW"),
     )
+    out["Lambda_t"] = var_dict["lambda_t"]
+    out["V_t"] = var_dict["V_t"]
 
     out.to_csv(args.output_csv, index=False, encoding="utf-8-sig")
     print(f"已保存：{args.output_csv}")
+    chart_csvs = export_chart_csvs(out, args.output_csv)
+    # 回填散点 CSV 的 Lambda 列
+    scatter_path = args.output_csv.rsplit(".", 1)[0] + "_chart_lambda_sigma_scatter.csv"
+    try:
+        scatter_df = pd.read_csv(scatter_path)
+        scatter_df["Lambda_t"] = out["Lambda_t"].astype(float).values
+        scatter_df.to_csv(scatter_path, index=False, encoding="utf-8-sig")
+    except Exception:
+        pass
+    print("已保存图表CSV：")
+    for p in chart_csvs:
+        print(f"  - {p}")
 
     # ========== 可视化输出 ==========
     # 统一使用英文标签，避免不同系统中文字体导致的乱码。

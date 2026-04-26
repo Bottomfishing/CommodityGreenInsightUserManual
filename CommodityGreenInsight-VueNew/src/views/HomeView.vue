@@ -7,20 +7,11 @@
       <!-- 左侧品牌 -->
       <div class="nav-brand">
         <div class="brand-icon">
-          <svg
-            width="22"
-            height="22"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M12 2L2 7l10 5 10-5-10-5z" />
-            <path d="M2 17l10 5 10-5" />
-            <path d="M2 12l10 5 10-5" />
-          </svg>
+          <img
+            class="brand-icon-img"
+            src="/brand-logo.png"
+            alt="大宗绿测 logo"
+          />
         </div>
         <span class="brand-name">大宗绿测</span>
         <span class="brand-sep">|</span>
@@ -161,13 +152,10 @@
       </nav>
 
       <template v-if="activePage === 'dashboard'">
-      <!-- 顶部装饰线 -->
-      <dv-decoration-5 class="dashboard-top-line" />
-
       <!-- 核心指标行 -->
       <div class="kpi-row">
         <div class="kpi-card kpi--oil">
-          <dv-border-box-8 style="width: 100%; height: 100%">
+          <div class="box8-shell">
             <div class="kpi-inner">
               <div class="kpi-label-row">
                 <span class="kpi-tag">Brent Crude</span>
@@ -177,11 +165,11 @@
               <div class="kpi-change kpi-change--up">+2.34%</div>
               <div class="kpi-sub">Vol: 2.4M · $76.8 - $79.2</div>
             </div>
-          </dv-border-box-8>
+          </div>
         </div>
 
         <div class="kpi-card kpi--energy">
-          <dv-border-box-8 style="width: 100%; height: 100%">
+          <div class="box8-shell">
             <div class="kpi-inner">
               <div class="kpi-label-row">
                 <span class="kpi-tag">CSI 新能源</span>
@@ -191,11 +179,11 @@
               <div class="kpi-change kpi-change--up">+1.82%</div>
               <div class="kpi-sub">光伏 4,126 · 新能源车 2,934</div>
             </div>
-          </dv-border-box-8>
+          </div>
         </div>
 
         <div class="kpi-card kpi--bond">
-          <dv-border-box-8 style="width: 100%; height: 100%">
+          <div class="box8-shell">
             <div class="kpi-inner">
               <div class="kpi-label-row">
                 <span class="kpi-tag">10Y 国债</span>
@@ -205,11 +193,11 @@
               <div class="kpi-change kpi-change--down">-2bp</div>
               <div class="kpi-sub">SHIBOR 1.68% · LPR 3.45%</div>
             </div>
-          </dv-border-box-8>
+          </div>
         </div>
 
         <div class="kpi-card kpi--ai">
-          <dv-border-box-8 style="width: 100%; height: 100%">
+          <div class="box8-shell">
             <div class="kpi-inner">
               <div class="kpi-label-row">
                 <span class="kpi-tag">AI 洞察</span>
@@ -221,7 +209,7 @@
               <div class="kpi-change kpi-change--ai">GRU+LSTM</div>
               <div class="kpi-sub">Bullish Brent · Hold Green Bond</div>
             </div>
-          </dv-border-box-8>
+          </div>
         </div>
       </div>
 
@@ -232,7 +220,8 @@
           <div class="left-top-row">
             <div class="action-squares-row">
               <div class="bento-card action-square">
-                <dv-border-box-8 style="width: 100%; height: 100%">
+                <dv-border-box-13 style="width: 100%; height: 100%">
+                  <div class="box8-shell">
                   <div class="bento-inner bento-train" @click="startTraining">
                     <div class="bento-icon train-icon">
                       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -242,10 +231,12 @@
                     <div class="bento-title">开始训练</div>
                     <div class="bento-desc">GRU / LSTM 模型</div>
                   </div>
-                </dv-border-box-8>
+                  </div>
+                </dv-border-box-13>
               </div>
               <div class="bento-card action-square">
-                <dv-border-box-8 style="width: 100%; height: 100%">
+                <dv-border-box-13 style="width: 100%; height: 100%">
+                  <div class="box8-shell">
                   <div class="bento-inner bento-monitor" @click="goToMonitor">
                     <div class="bento-icon monitor-icon">
                       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -257,10 +248,12 @@
                     <div class="bento-title">训练监控</div>
                     <div class="bento-desc">实时进度 / 日志</div>
                   </div>
-                </dv-border-box-8>
+                  </div>
+                </dv-border-box-13>
               </div>
               <div class="bento-card action-square bento-card--clickable" @click="goToResults">
-                <dv-border-box-8 style="width: 100%; height: 100%">
+                <dv-border-box-13 style="width: 100%; height: 100%">
+                  <div class="box8-shell">
                   <div class="bento-inner bento-results">
                     <div class="bento-icon result-icon">
                       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -274,10 +267,12 @@
                     <div class="bento-title">结果分析</div>
                     <div class="bento-desc">点击查看详情</div>
                   </div>
-                </dv-border-box-8>
+                  </div>
+                </dv-border-box-13>
               </div>
               <div class="bento-card action-square">
-                <dv-border-box-8 style="width: 100%; height: 100%">
+                <dv-border-box-13 style="width: 100%; height: 100%">
+                  <div class="box8-shell">
                   <div class="bento-inner bento-upload" @click="goToDownload">
                     <div class="bento-icon upload-icon">
                       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -289,7 +284,8 @@
                     <div class="bento-title">下载导出</div>
                     <div class="bento-desc">报告 / 图表 / ZIP</div>
                   </div>
-                </dv-border-box-8>
+                  </div>
+                </dv-border-box-13>
               </div>
             </div>
           </div>
@@ -318,7 +314,7 @@
                       <path d="M12 12v.01" />
                     </svg>
                   </div>
-                  <div class="bento-title">AI 助手</div>
+                  <div class="bento-title">新手助手小绿</div>
                   <button class="bento-btn bento-btn--primary bento-btn--mini" @click="openAIChat">对话</button>
                 </div>
               </dv-border-box-1>
@@ -329,9 +325,9 @@
         <!-- 中间：Globe -->
         <div class="center-section">
           <div class="center-globe-card">
-            <dv-border-box-1 style="width: 100%; height: 100%">
+            <div class="globe-shell">
               <ReactGlobePanel />
-            </dv-border-box-1>
+            </div>
           </div>
         </div>
 
@@ -382,8 +378,6 @@
         </div>
       </div>
 
-      <!-- 底部装饰线 -->
-      <dv-decoration-5 class="dashboard-bottom-line" />
       </template>
 
       <section v-else class="feature-panel">
@@ -535,6 +529,292 @@
               @download="downloadFile"
             />
 
+            <div v-else-if="activePage === 'greenStock'" class="work-panel">
+              <div class="module-head">
+                <span class="module-head-tag">GREEN STOCK</span>
+                <span class="module-head-title">绿色股票预测（新能源整合）</span>
+              </div>
+              <dv-decoration-3 class="module-head-line" />
+
+              <div class="data-block">
+                <h3>运行选择</h3>
+                <label class="field">
+                  <span>选择 oil run_id（需已生成 prediction_results.csv）</span>
+                  <select v-model="selectedRunId">
+                    <option value="">自动选择最新</option>
+                    <option v-for="run in runList" :key="run.run_id" :value="run.run_id">
+                      {{ run.run_id }}（{{ run.status || "unknown" }}）
+                    </option>
+                  </select>
+                </label>
+              </div>
+
+              <div class="data-block">
+                <h3>数据与参数</h3>
+                <div class="form-grid">
+                  <label class="field">
+                    <span>新能源数据 ZIP（可选，不上传则使用默认绿色股票指数）</span>
+                    <input type="file" accept=".zip" @change="onGreenStockZipSelected" />
+                  </label>
+                  <label class="field">
+                    <span>置信水平</span>
+                    <select v-model.number="greenStockConfig.confLevel">
+                      <option :value="0.9">0.90</option>
+                      <option :value="0.95">0.95</option>
+                      <option :value="0.99">0.99</option>
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span>油收益缩放（×）</span>
+                    <input v-model.number="greenStockConfig.scaleOilReturn" type="number" step="1" min="1" max="1000" />
+                  </label>
+                </div>
+                <div class="feature-actions">
+                  <label class="checkbox-field checkbox-inline">
+                    <input v-model="greenStockConfig.makeViz" type="checkbox" />
+                    <span>生成可视化</span>
+                  </label>
+                  <label class="checkbox-field checkbox-inline">
+                    <input v-model="greenStockConfig.rebuildReturns" type="checkbox" />
+                    <span>重建收益序列</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="feature-actions">
+                <button class="feature-btn feature-btn--primary" :disabled="greenStockLoading" @click="startGreenStockPredict">
+                  {{ greenStockLoading ? "启动中..." : "启动绿色股票预测" }}
+                </button>
+                <button class="feature-btn" :disabled="greenStockLatestLoading" @click="refreshGreenStockLatest">
+                  {{ greenStockLatestLoading ? "读取中..." : "查看最新结果" }}
+                </button>
+              </div>
+
+              <div v-if="greenStockStartMsg" class="status-chip">{{ greenStockStartMsg }}</div>
+
+              <div class="data-block">
+                <h3>最新结果预览</h3>
+                <div v-if="!greenStockLatest" class="chart-empty">暂无数据，点击“查看最新结果”获取。</div>
+                <template v-else>
+                  <div class="data-block">
+                    <h3>运行日志（tail）</h3>
+                    <pre class="log-pre">{{ greenStockLatest.log_tail || greenStockLatest.error || "暂无日志" }}</pre>
+                  </div>
+                  <div class="data-block">
+                    <h3>CSV 预览</h3>
+                    <div v-if="!greenStockLatest.csv_preview?.exists" class="chart-empty">未发现输出 CSV</div>
+                    <div v-else class="train-loss-table-wrap">
+                      <table class="train-loss-table">
+                        <thead>
+                          <tr>
+                            <th v-for="k in Object.keys((greenStockLatest.csv_preview.rows && greenStockLatest.csv_preview.rows[0]) || {})" :key="`ne-k-${k}`">
+                              {{ k }}
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr v-for="(r, idx) in (greenStockLatest.csv_preview.rows || []).slice(0, 20)" :key="`ne-r-${idx}`">
+                            <td v-for="k in Object.keys((greenStockLatest.csv_preview.rows && greenStockLatest.csv_preview.rows[0]) || {})" :key="`ne-c-${idx}-${k}`">
+                              {{ r[k] }}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </template>
+              </div>
+
+              <div class="data-block">
+                <h3>绿色股票预测图表</h3>
+                <div
+                  v-if="!greenStockLatest?.chart_csv_previews && !(greenStockLatest?.csv_preview?.rows?.length)"
+                  class="chart-empty"
+                >
+                  暂无图表数据，请先“查看最新结果”。
+                </div>
+                <div v-else class="ne-chart-grid">
+                  <div class="ne-chart-card">
+                    <div class="chart-title">均值预测与置信区间</div>
+                    <div ref="neCiChartRef" class="ne-chart-box"></div>
+                  </div>
+                  <div class="ne-chart-card">
+                    <div class="chart-title">Sigma 与风险阈值</div>
+                    <div ref="neSigmaChartRef" class="ne-chart-box"></div>
+                  </div>
+                  <div class="ne-chart-card">
+                    <div class="chart-title">风险等级分布</div>
+                    <div ref="neRiskChartRef" class="ne-chart-box"></div>
+                  </div>
+                  <div class="ne-chart-card">
+                    <div class="chart-title">CI 宽度分布</div>
+                    <div ref="neCiWidthChartRef" class="ne-chart-box"></div>
+                  </div>
+                  <div class="ne-chart-card">
+                    <div class="chart-title">收益均值分布</div>
+                    <div ref="neMeanHistChartRef" class="ne-chart-box"></div>
+                  </div>
+                  <div class="ne-chart-card">
+                    <div class="chart-title">Lambda-Sigma 散点</div>
+                    <div ref="neScatterChartRef" class="ne-chart-box"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div v-else-if="activePage === 'greenBond'" class="work-panel">
+              <div class="module-head">
+                <span class="module-head-tag">GREEN BOND</span>
+                <span class="module-head-title">绿色债券预测（Bond from GRU）</span>
+              </div>
+              <dv-decoration-3 class="module-head-line" />
+
+              <div class="data-block">
+                <h3>运行选择</h3>
+                <label class="field">
+                  <span>选择 oil run_id（需已生成 oil_pred.csv）</span>
+                  <select v-model="selectedRunId">
+                    <option value="">自动选择最新</option>
+                    <option v-for="run in runList" :key="run.run_id" :value="run.run_id">
+                      {{ run.run_id }}（{{ run.status || "unknown" }}）
+                    </option>
+                  </select>
+                </label>
+              </div>
+
+              <div class="data-block">
+                <h3>数据输入</h3>
+                <label class="field">
+                  <span>绿债数据 ZIP（可选，不上传则走默认数据）</span>
+                  <input type="file" accept=".zip" @change="onGreenBondZipSelected" />
+                </label>
+              </div>
+
+              <div class="feature-actions">
+                <button class="feature-btn feature-btn--primary" :disabled="greenBondLoading" @click="startGreenBondPredict">
+                  {{ greenBondLoading ? "启动中..." : "启动绿色债券预测" }}
+                </button>
+                <button class="feature-btn" :disabled="greenBondLatestLoading" @click="refreshGreenBondLatest">
+                  {{ greenBondLatestLoading ? "读取中..." : "查看最新结果" }}
+                </button>
+              </div>
+
+              <div v-if="greenBondStartMsg" class="status-chip">{{ greenBondStartMsg }}</div>
+
+              <div class="data-block">
+                <h3>最新结果预览</h3>
+                <div v-if="!greenBondLatest" class="chart-empty">暂无数据，点击“查看最新结果”获取。</div>
+                <template v-else>
+                  <div class="data-block">
+                    <h3>CSV 预览</h3>
+                    <div v-if="!greenBondLatest.csv_preview?.exists" class="chart-empty">
+                      {{ greenBondLatest.error || "未发现输出 CSV" }}
+                    </div>
+                    <div v-else class="train-loss-table-wrap">
+                      <table class="train-loss-table">
+                        <thead>
+                          <tr>
+                            <th v-for="k in Object.keys((greenBondLatest.csv_preview.rows && greenBondLatest.csv_preview.rows[0]) || {})" :key="`bond-k-${k}`">
+                              {{ k }}
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr v-for="(r, idx) in (greenBondLatest.csv_preview.rows || []).slice(0, 20)" :key="`bond-r-${idx}`">
+                            <td v-for="k in Object.keys((greenBondLatest.csv_preview.rows && greenBondLatest.csv_preview.rows[0]) || {})" :key="`bond-c-${idx}-${k}`">
+                              {{ r[k] }}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </template>
+              </div>
+
+              <div class="data-block">
+                <h3>绿色债券预测图表</h3>
+                <div
+                  v-if="!greenBondLatest?.chart_csv_previews && !(greenBondLatest?.csv_preview?.rows?.length)"
+                  class="chart-empty"
+                >
+                  暂无图表数据，请先“查看最新结果”。
+                </div>
+                <div v-else class="ne-chart-grid">
+                  <div class="ne-chart-card">
+                    <div class="chart-title">均值预测与置信区间</div>
+                    <div ref="bondCiChartRef" class="ne-chart-box"></div>
+                  </div>
+                  <div class="ne-chart-card">
+                    <div class="chart-title">Sigma 与风险阈值</div>
+                    <div ref="bondSigmaChartRef" class="ne-chart-box"></div>
+                  </div>
+                  <div class="ne-chart-card">
+                    <div class="chart-title">风险等级分布</div>
+                    <div ref="bondRiskChartRef" class="ne-chart-box"></div>
+                  </div>
+                  <div class="ne-chart-card">
+                    <div class="chart-title">CI 宽度分布</div>
+                    <div ref="bondCiWidthChartRef" class="ne-chart-box"></div>
+                  </div>
+                  <div class="ne-chart-card">
+                    <div class="chart-title">收益均值分布</div>
+                    <div ref="bondMeanHistChartRef" class="ne-chart-box"></div>
+                  </div>
+                  <div class="ne-chart-card">
+                    <div class="chart-title">Lambda-Sigma 散点</div>
+                    <div ref="bondScatterChartRef" class="ne-chart-box"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="data-block">
+                <h3>脚本说明</h3>
+                <div class="chart-empty">
+                  当前页面已接入 `predict_bond_from_gru.py` 对应后端任务（`/oil/runs/{run_id}/bond`），可直接启动并查看最新 CSV 结果。
+                </div>
+              </div>
+            </div>
+
+            <div v-else-if="activePage === 'live'" class="work-panel">
+              <div class="module-head">
+                <span class="module-head-tag">LIVE</span>
+                <span class="module-head-title">实盘预测</span>
+              </div>
+              <dv-decoration-3 class="module-head-line" />
+              <div class="feature-actions">
+                <button class="feature-btn feature-btn--primary" :disabled="livePredictLoading" @click="runLivePredict">
+                  {{ livePredictLoading ? "推理中..." : "开始实盘推理（仅推理）" }}
+                </button>
+              </div>
+              <div class="data-block">
+                <h3>推理结果</h3>
+                <div v-if="!livePredictResult" class="chart-empty">暂无结果，请点击“开始实盘推理（仅推理）”。</div>
+                <div v-else-if="livePredictResult.error" class="chart-empty">{{ livePredictResult.error }}</div>
+                <div v-else>
+                  <div class="live-hero-card">
+                    <div class="live-hero-label">明日预测价格</div>
+                    <div class="live-hero-price">
+                      ${{ Number(livePredictResult.pred_price || 0).toFixed(3) }}
+                    </div>
+                    <div class="live-hero-sub">
+                      相比最新价 ${{ Number(livePredictResult.last_price || 0).toFixed(3) }}
+                      · 预测收益 {{ Number(livePredictResult.pred_denoised_return || 0).toFixed(6) }}
+                    </div>
+                  </div>
+                  <div class="live-metrics-grid">
+                    <div class="live-metric-item"><span>上涨概率</span><strong>{{ livePredictResult.pred_prob_up ?? "--" }}</strong></div>
+                    <div class="live-metric-item"><span>置信度</span><strong>{{ livePredictResult.true_vs_denoised_confidence }}</strong></div>
+                    <div class="live-metric-item"><span>窗口长度</span><strong>{{ livePredictResult.window_len }}</strong></div>
+                    <div class="live-metric-item"><span>模式</span><strong>{{ livePredictResult.mode }}</strong></div>
+                  </div>
+                  <div class="chart-empty" style="text-align:left; margin-top: 10px;">
+                    权重：<span style="word-break: break-all">{{ livePredictResult.weights_file }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div class="feature-actions">
               <button class="feature-btn" @click="activePage = 'dashboard'">返回总览</button>
             </div>
@@ -576,10 +856,15 @@ import {
   fetchRunLog,
   fetchSystemStatus,
   fetchWtiLast20Candles,
+  fetchLiveWtiPredict,
   fetchTrainingDashboard,
   generateAIReport,
   getZipExportUrl,
   downloadOilRunFile,
+  startNewEnergy,
+  fetchNewEnergyLatest,
+  startBond,
+  fetchBondLatest,
   resolveMonitor,
   sendAIChat,
   stopOilRun,
@@ -587,13 +872,25 @@ import {
 
 const router = useRouter();
 const username = localStorage.getItem("username") || "用户";
-const activePage = ref<"dashboard" | "run" | "monitor" | "results" | "download">("dashboard");
+const activePage = ref<
+  | "dashboard"
+  | "run"
+  | "monitor"
+  | "results"
+  | "download"
+  | "greenStock"
+  | "greenBond"
+  | "live"
+>("dashboard");
 const pageTabs = [
   { key: "dashboard", label: "总览" },
   { key: "run", label: "运行配置" },
   { key: "monitor", label: "训练监控" },
   { key: "results", label: "结果预览" },
   { key: "download", label: "下载导出" },
+  { key: "greenStock", label: "绿色股票预测" },
+  { key: "greenBond", label: "绿色债券预测" },
+  { key: "live", label: "实盘预测" },
 ] as const;
 const pageMeta: Record<(typeof pageTabs)[number]["key"], { title: string; desc: string }> = {
   dashboard: { title: "总览大屏", desc: "核心行情、功能入口与实时数据监控。" },
@@ -601,6 +898,9 @@ const pageMeta: Record<(typeof pageTabs)[number]["key"], { title: string; desc: 
   monitor: { title: "训练监控", desc: "查看任务状态、训练进度与运行日志。" },
   results: { title: "结果预览", desc: "查看指标结果、图表表现与分析摘要。" },
   download: { title: "下载导出", desc: "导出报告、图表和模型输出文件。" },
+  greenStock: { title: "绿色股票预测", desc: "基于油价因子与多维特征的绿色股票收益/风险预测。" },
+  greenBond: { title: "绿色债券预测", desc: "基于油价因子与利率环境的绿色债券收益/风险预测。" },
+  live: { title: "实盘预测", desc: "实时拉取行情并输出下一步预测与风险提示，使用 `wti_live_predict.py` 推理逻辑，权重固定为 `gru_sequence_weights.weights.h5`，不进行训练。" },
 };
 const currentTabTitle = computed(() => pageMeta[activePage.value].title);
 const currentTabDesc = computed(() => pageMeta[activePage.value].desc);
@@ -629,6 +929,52 @@ const analyticsData = ref<any>(null);
 const resultChartsData = ref<any>(null);
 const aiReportText = ref("");
 const runFiles = ref<any[]>([]);
+const livePredictLoading = ref(false);
+const livePredictResult = ref<any>(null);
+
+// ===== 绿色股票（新能源整合预测）=====
+const greenStockZipFile = ref<File | null>(null);
+const greenStockLoading = ref(false);
+const greenStockLatestLoading = ref(false);
+const greenStockStartMsg = ref("");
+const greenStockLatest = ref<any>(null);
+const greenStockConfig = reactive({
+  series: "new_energy",
+  confLevel: 0.95,
+  scaleOilReturn: 100.0,
+  makeViz: true,
+  rebuildReturns: false,
+});
+const neCiChartRef = ref<HTMLDivElement | null>(null);
+const neSigmaChartRef = ref<HTMLDivElement | null>(null);
+const neRiskChartRef = ref<HTMLDivElement | null>(null);
+const neCiWidthChartRef = ref<HTMLDivElement | null>(null);
+const neMeanHistChartRef = ref<HTMLDivElement | null>(null);
+const neScatterChartRef = ref<HTMLDivElement | null>(null);
+let neCiChart: any = null;
+let neSigmaChart: any = null;
+let neRiskChart: any = null;
+let neCiWidthChart: any = null;
+let neMeanHistChart: any = null;
+let neScatterChart: any = null;
+// ===== 绿色债券预测 =====
+const greenBondZipFile = ref<File | null>(null);
+const greenBondLoading = ref(false);
+const greenBondLatestLoading = ref(false);
+const greenBondStartMsg = ref("");
+const greenBondLatest = ref<any>(null);
+const bondCiChartRef = ref<HTMLDivElement | null>(null);
+const bondSigmaChartRef = ref<HTMLDivElement | null>(null);
+const bondRiskChartRef = ref<HTMLDivElement | null>(null);
+const bondCiWidthChartRef = ref<HTMLDivElement | null>(null);
+const bondMeanHistChartRef = ref<HTMLDivElement | null>(null);
+const bondScatterChartRef = ref<HTMLDivElement | null>(null);
+let bondCiChart: any = null;
+let bondSigmaChart: any = null;
+let bondRiskChart: any = null;
+let bondCiWidthChart: any = null;
+let bondMeanHistChart: any = null;
+let bondScatterChart: any = null;
 let refreshTimer: number | undefined;
 const monitorMode = ref<"selected" | "latest" | "manual">("selected");
 const manualRunId = ref("");
@@ -646,7 +992,7 @@ const aiChatMessages = ref<{ role: "user" | "bot"; content: string }[]>([
   {
     role: "bot",
     content:
-      "你好，我是总览 AI 助手。你可以让我解读当前训练状态、结果指标，或给出下一步训练建议。",
+      "你好，我是新手助手小绿。你可以让我解读当前训练状态、结果指标，我也可以跟你讲解怎么使用大宗绿测web。",
   },
 ]);
 const {
@@ -860,6 +1206,436 @@ async function sendDashboardAIMessage() {
 function onRunFileSelected(event: Event) {
   const target = event.target as HTMLInputElement;
   selectedRunFile.value = target.files?.[0] || null;
+}
+
+function onGreenStockZipSelected(event: Event) {
+  const target = event.target as HTMLInputElement;
+  greenStockZipFile.value = target.files?.[0] || null;
+}
+
+async function startGreenStockPredict() {
+  if (!selectedRunId.value) {
+    await refreshRuns();
+    if (!selectedRunId.value) {
+      window.alert("请先选择一个 run_id");
+      return;
+    }
+  }
+  greenStockLoading.value = true;
+  greenStockStartMsg.value = "";
+  try {
+    const formData = new FormData();
+    // 后端字段：ne_zip_file / series / conf_level / scale_oil_return / make_viz / rebuild_returns
+    if (greenStockZipFile.value) {
+      formData.append("ne_zip_file", greenStockZipFile.value);
+    }
+    formData.append("series", greenStockConfig.series);
+    formData.append("conf_level", String(greenStockConfig.confLevel));
+    formData.append("scale_oil_return", String(greenStockConfig.scaleOilReturn));
+    formData.append("make_viz", String(greenStockConfig.makeViz));
+    formData.append("rebuild_returns", String(greenStockConfig.rebuildReturns));
+
+    const res = await startNewEnergy(selectedRunId.value, formData);
+    greenStockStartMsg.value =
+      typeof res?.message === "string"
+        ? res.message
+        : "新能源整合预测已启动（后端已接收任务）";
+  } catch (err: any) {
+    window.alert(`启动绿色股票预测失败：${err?.message || "未知错误"}`);
+  } finally {
+    greenStockLoading.value = false;
+  }
+}
+
+async function refreshGreenStockLatest() {
+  if (!selectedRunId.value) {
+    await refreshRuns();
+    if (!selectedRunId.value) return;
+  }
+  greenStockLatestLoading.value = true;
+  try {
+    const latest = await fetchNewEnergyLatest(selectedRunId.value, 80);
+    greenStockLatest.value = latest;
+    await nextTick();
+    await renderGreenStockCharts();
+  } catch (err: any) {
+    greenStockLatest.value = { error: err?.message || "读取失败" };
+  } finally {
+    greenStockLatestLoading.value = false;
+  }
+}
+
+function binToHist(values: number[], bins = 16) {
+  if (!values.length) return [] as { x: string; y: number }[];
+  const vmin = Math.min(...values);
+  const vmax = Math.max(...values);
+  if (vmax <= vmin) return [{ x: `${vmin.toFixed(4)}`, y: values.length }];
+  const step = (vmax - vmin) / bins;
+  const arr = Array.from({ length: bins }, (_, i) => ({ x0: vmin + i * step, x1: vmin + (i + 1) * step, c: 0 }));
+  for (const v of values) {
+    const idx = Math.min(bins - 1, Math.max(0, Math.floor((v - vmin) / step)));
+    arr[idx].c += 1;
+  }
+  return arr.map((b) => ({ x: `${b.x0.toFixed(3)}~${b.x1.toFixed(3)}`, y: b.c }));
+}
+
+async function renderGreenStockCharts() {
+  const csvs = greenStockLatest.value?.chart_csv_previews;
+  const mainRows = greenStockLatest.value?.csv_preview?.rows || [];
+  await ensureEchartsReady();
+  const ec = (window as any).echarts;
+  if (!ec) return;
+
+  const pickRowsBySuffix = (suffix: string) => {
+    if (!csvs || typeof csvs !== "object") return [] as any[];
+    const hit = Object.entries(csvs).find(([k]) => k.endsWith(suffix));
+    return (hit?.[1] as any)?.rows || [];
+  };
+  const prefer = (a: any[], b: any[]) => (Array.isArray(a) && a.length ? a : b);
+
+  const ciRows = prefer(pickRowsBySuffix("_chart_ci_band"), mainRows.length ? mainRows : []);
+  const sigmaRows = prefer(pickRowsBySuffix("_chart_sigma"), mainRows.length ? mainRows : []);
+  const riskRows = prefer(
+    pickRowsBySuffix("_chart_risk_distribution"),
+    mainRows.length
+      ? (() => {
+          const map = new Map<string, number>();
+          for (const r of mainRows) {
+            const lv = String((r as any).RiskLevel || "");
+            if (!lv) continue;
+            map.set(lv, (map.get(lv) || 0) + 1);
+          }
+          return Array.from(map.entries()).map(([RiskLevel, Count]) => ({
+            RiskLevel,
+            Count,
+          }));
+        })()
+      : [],
+  );
+  const ciwRows = prefer(
+    pickRowsBySuffix("_chart_ci_width_hist"),
+    mainRows.length
+      ? mainRows.map((r: any) => ({
+          CI_width: Number(r.CI_high) - Number(r.CI_low),
+        }))
+      : [],
+  );
+  const meanRows = prefer(
+    pickRowsBySuffix("_chart_meanpred_hist"),
+    mainRows.length
+      ? mainRows.map((r: any) => ({ NewEnergy_MeanPred: Number(r.NewEnergy_MeanPred) }))
+      : [],
+  );
+  const scatterRows = prefer(
+    pickRowsBySuffix("_chart_lambda_sigma_scatter"),
+    mainRows.length
+      ? mainRows.map((r: any) => ({
+          Lambda_t: Number(r.Lambda_t),
+          NewEnergy_Sigma: Number(r.NewEnergy_Sigma),
+        }))
+      : [],
+  );
+
+  const mount = (holder: HTMLDivElement | null, old: any) => {
+    if (!holder) return null;
+    old?.dispose?.();
+    return ec.init(holder);
+  };
+
+  neCiChart = mount(neCiChartRef.value, neCiChart);
+  if (neCiChart && ciRows.length) {
+    const x = ciRows.map((r: any) => r.Date_target);
+    neCiChart.setOption({
+      tooltip: { trigger: "axis" },
+      grid: { left: 35, right: 12, top: 20, bottom: 26 },
+      xAxis: { type: "category", data: x, axisLabel: { color: "#94a3b8", fontSize: 9 } },
+      yAxis: { type: "value", axisLabel: { color: "#94a3b8", fontSize: 9 } },
+      series: [
+        { name: "CI_low", type: "line", data: ciRows.map((r: any) => Number(r.CI_low)), lineStyle: { opacity: 0 } },
+        {
+          name: "CI_high",
+          type: "line",
+          data: ciRows.map((r: any) => Number(r.CI_high)),
+          areaStyle: { color: "rgba(34,211,238,0.15)" },
+          lineStyle: { opacity: 0 },
+        },
+        { name: "MeanPred", type: "line", smooth: true, data: ciRows.map((r: any) => Number(r.NewEnergy_MeanPred)) },
+      ],
+    });
+  }
+
+  neSigmaChart = mount(neSigmaChartRef.value, neSigmaChart);
+  if (neSigmaChart && sigmaRows.length) {
+    neSigmaChart.setOption({
+      tooltip: { trigger: "axis" },
+      grid: { left: 35, right: 12, top: 20, bottom: 26 },
+      xAxis: { type: "category", data: sigmaRows.map((r: any) => r.Date_target), axisLabel: { color: "#94a3b8", fontSize: 9 } },
+      yAxis: { type: "value", axisLabel: { color: "#94a3b8", fontSize: 9 } },
+      series: [
+        { name: "Sigma", type: "line", smooth: true, data: sigmaRows.map((r: any) => Number(r.NewEnergy_Sigma)) },
+        { name: "Q50", type: "line", data: sigmaRows.map((r: any) => Number(r.Q50)), lineStyle: { type: "dashed" } },
+        { name: "Q80", type: "line", data: sigmaRows.map((r: any) => Number(r.Q80)), lineStyle: { type: "dashed" } },
+      ],
+    });
+  }
+
+  neRiskChart = mount(neRiskChartRef.value, neRiskChart);
+  if (neRiskChart && riskRows.length) {
+    neRiskChart.setOption({
+      tooltip: {},
+      grid: { left: 30, right: 10, top: 20, bottom: 24 },
+      xAxis: { type: "category", data: riskRows.map((r: any) => r.RiskLevel), axisLabel: { color: "#94a3b8" } },
+      yAxis: { type: "value", axisLabel: { color: "#94a3b8" } },
+      series: [{ type: "bar", data: riskRows.map((r: any) => Number(r.Count)), itemStyle: { color: "#22c55e" } }],
+    });
+  }
+
+  neCiWidthChart = mount(neCiWidthChartRef.value, neCiWidthChart);
+  if (neCiWidthChart && ciwRows.length) {
+    const hist = binToHist(ciwRows.map((r: any) => Number(r.CI_width)).filter((v: number) => Number.isFinite(v)));
+    neCiWidthChart.setOption({
+      tooltip: {},
+      grid: { left: 30, right: 10, top: 20, bottom: 30 },
+      xAxis: { type: "category", data: hist.map((h) => h.x), axisLabel: { color: "#94a3b8", rotate: 35, fontSize: 9 } },
+      yAxis: { type: "value", axisLabel: { color: "#94a3b8" } },
+      series: [{ type: "bar", data: hist.map((h) => h.y), itemStyle: { color: "#38bdf8" } }],
+    });
+  }
+
+  neMeanHistChart = mount(neMeanHistChartRef.value, neMeanHistChart);
+  if (neMeanHistChart && meanRows.length) {
+    const hist = binToHist(
+      meanRows.map((r: any) => Number(r.NewEnergy_MeanPred)).filter((v: number) => Number.isFinite(v)),
+    );
+    neMeanHistChart.setOption({
+      tooltip: {},
+      grid: { left: 30, right: 10, top: 20, bottom: 30 },
+      xAxis: { type: "category", data: hist.map((h) => h.x), axisLabel: { color: "#94a3b8", rotate: 35, fontSize: 9 } },
+      yAxis: { type: "value", axisLabel: { color: "#94a3b8" } },
+      series: [{ type: "bar", data: hist.map((h) => h.y), itemStyle: { color: "#f59e0b" } }],
+    });
+  }
+
+  neScatterChart = mount(neScatterChartRef.value, neScatterChart);
+  if (neScatterChart && scatterRows.length) {
+    neScatterChart.setOption({
+      tooltip: { trigger: "item" },
+      grid: { left: 36, right: 12, top: 20, bottom: 28 },
+      xAxis: { type: "value", name: "Lambda", axisLabel: { color: "#94a3b8", fontSize: 9 } },
+      yAxis: { type: "value", name: "Sigma", axisLabel: { color: "#94a3b8", fontSize: 9 } },
+      series: [
+        {
+          type: "scatter",
+          symbolSize: 6,
+          data: scatterRows
+            .map((r: any) => [Number(r.Lambda_t), Number(r.NewEnergy_Sigma)])
+            .filter((v: number[]) => Number.isFinite(v[0]) && Number.isFinite(v[1])),
+          itemStyle: { color: "#22d3ee" },
+        },
+      ],
+    });
+  }
+}
+
+function onGreenBondZipSelected(event: Event) {
+  const target = event.target as HTMLInputElement;
+  greenBondZipFile.value = target.files?.[0] || null;
+}
+
+async function startGreenBondPredict() {
+  if (!selectedRunId.value) {
+    await refreshRuns();
+    if (!selectedRunId.value) {
+      window.alert("请先选择一个 run_id");
+      return;
+    }
+  }
+  greenBondLoading.value = true;
+  greenBondStartMsg.value = "";
+  try {
+    const formData = new FormData();
+    if (greenBondZipFile.value) {
+      // 可选字段：bond_zip_file
+      formData.append("bond_zip_file", greenBondZipFile.value);
+    }
+    const res = await startBond(selectedRunId.value, formData);
+    greenBondStartMsg.value =
+      typeof res?.message === "string" ? res.message : "绿债预测已启动（后端已接收任务）";
+  } catch (err: any) {
+    window.alert(`启动绿色债券预测失败：${err?.message || "未知错误"}`);
+  } finally {
+    greenBondLoading.value = false;
+  }
+}
+
+async function refreshGreenBondLatest() {
+  if (!selectedRunId.value) {
+    await refreshRuns();
+    if (!selectedRunId.value) return;
+  }
+  greenBondLatestLoading.value = true;
+  try {
+    const latest = await fetchBondLatest(selectedRunId.value, 80);
+    greenBondLatest.value = latest;
+    await nextTick();
+    await renderGreenBondCharts();
+  } catch (err: any) {
+    greenBondLatest.value = { error: err?.message || "读取失败" };
+  } finally {
+    greenBondLatestLoading.value = false;
+  }
+}
+
+async function runLivePredict() {
+  livePredictLoading.value = true;
+  try {
+    const res = await fetchLiveWtiPredict();
+    livePredictResult.value = res;
+  } catch (err: any) {
+    livePredictResult.value = { error: err?.message || "实盘推理失败" };
+  } finally {
+    livePredictLoading.value = false;
+  }
+}
+
+async function renderGreenBondCharts() {
+  const csvs = greenBondLatest.value?.chart_csv_previews;
+  const mainRows = greenBondLatest.value?.csv_preview?.rows || [];
+  await ensureEchartsReady();
+  const ec = (window as any).echarts;
+  if (!ec) return;
+
+  const pickRowsBySuffix = (suffix: string) => {
+    if (!csvs || typeof csvs !== "object") return [] as any[];
+    const hit = Object.entries(csvs).find(([k]) => k.endsWith(suffix));
+    return (hit?.[1] as any)?.rows || [];
+  };
+  const prefer = (a: any[], b: any[]) => (Array.isArray(a) && a.length ? a : b);
+
+  const ciRows = prefer(pickRowsBySuffix("_chart_ci_band"), mainRows.length ? mainRows : []);
+  const sigmaRows = prefer(pickRowsBySuffix("_chart_sigma"), mainRows.length ? mainRows : []);
+  const riskRows = prefer(
+    pickRowsBySuffix("_chart_risk_distribution"),
+    mainRows.length
+      ? (() => {
+          const map = new Map<string, number>();
+          for (const r of mainRows) {
+            const lv = String((r as any).RiskLevel || "");
+            if (!lv) continue;
+            map.set(lv, (map.get(lv) || 0) + 1);
+          }
+          return Array.from(map.entries()).map(([RiskLevel, Count]) => ({ RiskLevel, Count }));
+        })()
+      : [],
+  );
+  const ciwRows = prefer(
+    pickRowsBySuffix("_chart_ci_width_hist"),
+    mainRows.length
+      ? mainRows.map((r: any) => ({ CI_width: Number(r.CI_high) - Number(r.CI_low) }))
+      : [],
+  );
+  const meanRows = prefer(
+    pickRowsBySuffix("_chart_meanpred_hist"),
+    mainRows.length ? mainRows.map((r: any) => ({ NewEnergy_MeanPred: Number(r.NewEnergy_MeanPred) })) : [],
+  );
+  const scatterRows = prefer(
+    pickRowsBySuffix("_chart_lambda_sigma_scatter"),
+    mainRows.length
+      ? mainRows.map((r: any) => ({ Lambda_t: Number(r.Oil_GRU_z_used), NewEnergy_Sigma: Number(r.NewEnergy_Sigma) }))
+      : [],
+  );
+
+  const mount = (holder: HTMLDivElement | null, old: any) => {
+    if (!holder) return null;
+    old?.dispose?.();
+    return ec.init(holder);
+  };
+
+  bondCiChart = mount(bondCiChartRef.value, bondCiChart);
+  if (bondCiChart && ciRows.length) {
+    const x = ciRows.map((r: any) => r.Date_target);
+    bondCiChart.setOption({
+      tooltip: { trigger: "axis" },
+      grid: { left: 35, right: 12, top: 20, bottom: 26 },
+      xAxis: { type: "category", data: x, axisLabel: { color: "#94a3b8", fontSize: 9 } },
+      yAxis: { type: "value", axisLabel: { color: "#94a3b8", fontSize: 9 } },
+      series: [
+        { name: "CI_low", type: "line", data: ciRows.map((r: any) => Number(r.CI_low)), lineStyle: { opacity: 0 } },
+        { name: "CI_high", type: "line", data: ciRows.map((r: any) => Number(r.CI_high)), lineStyle: { opacity: 0 }, areaStyle: { color: "rgba(34,211,238,0.15)" } },
+        { name: "MeanPred", type: "line", smooth: true, data: ciRows.map((r: any) => Number(r.NewEnergy_MeanPred)) },
+      ],
+    });
+  }
+
+  bondSigmaChart = mount(bondSigmaChartRef.value, bondSigmaChart);
+  if (bondSigmaChart && sigmaRows.length) {
+    bondSigmaChart.setOption({
+      tooltip: { trigger: "axis" },
+      grid: { left: 35, right: 12, top: 20, bottom: 26 },
+      xAxis: { type: "category", data: sigmaRows.map((r: any) => r.Date_target), axisLabel: { color: "#94a3b8", fontSize: 9 } },
+      yAxis: { type: "value", axisLabel: { color: "#94a3b8", fontSize: 9 } },
+      series: [
+        { name: "Sigma", type: "line", smooth: true, data: sigmaRows.map((r: any) => Number(r.NewEnergy_Sigma)) },
+        { name: "Q50", type: "line", data: sigmaRows.map((r: any) => Number(r.Q50)), lineStyle: { type: "dashed" } },
+        { name: "Q80", type: "line", data: sigmaRows.map((r: any) => Number(r.Q80)), lineStyle: { type: "dashed" } },
+      ],
+    });
+  }
+
+  bondRiskChart = mount(bondRiskChartRef.value, bondRiskChart);
+  if (bondRiskChart && riskRows.length) {
+    bondRiskChart.setOption({
+      tooltip: {},
+      grid: { left: 30, right: 10, top: 20, bottom: 24 },
+      xAxis: { type: "category", data: riskRows.map((r: any) => r.RiskLevel), axisLabel: { color: "#94a3b8" } },
+      yAxis: { type: "value", axisLabel: { color: "#94a3b8" } },
+      series: [{ type: "bar", data: riskRows.map((r: any) => Number(r.Count)), itemStyle: { color: "#22c55e" } }],
+    });
+  }
+
+  bondCiWidthChart = mount(bondCiWidthChartRef.value, bondCiWidthChart);
+  if (bondCiWidthChart && ciwRows.length) {
+    const hist = binToHist(ciwRows.map((r: any) => Number(r.CI_width)).filter((v: number) => Number.isFinite(v)));
+    bondCiWidthChart.setOption({
+      tooltip: {},
+      grid: { left: 30, right: 10, top: 20, bottom: 30 },
+      xAxis: { type: "category", data: hist.map((h) => h.x), axisLabel: { color: "#94a3b8", rotate: 35, fontSize: 9 } },
+      yAxis: { type: "value", axisLabel: { color: "#94a3b8" } },
+      series: [{ type: "bar", data: hist.map((h) => h.y), itemStyle: { color: "#38bdf8" } }],
+    });
+  }
+
+  bondMeanHistChart = mount(bondMeanHistChartRef.value, bondMeanHistChart);
+  if (bondMeanHistChart && meanRows.length) {
+    const hist = binToHist(meanRows.map((r: any) => Number(r.NewEnergy_MeanPred)).filter((v: number) => Number.isFinite(v)));
+    bondMeanHistChart.setOption({
+      tooltip: {},
+      grid: { left: 30, right: 10, top: 20, bottom: 30 },
+      xAxis: { type: "category", data: hist.map((h) => h.x), axisLabel: { color: "#94a3b8", rotate: 35, fontSize: 9 } },
+      yAxis: { type: "value", axisLabel: { color: "#94a3b8" } },
+      series: [{ type: "bar", data: hist.map((h) => h.y), itemStyle: { color: "#f59e0b" } }],
+    });
+  }
+
+  bondScatterChart = mount(bondScatterChartRef.value, bondScatterChart);
+  if (bondScatterChart && scatterRows.length) {
+    bondScatterChart.setOption({
+      tooltip: { trigger: "item" },
+      grid: { left: 36, right: 12, top: 20, bottom: 28 },
+      xAxis: { type: "value", name: "OilPred/Lambda", axisLabel: { color: "#94a3b8", fontSize: 9 } },
+      yAxis: { type: "value", name: "Sigma", axisLabel: { color: "#94a3b8", fontSize: 9 } },
+      series: [
+        {
+          type: "scatter",
+          symbolSize: 6,
+          data: scatterRows
+            .map((r: any) => [Number(r.Lambda_t), Number(r.NewEnergy_Sigma)])
+            .filter((v: number[]) => Number.isFinite(v[0]) && Number.isFinite(v[1])),
+          itemStyle: { color: "#22d3ee" },
+        },
+      ],
+    });
+  }
 }
 
 async function refreshRuns() {
@@ -1114,6 +1890,9 @@ async function handlePageChange() {
   if (activePage.value === "monitor") await refreshMonitor();
   if (activePage.value === "results") await refreshResults();
   if (activePage.value === "download") await refreshFiles();
+  if (activePage.value === "greenStock") await refreshGreenStockLatest();
+  if (activePage.value === "greenBond") await refreshGreenBondLatest();
+  if (activePage.value === "live") await runLivePredict();
 }
 
 function setupAutoRefresh() {
@@ -1143,6 +1922,18 @@ async function warmupData() {
 function handleWindowResize() {
   resizeCharts();
   wtiCandleChart?.resize?.();
+  neCiChart?.resize?.();
+  neSigmaChart?.resize?.();
+  neRiskChart?.resize?.();
+  neCiWidthChart?.resize?.();
+  neMeanHistChart?.resize?.();
+  neScatterChart?.resize?.();
+  bondCiChart?.resize?.();
+  bondSigmaChart?.resize?.();
+  bondRiskChart?.resize?.();
+  bondCiWidthChart?.resize?.();
+  bondMeanHistChart?.resize?.();
+  bondScatterChart?.resize?.();
 }
 
 function cleanupTimers() {
@@ -1212,6 +2003,30 @@ onBeforeUnmount(() => {
   disposeMonitorCharts();
   wtiCandleChart?.dispose();
   wtiCandleChart = null;
+  neCiChart?.dispose();
+  neSigmaChart?.dispose();
+  neRiskChart?.dispose();
+  neCiWidthChart?.dispose();
+  neMeanHistChart?.dispose();
+  neScatterChart?.dispose();
+  bondCiChart?.dispose();
+  bondSigmaChart?.dispose();
+  bondRiskChart?.dispose();
+  bondCiWidthChart?.dispose();
+  bondMeanHistChart?.dispose();
+  bondScatterChart?.dispose();
+  neCiChart = null;
+  neSigmaChart = null;
+  neRiskChart = null;
+  neCiWidthChart = null;
+  neMeanHistChart = null;
+  neScatterChart = null;
+  bondCiChart = null;
+  bondSigmaChart = null;
+  bondRiskChart = null;
+  bondCiWidthChart = null;
+  bondMeanHistChart = null;
+  bondScatterChart = null;
 });
 </script>
 
@@ -1301,12 +2116,19 @@ onBeforeUnmount(() => {
   width: 32px;
   height: 32px;
   border-radius: 9px;
-  background: linear-gradient(135deg, #3b82f6, #6366f1);
-  color: rgba(255, 255, 255, 0.9);
+  background: rgba(9, 20, 45, 0.85);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.25);
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  box-shadow: 0 4px 16px rgba(56, 189, 248, 0.2);
+  overflow: hidden;
+}
+.brand-icon-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 .brand-name {
   font-size: 16px;
@@ -1888,6 +2710,103 @@ onBeforeUnmount(() => {
   color: rgba(148, 163, 184, 0.85);
   font-size: 12px;
 }
+.single-line-tip {
+  white-space: nowrap;
+}
+.ne-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.ne-chart-card {
+  border: 1px solid rgba(56, 189, 248, 0.14);
+  background: linear-gradient(180deg, rgba(2, 6, 23, 0.62), rgba(8, 22, 38, 0.58));
+  border-radius: 8px;
+  padding: 8px;
+}
+.ne-chart-box {
+  width: 100%;
+  height: 210px;
+}
+.live-hero-card {
+  position: relative;
+  margin: 2px auto 10px;
+  width: min(720px, 96%);
+  border-radius: 16px;
+  padding: 18px 14px;
+  text-align: center;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  background:
+    radial-gradient(circle at 50% -20%, rgba(34, 211, 238, 0.24), transparent 58%),
+    linear-gradient(180deg, rgba(8, 20, 44, 0.88), rgba(3, 10, 24, 0.86));
+  box-shadow:
+    inset 0 0 26px rgba(56, 189, 248, 0.12),
+    0 0 24px rgba(14, 165, 233, 0.22);
+  overflow: hidden;
+}
+.live-hero-card::after {
+  content: "";
+  position: absolute;
+  top: -30%;
+  left: -35%;
+  width: 60%;
+  height: 170%;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(125, 211, 252, 0.06) 35%,
+    rgba(125, 211, 252, 0.35) 50%,
+    rgba(125, 211, 252, 0.06) 65%,
+    transparent 100%
+  );
+  filter: blur(6px);
+  transform: rotate(14deg);
+  animation: liveHeroSweep 3.8s linear infinite;
+}
+@keyframes liveHeroSweep {
+  0% { transform: translateX(-25%) rotate(14deg); opacity: 0.65; }
+  100% { transform: translateX(210%) rotate(14deg); opacity: 0.65; }
+}
+.live-hero-label {
+  font-size: 12px;
+  color: #7dd3fc;
+  letter-spacing: 0.12em;
+}
+.live-hero-price {
+  font-size: 46px;
+  font-weight: 800;
+  color: #e0f2fe;
+  line-height: 1.12;
+  text-shadow: 0 0 16px rgba(56, 189, 248, 0.35);
+}
+.live-hero-sub {
+  font-size: 12px;
+  color: rgba(186, 230, 253, 0.88);
+}
+.live-metrics-grid {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.live-metric-item {
+  border: 1px solid rgba(56, 189, 248, 0.22);
+  border-radius: 10px;
+  background: rgba(2, 12, 28, 0.66);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.live-metric-item span {
+  font-size: 11px;
+  color: rgba(148, 163, 184, 0.92);
+}
+.live-metric-item strong {
+  font-size: 14px;
+  color: #e0f2fe;
+}
 /* ─── KPI 卡片行 ─── */
 .kpi-row {
   display: grid;
@@ -1904,11 +2823,16 @@ onBeforeUnmount(() => {
   border: 1px solid rgba(56, 189, 248, 0.12);
   box-shadow: 0 8px 22px rgba(2, 6, 23, 0.24);
 }
+.box8-shell {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+}
 
 /* ─── 主要内容网格布局 ─── */
 .main-content-grid {
   display: grid;
-  grid-template-columns: 1.5fr 1.5fr 0.85fr;
+  grid-template-columns: minmax(0, 1.45fr) minmax(300px, 1.5fr) minmax(340px, 1fr);
   gap: 12px;
   margin-bottom: 10px;
   border: 1px solid rgba(56, 189, 248, 0.14);
@@ -1932,6 +2856,75 @@ onBeforeUnmount(() => {
 .center-globe-card {
   flex: 1;
   min-height: 0;
+}
+.globe-shell {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  background:
+    radial-gradient(circle at 50% 12%, rgba(56, 189, 248, 0.14), transparent 45%),
+    radial-gradient(circle at 50% 100%, rgba(59, 130, 246, 0.12), transparent 52%),
+    linear-gradient(180deg, rgba(2, 12, 30, 0.8), rgba(3, 14, 26, 0.78));
+  box-shadow:
+    inset 0 0 28px rgba(56, 189, 248, 0.08),
+    0 0 18px rgba(37, 99, 235, 0.22);
+}
+.globe-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    120deg,
+    rgba(34, 211, 238, 0.12),
+    rgba(56, 189, 248, 0.7),
+    rgba(125, 211, 252, 0.18),
+    rgba(34, 211, 238, 0.12)
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0.95;
+}
+.globe-shell::after {
+  content: "";
+  position: absolute;
+  top: -40%;
+  left: -35%;
+  width: 70%;
+  height: 180%;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(56, 189, 248, 0.05) 35%,
+    rgba(56, 189, 248, 0.26) 50%,
+    rgba(56, 189, 248, 0.05) 65%,
+    transparent 100%
+  );
+  filter: blur(8px);
+  transform: rotate(16deg);
+  animation: globeLightSweep 5s linear infinite;
+}
+@keyframes globeLightSweep {
+  0% {
+    transform: translateX(-18%) rotate(16deg);
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(168%) rotate(16deg);
+    opacity: 0.7;
+  }
 }
 .left-top-row {
   display: grid;
@@ -1957,6 +2950,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-width: 340px;
 }
 
 /* 飞线图区域 */
@@ -2360,6 +3354,54 @@ onBeforeUnmount(() => {
 }
 .bento-card--clickable .bento-inner:hover {
   opacity: 0.75;
+}
+
+/* ─── 全局柔化（降低硬边感） ─── */
+.main-content-grid,
+.kpi-card,
+.work-panel,
+.data-block,
+.chart-box,
+.ne-chart-card,
+.globe-shell {
+  border-radius: 14px;
+  border-color: rgba(125, 211, 252, 0.14);
+  box-shadow:
+    inset 0 0 18px rgba(56, 189, 248, 0.04),
+    0 8px 20px rgba(2, 6, 23, 0.2);
+}
+.status-chip,
+.feature-btn,
+.field input,
+.field select,
+.log-columns pre,
+.train-metric-card,
+.train-loss-table-wrap,
+.file-item {
+  border-color: rgba(125, 211, 252, 0.18);
+  border-radius: 10px;
+}
+
+/* DataV 边框线条柔光化 */
+.home-page :deep(.dv-border-box-1),
+.home-page :deep(.dv-border-box-8) {
+  border-radius: 14px;
+  overflow: hidden;
+}
+.home-page :deep(.dv-border-box-1 svg),
+.home-page :deep(.dv-border-box-8 svg) {
+  opacity: 0.78;
+  filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.18));
+}
+.home-page :deep(.dv-border-box-1 svg [stroke]),
+.home-page :deep(.dv-border-box-8 svg [stroke]) {
+  stroke: rgba(125, 211, 252, 0.66) !important;
+}
+/* 关闭 DataV 边框流动 LED 动效，改为静态柔光 */
+.home-page :deep(.dv-border-box-1 svg *),
+.home-page :deep(.dv-border-box-8 svg *) {
+  animation: none !important;
+  transition: none !important;
 }
 
 /* 数据表格区 */

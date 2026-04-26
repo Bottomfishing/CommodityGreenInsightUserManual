@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 from types import SimpleNamespace
@@ -100,11 +101,11 @@ def estimate_true_label_confidence(
     return float(np.clip(conf, 0.0, 1.0))
 
 
-def main() -> None:
-    # 可按需直接改这三项
-    input_csv = DEFAULT_INPUT_CSV
-    params_json = DEFAULT_PARAMS_JSON
-    weights_path = DEFAULT_WEIGHTS
+def run_live_forecast(
+    input_csv: str = DEFAULT_INPUT_CSV,
+    params_json: str = DEFAULT_PARAMS_JSON,
+    weights_path: str = DEFAULT_WEIGHTS,
+) -> dict:
 
     if not os.path.isfile(params_json):
         raise SystemExit(f"参数文件不存在: {params_json}")
@@ -221,17 +222,52 @@ def main() -> None:
     noise_imf = imfs[noise_idx]
     pred_conf = estimate_true_label_confidence(pred_return, noise_imf)
 
+    out = {
+        "input_csv": input_csv,
+        "weights": weights_path,
+        "window_len": int(time_steps),
+        "return_type": return_type,
+        "vmd_k": int(vmd_k),
+        "drop_high_freq": int(vmd_drop),
+        "drop_mode": vmd_mode,
+        "last_price": float(last_price),
+        "pred_denoised_return": float(pred_return),
+        "pred_price": float(pred_price),
+        "true_vs_denoised_confidence": float(pred_conf),
+        "pred_prob_up": float(pred_prob_up) if np.isfinite(pred_prob_up) else None,
+    }
+    return out
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--input-csv", default=DEFAULT_INPUT_CSV)
+    ap.add_argument("--params-json", default=DEFAULT_PARAMS_JSON)
+    ap.add_argument("--weights", default=DEFAULT_WEIGHTS)
+    ap.add_argument("--json", action="store_true", help="以 JSON 打印输出，便于后端解析")
+    args = ap.parse_args()
+
+    out = run_live_forecast(
+        input_csv=args.input_csv,
+        params_json=args.params_json,
+        weights_path=args.weights,
+    )
+
+    if args.json:
+        print(json.dumps(out, ensure_ascii=False))
+        return
+
     print("\n=== Next-Day Forecast ===")
-    print(f"input_csv={input_csv}")
-    print(f"weights={weights_path}")
-    print(f"window_len={time_steps}, return_type={return_type}")
-    print(f"vmd_k={vmd_k}, drop_high_freq={vmd_drop}, drop_mode={vmd_mode}")
-    print(f"last_price={last_price:.6f}")
-    print(f"pred_denoised_return={pred_return:.8f}")
-    print(f"pred_price={pred_price:.6f}")
-    print(f"true_vs_denoised_confidence={pred_conf:.6f}")
-    if np.isfinite(pred_prob_up):
-        print(f"pred_prob_up={pred_prob_up:.6f}")
+    print(f"input_csv={out['input_csv']}")
+    print(f"weights={out['weights']}")
+    print(f"window_len={out['window_len']}, return_type={out['return_type']}")
+    print(f"vmd_k={out['vmd_k']}, drop_high_freq={out['drop_high_freq']}, drop_mode={out['drop_mode']}")
+    print(f"last_price={out['last_price']:.6f}")
+    print(f"pred_denoised_return={out['pred_denoised_return']:.8f}")
+    print(f"pred_price={out['pred_price']:.6f}")
+    print(f"true_vs_denoised_confidence={out['true_vs_denoised_confidence']:.6f}")
+    if out["pred_prob_up"] is not None:
+        print(f"pred_prob_up={out['pred_prob_up']:.6f}")
 
 
 if __name__ == "__main__":
