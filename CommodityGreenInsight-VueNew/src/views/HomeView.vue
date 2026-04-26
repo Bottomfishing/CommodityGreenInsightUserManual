@@ -469,11 +469,53 @@
               </div>
               <div class="data-block">
                 <h3>训练面板</h3>
-                <pre>{{ dashboardPreview }}</pre>
+                <div v-if="!dashboardData" class="chart-empty">暂无训练面板数据</div>
+                <div v-else class="train-dashboard">
+                  <div class="train-metrics">
+                    <div class="train-metric-card">
+                      <span class="train-metric-label">Run ID</span>
+                      <strong class="train-metric-value train-metric-value--mono">{{ dashboardMeta.runId }}</strong>
+                    </div>
+                    <div class="train-metric-card">
+                      <span class="train-metric-label">Epoch 数</span>
+                      <strong class="train-metric-value">{{ dashboardMeta.totalEpochs }}</strong>
+                    </div>
+                    <div class="train-metric-card">
+                      <span class="train-metric-label">最新 Loss</span>
+                      <strong class="train-metric-value">{{ dashboardMeta.latestLoss }}</strong>
+                    </div>
+                    <div class="train-metric-card">
+                      <span class="train-metric-label">最新 Val Loss</span>
+                      <strong class="train-metric-value">{{ dashboardMeta.latestValLoss }}</strong>
+                    </div>
+                  </div>
+                  <div v-if="dashboardLossRows.length" class="train-loss-table-wrap">
+                    <table class="train-loss-table">
+                      <thead>
+                        <tr>
+                          <th>Epoch</th>
+                          <th>Loss</th>
+                          <th>Val Loss</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="row in dashboardLossRows" :key="row.epoch">
+                          <td>{{ row.epoch }}</td>
+                          <td>{{ row.loss }}</td>
+                          <td>{{ row.valLoss }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div v-else class="chart-empty">暂无 Loss 明细数据</div>
+                </div>
               </div>
               <div class="data-block">
                 <h3>运行日志</h3>
-                <pre>{{ logText || "暂无日志" }}</pre>
+                <div v-if="!logText" class="chart-empty">暂无日志</div>
+                <div v-else class="log-columns">
+                  <pre v-for="(column, idx) in logColumns" :key="`log-col-${idx}`">{{ column }}</pre>
+                </div>
               </div>
             </div>
 
@@ -628,15 +670,46 @@ const wtiCandleChartRef = ref<HTMLDivElement | null>(null);
 const wtiCandleData = ref<any[]>([]);
 let wtiCandleChart: any = null;
 
-const dashboardPreview = computed(() =>
-  dashboardData.value ? JSON.stringify(dashboardData.value, null, 2) : "暂无训练面板数据",
-);
 const overviewPreview = computed(() =>
   overviewData.value ? JSON.stringify(overviewData.value, null, 2) : "暂无概览数据",
 );
 const analyticsPreview = computed(() =>
   analyticsData.value ? JSON.stringify(analyticsData.value, null, 2) : "暂无分析数据",
 );
+function formatMetricNumber(value: unknown): string {
+  if (typeof value !== "number" || Number.isNaN(value)) return "--";
+  return Math.abs(value) >= 1 ? value.toFixed(4) : value.toFixed(6);
+}
+const dashboardMeta = computed(() => {
+  const data = dashboardData.value || {};
+  const lossSeries = Array.isArray(data.loss_series) ? data.loss_series : [];
+  const last = lossSeries.length ? lossSeries[lossSeries.length - 1] : {};
+  return {
+    runId: data.run_id || activeMonitorRunId.value || "--",
+    totalEpochs: lossSeries.length,
+    latestLoss: formatMetricNumber(last?.loss),
+    latestValLoss: formatMetricNumber(last?.val_loss),
+  };
+});
+const dashboardLossRows = computed(() => {
+  const series = Array.isArray(dashboardData.value?.loss_series)
+    ? dashboardData.value.loss_series
+    : [];
+  return series.slice(-12).reverse().map((item: any, index: number) => ({
+    epoch: item?.epoch ?? `#${index + 1}`,
+    loss: formatMetricNumber(item?.loss),
+    valLoss: formatMetricNumber(item?.val_loss),
+  }));
+});
+const logColumns = computed(() => {
+  const text = (logText.value || "").trim();
+  if (!text) return [];
+  const lines = text.split(/\r?\n/);
+  const mid = Math.ceil(lines.length / 2);
+  const left = lines.slice(0, mid).join("\n");
+  const right = lines.slice(mid).join("\n");
+  return [left, right];
+});
 const runCount = computed(() => runList.value.length);
 const activeMonitorRunId = computed(() => {
   if (monitorMode.value === "manual") return manualRunId.value || "";
@@ -1431,7 +1504,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  overflow: auto;
+  overflow: visible;
 }
 .dashboard-top-line,
 .dashboard-bottom-line {
@@ -1680,6 +1753,85 @@ onBeforeUnmount(() => {
   line-height: 1.5;
   color: rgba(226, 232, 240, 0.9);
   font-family: "Cascadia Code", "Consolas", monospace;
+}
+.log-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.log-columns pre {
+  margin: 0;
+  max-height: 240px;
+  overflow: auto;
+  padding: 8px 10px;
+  border: 1px solid rgba(56, 189, 248, 0.18);
+  border-radius: 8px;
+  background: rgba(2, 6, 23, 0.38);
+  font-size: 11px;
+  line-height: 1.5;
+  color: rgba(226, 232, 240, 0.92);
+  font-family: "Cascadia Code", "Consolas", monospace;
+}
+.train-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.train-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.train-metric-card {
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: linear-gradient(135deg, rgba(8, 47, 73, 0.32), rgba(15, 23, 42, 0.48));
+}
+.train-metric-label {
+  display: block;
+  font-size: 11px;
+  color: rgba(148, 163, 184, 0.85);
+  margin-bottom: 4px;
+}
+.train-metric-value {
+  font-size: 15px;
+  color: #e0f2fe;
+}
+.train-metric-value--mono {
+  font-family: "Cascadia Code", "Consolas", monospace;
+  font-size: 12px;
+  color: #bae6fd;
+  word-break: break-all;
+}
+.train-loss-table-wrap {
+  border: 1px solid rgba(56, 189, 248, 0.16);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.train-loss-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.train-loss-table thead {
+  background: rgba(59, 130, 246, 0.16);
+}
+.train-loss-table th,
+.train-loss-table td {
+  padding: 7px 8px;
+  text-align: left;
+  border-bottom: 1px solid rgba(56, 189, 248, 0.12);
+}
+.train-loss-table th {
+  color: #dbeafe;
+  font-weight: 600;
+}
+.train-loss-table td {
+  color: rgba(226, 232, 240, 0.9);
+}
+.train-loss-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.02);
 }
 .file-list {
   width: 100%;
@@ -2221,6 +2373,7 @@ onBeforeUnmount(() => {
 .data-table-area {
   flex: 1;
   min-height: 0;
+  overflow: hidden;
   border: 1px solid rgba(56, 189, 248, 0.12);
   border-radius: 8px;
   padding: 6px;
@@ -2325,6 +2478,9 @@ onBeforeUnmount(() => {
   }
   .user-name {
     display: none;
+  }
+  .log-columns {
+    grid-template-columns: 1fr;
   }
 }
 </style>

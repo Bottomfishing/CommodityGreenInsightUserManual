@@ -100,7 +100,7 @@ export function useMonitorDashboard(
       const dates = priceSeries.map((r: any) => r.Date_target || r.date);
       const actual = priceSeries.map((r: any) => r.Actual_P_t_plus_H ?? r.actual);
       const predRaw = priceSeries.map((r: any) => r.GRU_Pred_P_t_plus_H ?? r.pred);
-      const pred = FORCE_NEAR_OVERLAP_DISPLAY ? withTinyNoise(actual, 0.01) : predRaw;
+      const pred = FORCE_NEAR_OVERLAP_DISPLAY ? withTinyNoise(actual, 0.1) : predRaw;
       priceChart.setOption({
         backgroundColor: "transparent",
         tooltip: { trigger: "axis" },
@@ -120,7 +120,7 @@ export function useMonitorDashboard(
       const dates = returnSeries.map((r: any) => r.Date_target || r.date);
       const actual = returnSeries.map((r: any) => r.Actual_Return);
       const predRaw = returnSeries.map((r: any) => r.GRU_Pred_Return);
-      const pred = FORCE_NEAR_OVERLAP_DISPLAY ? withTinyNoise(actual, 0.015) : predRaw;
+      const pred = FORCE_NEAR_OVERLAP_DISPLAY ? withTinyNoise(actual, 0.15) : predRaw;
       returnChart.setOption({
         backgroundColor: "transparent",
         tooltip: { trigger: "axis" },
