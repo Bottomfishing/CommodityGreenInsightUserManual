@@ -13,7 +13,7 @@
 
     <div class="data-block">
       <h3>AI 报告</h3>
-      <div class="ai-report-md" v-html="FIXED_AI_REPORT_HTML"></div>
+      <div class="ai-report-md" v-html="displayAiReportHtml"></div>
     </div>
 
     <div class="data-block">
@@ -127,6 +127,12 @@ function renderMarkdown(md: string): string {
 }
 
 const FIXED_AI_REPORT_HTML = computed(() => renderMarkdown(FIXED_AI_REPORT_MD));
+const displayAiReportHtml = computed(() => {
+  const txt = String(props.aiReportText || "").trim();
+  if (!txt) return FIXED_AI_REPORT_HTML.value;
+  // 后端返回可能是 Markdown 或 JSON 字符串，这里统一优先按 Markdown 渲染。
+  return renderMarkdown(txt);
+});
 
 const CHART_SPECS: Array<{ key: string; title: string; filename: string }> = [
   { key: "test_predictions", title: "测试集价格/收益预测", filename: "chart_test_predictions.csv" },
@@ -218,8 +224,7 @@ function renderChart(key: string, rows: any[]) {
         series: [{ type: "scatter", data: safeRows.map((r) => [r.y_true, r.y_pred]), symbolSize: 6, itemStyle: { color: "rgba(56,189,248,0.8)" } }],
       });
     } else if (key === "direction_confusion_matrix") {
-      const xLabels = ["down", "up"]; // Pred
-      const yLabels = ["down", "up"]; // True
+      const trueLabels = ["down", "up"]; // True
       const normDir = (v: any): "down" | "up" | null => {
         const s = String(v ?? "").trim().toLowerCase();
         if (s === "down" || s === "0" || s === "false") return "down";
@@ -239,67 +244,106 @@ function renderChart(key: string, rows: any[]) {
         const xi = p === "down" ? 0 : 1;
         cm[yi][xi] += c;
       }
-      const matrixData = [
-        [0, 0, cm[0][0]],
-        [1, 0, cm[0][1]],
-        [0, 1, cm[1][0]],
-        [1, 1, cm[1][1]],
-      ];
+      const cmTotal = cm[0][0] + cm[0][1] + cm[1][0] + cm[1][1];
+      if (cmTotal <= 0) {
+        // 兼容另一类表头：每行是真实方向，每列是预测方向（down/up）
+        for (const r of safeRows) {
+          const t = normDir(
+            r.true_label ??
+              r.TrueLabel ??
+              r.true ??
+              r.True ??
+              r.label ??
+              r.Label ??
+              r.class ??
+              r.Class ??
+              r["\ufefftrue_label"],
+          );
+          if (!t) continue;
+          const yi = t === "down" ? 0 : 1;
+          const downVal = Number(r.down ?? r.Down ?? r.pred_down ?? r.PredDown ?? r["pred:down"] ?? 0);
+          const upVal = Number(r.up ?? r.Up ?? r.pred_up ?? r.PredUp ?? r["pred:up"] ?? 0);
+          if (Number.isFinite(downVal)) cm[yi][0] += downVal;
+          if (Number.isFinite(upVal)) cm[yi][1] += upVal;
+        }
+      }
+      const cmTotalFinal = cm[0][0] + cm[0][1] + cm[1][0] + cm[1][1];
+      if (cmTotalFinal <= 0) {
+        // 最后兜底：从每行中抓取数值，按 TN/FP/FN/TP 顺序填入
+        const nums: number[] = [];
+        for (const r of safeRows) {
+          for (const [k, v] of Object.entries(r)) {
+            if (typeof v === "number" && Number.isFinite(v)) {
+              if (!/index|idx|epoch|step/i.test(k)) nums.push(v);
+            } else {
+              const n = Number(v);
+              if (Number.isFinite(n) && !/index|idx|epoch|step/i.test(k)) nums.push(n);
+            }
+          }
+        }
+        if (nums.length >= 4) {
+          cm[0][0] = nums[0];
+          cm[0][1] = nums[1];
+          cm[1][0] = nums[2];
+          cm[1][1] = nums[3];
+        }
+      }
       const maxVal = Math.max(cm[0][0], cm[0][1], cm[1][0], cm[1][1], 1);
       chart.clear();
       chart.setOption({
         backgroundColor: "transparent",
         tooltip: {
-          trigger: "item",
-          formatter: (params: any) => {
-            const d = Array.isArray(params?.data) ? params.data : [0, 0, 0];
-            const x = Number(d[0] ?? 0);
-            const y = Number(d[1] ?? 0);
-            const v = Number(d[2] ?? 0);
-            return `True: ${yLabels[y]}<br/>Pred: ${xLabels[x]}<br/>Count: ${v}`;
-          },
+          trigger: "axis",
+          axisPointer: { type: "shadow" },
         },
-        grid: { left: 52, right: 42, top: 18, bottom: 42 },
+        legend: {
+          top: 6,
+          textStyle: { color: "#94a3b8" },
+          data: ["Pred=down", "Pred=up"],
+        },
+        grid: { left: 52, right: 18, top: 34, bottom: 36 },
         xAxis: {
           type: "category",
-          data: xLabels,
-          name: "Pred",
-          boundaryGap: false,
+          data: trueLabels,
+          name: "True",
           axisLabel: { color: "#94a3b8" },
           axisLine: { lineStyle: { color: "#334155" } },
         },
         yAxis: {
-          type: "category",
-          data: yLabels,
-          name: "True",
-          boundaryGap: false,
+          type: "value",
+          name: "Count",
           axisLabel: { color: "#94a3b8" },
-          axisLine: { lineStyle: { color: "#334155" } },
-        },
-        visualMap: {
-          min: 0,
-          max: maxVal,
-          calculable: false,
-          orient: "vertical",
-          right: 6,
-          top: "middle",
-          textStyle: { color: "#94a3b8" },
-          inRange: { color: ["#0b1f3a", "#2563eb", "#67e8f9"] },
+          splitLine: { lineStyle: { color: "rgba(148,163,184,0.14)" } },
         },
         series: [
           {
-            type: "heatmap",
-            data: matrixData,
-            label: { show: true, color: "#e2e8f0", fontWeight: 700, formatter: (p: any) => `${Number(p?.data?.[2] ?? 0)}` },
-            itemStyle: { borderColor: "rgba(148,163,184,0.35)", borderWidth: 1, opacity: 1 },
-            emphasis: {
-              itemStyle: {
-                shadowBlur: 6,
-                shadowColor: "rgba(56,189,248,0.35)",
-              },
-            },
+            name: "Pred=down",
+            type: "bar",
+            data: [cm[0][0], cm[1][0]],
+            barMaxWidth: 34,
+            itemStyle: { color: "#38bdf8", borderRadius: [4, 4, 0, 0] },
+            label: { show: true, position: "top", color: "#e2e8f0", formatter: "{c}" },
+          },
+          {
+            name: "Pred=up",
+            type: "bar",
+            data: [cm[0][1], cm[1][1]],
+            barMaxWidth: 34,
+            itemStyle: { color: "#22c55e", borderRadius: [4, 4, 0, 0] },
+            label: { show: true, position: "top", color: "#e2e8f0", formatter: "{c}" },
+          },
+          {
+            name: "Total",
+            type: "line",
+            data: [cm[0][0] + cm[0][1], cm[1][0] + cm[1][1]],
+            symbol: "circle",
+            symbolSize: 6,
+            lineStyle: { color: "#f59e0b", width: 2 },
+            itemStyle: { color: "#f59e0b" },
+            yAxisIndex: 0,
           },
         ],
+        graphic: maxVal <= 0 ? [{ type: "text", left: "center", top: "middle", style: { text: "混淆矩阵无有效数值", fill: "rgba(148,163,184,0.85)", fontSize: 12 } }] : [],
       }, true);
     } else {
       const first = safeRows.at(0);
@@ -434,16 +478,16 @@ const emit = defineEmits<{
 }
 .data-block pre {
   margin: 0;
-  max-height: 220px;
-  overflow: auto;
+  max-height: none;
+  overflow: visible;
   font-size: 11px;
   line-height: 1.5;
   color: rgba(226, 232, 240, 0.9);
   font-family: "Cascadia Code", "Consolas", monospace;
 }
 .ai-report-md {
-  max-height: 420px;
-  overflow: auto;
+  max-height: none;
+  overflow: visible;
   padding: 12px 14px;
   border: 1px solid rgba(56, 189, 248, 0.16);
   border-radius: 8px;

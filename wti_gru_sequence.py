@@ -2067,7 +2067,33 @@ DEFAULT_ARGS: dict[str, object] = {
 
 def make_default_args() -> SimpleNamespace:
     """集中管理默认参数，避免 main() 配置块过长。"""
-    return SimpleNamespace(**DEFAULT_ARGS)
+    args = SimpleNamespace(**DEFAULT_ARGS)
+    # 允许后端通过环境变量覆盖关键运行参数（兼容 Web API 调度）。
+    data_base_dir = os.environ.get("WTI_GRU_DATA_BASE_DIR", "").strip()
+    if data_base_dir:
+        args.data_base_dir = data_base_dir
+    output_dir = os.environ.get("WTI_GRU_OUTPUT_DIR", "").strip()
+    if output_dir:
+        setattr(args, "output_dir", output_dir)
+    epochs_env = os.environ.get("WTI_GRU_EPOCHS", "").strip()
+    if epochs_env:
+        try:
+            args.epochs = int(epochs_env)
+        except Exception:
+            pass
+    early_env = os.environ.get("WTI_GRU_ENABLE_EARLY_STOPPING", "").strip()
+    if early_env:
+        args.early_stopping_enable = early_env not in {"0", "false", "False"}
+    forecast_next_env = os.environ.get("WTI_GRU_FORECAST_NEXT", "").strip()
+    if forecast_next_env:
+        args.forecast_next = forecast_next_env not in {"0", "false", "False"}
+    save_weights_env = os.environ.get("WTI_GRU_SAVE_MODEL_WEIGHTS", "").strip()
+    if save_weights_env:
+        args.save_model_weights = save_weights_env not in {"0", "false", "False"}
+    weights_output_env = os.environ.get("WTI_GRU_WEIGHTS_OUTPUT_PATH", "").strip()
+    if weights_output_env:
+        args.weights_output_path = weights_output_env
+    return args
 
 
 def load_prices_for_pipeline(
@@ -2141,6 +2167,13 @@ def main() -> None:
     # -----------------------------
     # 如果后续你要改默认值，直接改 DEFAULT_ARGS 即可。
     args = make_default_args()
+    # 若指定了输出目录，统一把所有产物落到该目录（便于 Web 端按 run 目录读取）。
+    output_dir = str(getattr(args, "output_dir", "") or "").strip()
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+        os.chdir(output_dir)
+        print(f"[输出目录] {output_dir}")
+
     # 固定策略：VMD 必用；收益压缩固定为 none（无额外变换）
     force_use_vmd = True
     force_return_compress = "none"

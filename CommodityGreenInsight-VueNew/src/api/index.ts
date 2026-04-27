@@ -105,8 +105,11 @@ export async function fetchWtiLast20Candles() {
   return request<any>('GET', '/market/wti-last20-candles')
 }
 
-export async function fetchLiveWtiPredict() {
-  return request<any>('GET', '/live/wti/predict')
+export async function fetchLiveWtiPredict(params?: { run_id?: string; weights_name?: string }) {
+  return request<any>('GET', '/live/wti/predict', undefined, false, {
+    run_id: params?.run_id,
+    weights_name: params?.weights_name,
+  })
 }
 
 export async function fetchRunList() {
@@ -132,7 +135,7 @@ export async function resolveMonitor({
   selected_run_id = null,
   manual_dir = null,
 }: {
-  mode?: 'running' | 'active_by_log' | 'selected' | 'latest' | 'manual'
+  mode?: 'default' | 'running' | 'active_by_log' | 'selected' | 'latest' | 'manual'
   selected_run_id?: string | null
   manual_dir?: string | null
 } = {}) {
@@ -165,6 +168,10 @@ export async function fetchAnalytics(runId: string) {
 
 export async function fetchResultCharts(runId: string, rows = 5000) {
   return request('GET', `/oil/runs/${runId}/result-charts`, undefined, false, { rows })
+}
+
+export async function fetchDefaultResultCharts(rows = 5000) {
+  return request('GET', '/oil/result-charts/default', undefined, false, { rows })
 }
 
 export async function generateAIReport(runId: string, force = false) {

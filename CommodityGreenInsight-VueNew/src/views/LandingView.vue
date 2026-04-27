@@ -88,7 +88,7 @@
 
         <!-- CTA -->
         <div class="cta-row">
-          <button class="cta-primary" @click="showAuth = true">
+          <button class="cta-primary" @click="router.push({ name: 'Intro' })">
             <span>立即开始</span>
             <svg
               width="16"
@@ -103,7 +103,6 @@
               <path d="M5 12h14M12 5l7 7-7 7" />
             </svg>
           </button>
-          <button class="cta-secondary" @click="openManual">用户手册</button>
         </div>
 
         <footer class="status-bar">
@@ -305,11 +304,12 @@
 <script setup lang="ts">
 // @ts-nocheck
 import { ref, reactive, onMounted, onBeforeUnmount } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import AuthModal from "@/components/AuthModal.vue";
 import { getToken } from "@/api/auth";
 
 const router = useRouter();
+const route = useRoute();
 const showAuth = ref(false);
 const priceChartRef = ref<HTMLCanvasElement | null>(null);
 const chartCanvasRef = ref<HTMLCanvasElement | null>(null);
@@ -909,9 +909,6 @@ function animateChart() {
   }
 }
 
-function openManual() {
-  window.open("/用户手册.pdf", "_blank");
-}
 function onAuthSuccess() {
   router.push({ name: "Home" });
 }
@@ -920,6 +917,9 @@ onMounted(() => {
   if (getToken()) {
     router.replace({ name: "Home" });
     return;
+  }
+  if (route.query.auth === "1") {
+    showAuth.value = true;
   }
   updateClock();
   clockTimer = setInterval(updateClock, 1000);

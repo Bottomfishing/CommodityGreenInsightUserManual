@@ -129,6 +129,8 @@ watch(
   min-height: 220px;
   max-height: none;
   overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   display: flex;
   flex-direction: column;
   gap: 8px;

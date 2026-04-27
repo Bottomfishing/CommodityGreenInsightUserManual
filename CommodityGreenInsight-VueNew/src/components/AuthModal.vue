@@ -16,11 +16,7 @@
           <div class="auth-header">
             <div class="auth-logo-wrap">
               <div class="auth-logo">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-                  <path d="M2 17l10 5 10-5"/>
-                  <path d="M2 12l10 5 10-5"/>
-                </svg>
+                <img class="auth-logo-img" src="/brand-logo.png" alt="大宗绿测 logo" />
               </div>
               <div class="logo-pulse"></div>
             </div>
@@ -421,6 +417,13 @@ async function handleSubmit() {
     0 8px 24px rgba(59, 130, 246, 0.25),
     0 0 0 1px rgba(59, 130, 246, 0.15) inset;
   transition: transform .3s, box-shadow .3s;
+}
+.auth-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 12px;
+  filter: drop-shadow(0 6px 12px rgba(2, 6, 23, 0.28));
 }
 .auth-logo-wrap:hover .auth-logo {
   transform: scale(1.05) translateY(-2px);

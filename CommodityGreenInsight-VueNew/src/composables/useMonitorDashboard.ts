@@ -29,6 +29,8 @@ export function useMonitorDashboard(
     });
   }
 
+  
+
   const lossChartRef = ref<HTMLDivElement | null>(null);
   const priceChartRef = ref<HTMLDivElement | null>(null);
   const returnChartRef = ref<HTMLDivElement | null>(null);

@@ -14,14 +14,33 @@
   box-sizing: border-box;
 }
 html, body, #app {
-  height: 100%;
   width: 100%;
+  overflow-x: hidden;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
     'Microsoft YaHei', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background: #0a0f1a;
   color: #f1f5f9;
+}
+html,
+body {
+  scrollbar-gutter: stable;
+}
+html {
+  height: 100%;
+  overflow-y: auto;
+}
+body {
+  min-height: 100%;
+  height: auto;
+  overflow-y: visible;
+  overscroll-behavior-y: none;
+}
+#app {
+  height: auto;
+  min-height: 100vh;
+  overflow: visible;
 }
 
 /* 滚动条美化 */

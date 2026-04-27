@@ -33,7 +33,7 @@ except Exception:
 
 APP_DIR = Path(__file__).resolve().parent
 WEB_RUNS_DIR = APP_DIR / "web_runs"
-SCRIPT_NAME = "oil_price_prediction_main_0309.py"
+SCRIPT_NAME = "wti_gru_sequence.py"
 NE_SCRIPT_NAME = "run_new_energy_forecast_integrated_0325.py"
 BOND_SCRIPT_NAME = "predict_bond_from_gru.py"
 LIVE_PREDICT_SCRIPT_NAME = "wti_live_predict.py"
@@ -42,8 +42,10 @@ DEFAULT_BOND_DATA_CSV = APP_DIR / "bond_date" / "data.csv"
 DEFAULT_BOND_ZIP = APP_DIR / "bond_data.zip"
 DEFAULT_BOND_DIR = APP_DIR / "bond_data"
 DEFAULT_NEW_ENERGY_DIR = APP_DIR / "绿色股票指数"
+DEFAULT_OIL_DATA_DIR = APP_DIR / "OilData"
 LIVE_PARAMS_JSON = APP_DIR / "optuna_best_params_full.json"
 LIVE_WEIGHTS = APP_DIR / "gru_sequence_weights.weights.h5"
+DEFAULT_SHARED_RUN_ID = "默认数据"
 GLOBAL_LOCK_PATH = APP_DIR / ".app_global_job.lock"
 ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 AI_BASE_URL = os.environ.get("YIBU_BASE_URL", "https://yibuapi.com/v1")
@@ -392,6 +394,11 @@ def _db_list_user_runs(user_id: int, limit: int = 20) -> list[dict[str, Any]]:
 
 
 def _assert_run_access(run_id: str, user_id: int) -> None:
+    if run_id == DEFAULT_SHARED_RUN_ID:
+        shared_dir = (WEB_RUNS_DIR / DEFAULT_SHARED_RUN_ID).resolve()
+        if shared_dir.is_dir():
+            return
+        raise HTTPException(status_code=404, detail="默认数据目录不存在")
     owner = _db_get_run_owner(run_id)
     if owner is None:
         raise HTTPException(status_code=404, detail="run_id 不存在或未绑定用户")
@@ -425,6 +432,8 @@ def _call_chat_completion(messages: list[dict[str, Any]], temperature: float = 0
     try:
         with urllib.request.urlopen(req, timeout=120) as resp:
             data = json.loads(resp.read().decode("utf-8", errors="replace"))
+    except HTTPException:
+        raise
     except Exception as exc:
         raise RuntimeError(f"AI 请求失败: {exc}") from exc
     content = _safe_json_extract_content(data)
@@ -825,6 +834,86 @@ def _start_background_cmd(
     return proc.pid, str(output_dir.resolve())
 
 
+def _is_wti_gru_sequence_script(script_name: str) -> bool:
+    return Path(str(script_name)).name.lower() == "wti_gru_sequence.py"
+
+
+def _sanitize_model_name(value: str | None) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    # Windows 文件名非法字符统一替换，保留中英文、数字、下划线、短横线和空格。
+    cleaned = re.sub(r'[\\/:*?"<>|]+', "_", raw)
+    cleaned = re.sub(r"\s+", "_", cleaned).strip("._ ")
+    cleaned = re.sub(r"_+", "_", cleaned)
+    return cleaned[:40]
+
+
+def _build_oil_train_cmd_and_env(
+    *,
+    script_name: str,
+    data_root: Path,
+    run_dir: Path,
+    top_n: int,
+    epochs: int,
+    forecast_steps: int,
+    cutoff_date: str | None,
+    enable_early_stopping: bool,
+    weights_output_name: str = "gru_sequence_weights.weights.h5",
+) -> tuple[list[str], dict[str, str]]:
+    """
+    统一构建油价训练命令：
+    - 旧脚本（main_0309）走 CLI 参数；
+    - 新脚本（wti_gru_sequence）走环境变量覆盖默认参数。
+    """
+    base_env = {
+        **os.environ,
+        "PYTHONUNBUFFERED": "1",
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONUTF8": "1",
+    }
+    if _is_wti_gru_sequence_script(script_name):
+        cmd = ["python", "-u", script_name]
+        env = {
+            **base_env,
+            "WTI_GRU_DATA_BASE_DIR": str(data_root.resolve()),
+            "WTI_GRU_OUTPUT_DIR": str(run_dir.resolve()),
+            "WTI_GRU_EPOCHS": str(int(epochs)),
+            "WTI_GRU_ENABLE_EARLY_STOPPING": "1" if bool(enable_early_stopping) else "0",
+            "WTI_GRU_FORECAST_NEXT": "1" if int(forecast_steps) > 0 else "0",
+            "WTI_GRU_SAVE_MODEL_WEIGHTS": "1",
+            "WTI_GRU_WEIGHTS_OUTPUT_PATH": str(weights_output_name),
+        }
+        # 新脚本当前不使用 top_n/cutoff_date/forecast_steps（多步），保留记录便于后续扩展。
+        if cutoff_date:
+            env["WTI_GRU_CUTOFF_DATE"] = str(cutoff_date)
+        env["WTI_GRU_TOP_N"] = str(int(top_n))
+        env["WTI_GRU_FORECAST_STEPS"] = str(int(forecast_steps))
+        return cmd, env
+
+    cmd = [
+        "python",
+        "-u",
+        script_name,
+        "--base-path",
+        str(data_root.resolve()),
+        "--top-n",
+        str(int(top_n)),
+        "--epochs",
+        str(int(epochs)),
+        "--output-dir",
+        str(run_dir.resolve()),
+        "--no-plots",
+    ]
+    if not enable_early_stopping:
+        cmd.append("--disable-early-stopping")
+    if cutoff_date:
+        cmd.extend(["--cutoff-date", cutoff_date])
+    if int(forecast_steps) > 0:
+        cmd.extend(["--forecast-steps", str(int(forecast_steps))])
+    return cmd, base_env
+
+
 def _generate_enterprise_bank_ai_report(run_dir: Path, force: bool = False) -> str | None:
     report_md = run_dir / "bank_team_report.md"
     ai_md = run_dir / "bank_team_report_ai.md"
@@ -1052,10 +1141,40 @@ def get_wti_last20_candles(user: dict[str, Any] = Depends(_require_auth_user)) -
 
 
 @app.get("/api/live/wti/predict", summary="WTI 实盘单步推理（仅推理）")
-def live_wti_predict(user: dict[str, Any] = Depends(_require_auth_user)) -> dict[str, Any]:
+def live_wti_predict(
+    run_id: str | None = Query(None, description="可选：指定历史 run_id，使用该 run 下权重"),
+    weights_name: str | None = Query(None, description="可选：指定 run 目录中的权重文件名（.h5/.weights.h5）"),
+    user: dict[str, Any] = Depends(_require_auth_user),
+) -> dict[str, Any]:
     _ = user
     try:
         script_path = APP_DIR / LIVE_PREDICT_SCRIPT_NAME
+        selected_weights_path = LIVE_WEIGHTS
+        if run_id:
+            _assert_run_access(run_id, int(user["id"]))
+            run_dir = (WEB_RUNS_DIR / run_id).resolve()
+            if not run_dir.is_dir():
+                raise HTTPException(status_code=404, detail="指定 run_id 不存在")
+            selected_name = str(weights_name or "").strip()
+            if selected_name:
+                if Path(selected_name).name != selected_name:
+                    raise HTTPException(status_code=400, detail="weights_name 仅允许文件名")
+                if not re.search(r"\.(?:weights\.)?h5$", selected_name, re.IGNORECASE):
+                    raise HTTPException(status_code=400, detail="weights_name 必须为 .h5 或 .weights.h5")
+                candidate = (run_dir / selected_name).resolve()
+                if candidate.parent != run_dir or not candidate.is_file():
+                    raise HTTPException(status_code=404, detail="指定权重文件不存在")
+                selected_weights_path = candidate
+            else:
+                h5_files = sorted(
+                    [p for p in run_dir.iterdir() if p.is_file() and re.search(r"\.(?:weights\.)?h5$", p.name, re.IGNORECASE)],
+                    key=lambda p: p.name,
+                    reverse=True,
+                )
+                if not h5_files:
+                    raise HTTPException(status_code=404, detail="该 run 下未找到 .h5 权重文件")
+                selected_weights_path = h5_files[0]
+
         issues: list[str] = []
         can_run_script = True
         if not script_path.is_file():
@@ -1064,9 +1183,9 @@ def live_wti_predict(user: dict[str, Any] = Depends(_require_auth_user)) -> dict
         if not LIVE_PARAMS_JSON.is_file():
             can_run_script = False
             issues.append(f"missing_params:{LIVE_PARAMS_JSON}")
-        if not LIVE_WEIGHTS.is_file():
+        if not selected_weights_path.is_file():
             can_run_script = False
-            issues.append(f"missing_weights:{LIVE_WEIGHTS}")
+            issues.append(f"missing_weights:{selected_weights_path}")
 
         live_df = pd.DataFrame()
         if WTI_LAST20_CSV.is_file():
@@ -1102,7 +1221,7 @@ def live_wti_predict(user: dict[str, Any] = Depends(_require_auth_user)) -> dict
             "--params-json",
             str(LIVE_PARAMS_JSON.resolve()),
             "--weights",
-            str(LIVE_WEIGHTS.resolve()),
+            str(selected_weights_path.resolve()),
             "--json",
         ]
         result = None
@@ -1115,7 +1234,7 @@ def live_wti_predict(user: dict[str, Any] = Depends(_require_auth_user)) -> dict
                 try:
                     payload = json.loads(last)
                     payload["model"] = "wti_live_predict.py"
-                    payload["weights_file"] = str(LIVE_WEIGHTS.resolve())
+                    payload["weights_file"] = str(selected_weights_path.resolve())
                     payload["mode"] = "inference_only"
                     return payload
                 except Exception:
@@ -1137,7 +1256,7 @@ def live_wti_predict(user: dict[str, Any] = Depends(_require_auth_user)) -> dict
         confidence = float(np.clip(1.0 - min(1.0, vol / 0.03), 0.15, 0.95))
         return {
             "input_csv": str(live_input_csv.resolve()),
-            "weights": str(LIVE_WEIGHTS.resolve()),
+            "weights": str(selected_weights_path.resolve()),
             "window_len": int(min(15, len(closes))),
             "return_type": "simple",
             "vmd_k": 8,
@@ -1149,7 +1268,7 @@ def live_wti_predict(user: dict[str, Any] = Depends(_require_auth_user)) -> dict
             "true_vs_denoised_confidence": confidence,
             "pred_prob_up": prob_up,
             "model": "wti_live_predict.py",
-            "weights_file": str(LIVE_WEIGHTS.resolve()),
+            "weights_file": str(selected_weights_path.resolve()),
             "mode": "inference_only_fallback",
             "fallback_reason": "; ".join(
                 issues
@@ -1167,7 +1286,7 @@ def live_wti_predict(user: dict[str, Any] = Depends(_require_auth_user)) -> dict
         pred_price = last_price * (1.0 + pred_return)
         return {
             "input_csv": "",
-            "weights": str(LIVE_WEIGHTS.resolve()),
+            "weights": str(selected_weights_path.resolve()),
             "window_len": 15,
             "return_type": "simple",
             "vmd_k": 8,
@@ -1179,7 +1298,7 @@ def live_wti_predict(user: dict[str, Any] = Depends(_require_auth_user)) -> dict
             "true_vs_denoised_confidence": 0.5,
             "pred_prob_up": 0.5,
             "model": "wti_live_predict.py",
-            "weights_file": str(LIVE_WEIGHTS.resolve()),
+            "weights_file": str(selected_weights_path.resolve()),
             "mode": "inference_only_fallback",
             "fallback_reason": f"unexpected_error:{exc}",
         }
@@ -1187,7 +1306,7 @@ def live_wti_predict(user: dict[str, Any] = Depends(_require_auth_user)) -> dict
 
 @app.get("/api/oil/monitor/resolve", summary="解析训练监控目录")
 def resolve_monitor_dir(
-    mode: str = Query("latest", description="running|active_by_log|selected|latest|manual"),
+    mode: str = Query("default", description="default|latest"),
     selected_run_id: str | None = Query(None),
     manual_dir: str | None = Query(None),
     user: dict[str, Any] = Depends(_require_auth_user),
@@ -1203,11 +1322,16 @@ def resolve_monitor_dir(
     running_dir = Path(str(running_lock.get("output_dir"))) if running_lock else None
     active_dir = _pick_most_recent_active_run_dir(run_dirs)
     latest_dir = run_dirs[0].resolve() if run_dirs else None
+    default_dir = (WEB_RUNS_DIR / DEFAULT_SHARED_RUN_ID).resolve()
+    if not default_dir.is_dir():
+        default_dir = None
     selected_dir = (WEB_RUNS_DIR / selected_run_id).resolve() if selected_run_id else None
     manual_path = Path(manual_dir).resolve() if manual_dir else None
 
     monitor_dir: Path | None = None
-    if mode == "running":
+    if mode == "default":
+        monitor_dir = default_dir
+    elif mode == "running":
         monitor_dir = running_dir
     elif mode == "active_by_log":
         monitor_dir = active_dir
@@ -1223,13 +1347,15 @@ def resolve_monitor_dir(
         "monitor_dir": str(monitor_dir) if monitor_dir else None,
         "running_dir": str(running_dir) if running_dir else None,
         "active_by_log_dir": str(active_dir) if active_dir else None,
+        "default_dir": str(default_dir) if default_dir else None,
         "latest_dir": str(latest_dir) if latest_dir else None,
     }
 
 
 @app.post("/api/oil/runs")
 async def create_oil_run(
-    zip_file: UploadFile = File(...),
+    zip_file: UploadFile | None = File(None),
+    model_name: str | None = Form(None),
     top_n: int = Form(10),
     epochs: int = Form(200),
     forecast_steps: int = Form(1),
@@ -1238,7 +1364,7 @@ async def create_oil_run(
     auto_bond_after_oil: bool = Form(False),
     user: dict[str, Any] = Depends(_require_auth_user),
 ) -> dict[str, Any]:
-    if not zip_file.filename or not zip_file.filename.lower().endswith(".zip"):
+    if zip_file is not None and zip_file.filename and not zip_file.filename.lower().endswith(".zip"):
         raise HTTPException(status_code=400, detail="仅支持 zip 数据包")
     if top_n < 5 or top_n > 200:
         raise HTTPException(status_code=400, detail="top_n 必须在 5~200")
@@ -1255,45 +1381,45 @@ async def create_oil_run(
                 detail=f"当前已有任务运行中: {busy.get('output_dir', '')}",
             )
 
+        model_name_clean = _sanitize_model_name(model_name)
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        run_id = f"run_{ts}_top{top_n}"
+        run_id = f"run_{model_name_clean}_{ts}_top{top_n}" if model_name_clean else f"run_{ts}_top{top_n}"
         run_dir = WEB_RUNS_DIR / run_id
         data_dir = run_dir / "_data"
         run_dir.mkdir(parents=True, exist_ok=True)
         data_dir.mkdir(parents=True, exist_ok=True)
 
         try:
-            zip_bytes = await zip_file.read()
-            _extract_zip_to_dir(zip_bytes, data_dir)
-            data_root = _find_data_root(data_dir)
-            ok, msg = _validate_data_root(data_root)
-            if not ok:
-                raise HTTPException(status_code=400, detail=msg)
+            if zip_file is not None and zip_file.filename:
+                zip_bytes = await zip_file.read()
+                _extract_zip_to_dir(zip_bytes, data_dir)
+                data_root = _find_data_root(data_dir)
+                ok, msg = _validate_data_root(data_root)
+                if not ok:
+                    raise HTTPException(status_code=400, detail=msg)
+            else:
+                data_root = _find_data_root(DEFAULT_OIL_DATA_DIR)
+                ok, msg = _validate_data_root(data_root)
+                if not ok:
+                    raise HTTPException(status_code=400, detail=f"默认数据 OilData 不可用: {msg}")
         except HTTPException:
             raise
         except Exception as exc:
             raise HTTPException(status_code=500, detail=f"解压或校验失败: {exc}") from exc
 
-        cmd = [
-            "python",
-            "-u",
-            SCRIPT_NAME,
-            "--base-path",
-            str(data_root.resolve()),
-            "--top-n",
-            str(int(top_n)),
-            "--epochs",
-            str(int(epochs)),
-            "--output-dir",
-            str(run_dir.resolve()),
-            "--no-plots",
-        ]
-        if not enable_early_stopping:
-            cmd.append("--disable-early-stopping")
-        if cutoff_date:
-            cmd.extend(["--cutoff-date", cutoff_date])
-        if int(forecast_steps) > 0:
-            cmd.extend(["--forecast-steps", str(int(forecast_steps))])
+        cmd, run_env = _build_oil_train_cmd_and_env(
+            script_name=SCRIPT_NAME,
+            data_root=data_root,
+            run_dir=run_dir,
+            top_n=int(top_n),
+            epochs=int(epochs),
+            forecast_steps=int(forecast_steps),
+            cutoff_date=cutoff_date,
+            enable_early_stopping=bool(enable_early_stopping),
+            weights_output_name=(
+                f"{model_name_clean}.weights.h5" if model_name_clean else "gru_sequence_weights.weights.h5"
+            ),
+        )
 
         log_path = run_dir / "run.log"
         started_path = run_dir / "run.started"
@@ -1305,6 +1431,7 @@ async def create_oil_run(
                     f"epochs={epochs}",
                     f"forecast_steps={forecast_steps}",
                     f"cutoff_date={cutoff_date or ''}",
+                    f"model_name={model_name_clean}",
                 ]
             ),
             encoding="utf-8",
@@ -1319,7 +1446,7 @@ async def create_oil_run(
             encoding="utf-8",
             errors="replace",
             bufsize=1,
-            env={**os.environ, "PYTHONUNBUFFERED": "1", "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"},
+            env=run_env,
         )
         _PROCESS_POOL[run_id] = proc
         _write_global_lock(proc.pid, run_id=run_id, output_dir=str(run_dir.resolve()))
@@ -1818,10 +1945,75 @@ def get_latest_new_energy_result(
     _assert_run_access(run_id, int(user["id"]))
     run_dir = WEB_RUNS_DIR / run_id
     ne_root = run_dir / "new_energy_runs"
+    def _build_demo_new_energy_payload() -> dict[str, Any]:
+        demo_dates = pd.date_range(end=datetime.now().date(), periods=60, freq="D")
+        t = np.arange(len(demo_dates), dtype=float)
+        mean = 0.12 + 0.04 * np.sin(t / 5.0)
+        sigma = 0.06 + 0.015 * (1 + np.cos(t / 8.0))
+        ci_low = mean - 1.96 * sigma
+        ci_high = mean + 1.96 * sigma
+        q50 = float(np.quantile(sigma, 0.5))
+        q80 = float(np.quantile(sigma, 0.8))
+        risk = np.where(sigma >= q80, "HIGH", np.where(sigma >= q50, "MEDIUM", "LOW"))
+        risk_counts = {
+            "LOW": int((risk == "LOW").sum()),
+            "MEDIUM": int((risk == "MEDIUM").sum()),
+            "HIGH": int((risk == "HIGH").sum()),
+        }
+        rows = pd.DataFrame(
+            {
+                "Date_target": demo_dates.strftime("%Y-%m-%d"),
+                "Lambda_t": mean * 9.5,
+                "NewEnergy_MeanPred": mean,
+                "NewEnergy_Sigma": sigma,
+                "CI_low": ci_low,
+                "CI_high": ci_high,
+                "RiskLevel": risk,
+                "Q50": q50,
+                "Q80": q80,
+            }
+        )
+        return {
+            "run_id": run_id,
+            "latest_dir": "",
+            "log_tail": "默认演示数据：当前默认模型下暂无新能源整合历史输出，已返回演示图表。",
+            "images": [],
+            "csv_preview": {"exists": True, "rows": rows.to_dict(orient="records")},
+            "chart_csv_previews": {
+                "new_energy_demo_chart_ci_band": {"exists": True, "rows": rows.to_dict(orient="records")},
+                "new_energy_demo_chart_sigma": {
+                    "exists": True,
+                    "rows": rows[["Date_target", "NewEnergy_Sigma", "Q50", "Q80"]].to_dict(orient="records"),
+                },
+                "new_energy_demo_chart_risk_distribution": {
+                    "exists": True,
+                    "rows": [{"RiskLevel": k, "Count": v} for k, v in risk_counts.items()],
+                },
+                "new_energy_demo_chart_ci_width_hist": {
+                    "exists": True,
+                    "rows": [{"CI_width": float(x)} for x in (ci_high - ci_low)],
+                },
+                "new_energy_demo_chart_meanpred_hist": {
+                    "exists": True,
+                    "rows": [{"NewEnergy_MeanPred": float(x)} for x in mean],
+                },
+                "new_energy_demo_chart_lambda_sigma_scatter": {
+                    "exists": True,
+                    "rows": [
+                        {"Lambda_t": float(lam), "NewEnergy_Sigma": float(sig)}
+                        for lam, sig in zip((mean * 9.5), sigma)
+                    ],
+                },
+            },
+        }
     if not ne_root.is_dir():
+        if run_id == DEFAULT_SHARED_RUN_ID:
+            return _build_demo_new_energy_payload()
         raise HTTPException(status_code=404, detail="还没有新能源运行记录")
     candidates = [p for p in ne_root.iterdir() if p.is_dir() and p.name.startswith("new_energy_")]
     if not candidates:
+        if run_id == DEFAULT_SHARED_RUN_ID:
+            return _build_demo_new_energy_payload()
         raise HTTPException(status_code=404, detail="还没有新能源运行记录")
     candidates.sort(key=lambda x: x.stat().st_mtime, reverse=True)
     latest = candidates[0]
@@ -1956,6 +2148,70 @@ def get_latest_bond_result(
             if out.is_dir():
                 candidates.append(out)
     if not candidates:
+        if run_id == DEFAULT_SHARED_RUN_ID:
+            demo_dates = pd.date_range(end=datetime.now().date(), periods=60, freq="D")
+            t = np.arange(len(demo_dates), dtype=float)
+            mean = 0.2 + 0.05 * np.sin(t / 6.0)
+            sigma = 0.08 + 0.02 * (1 + np.sin(t / 9.0))
+            ci_low = mean - 1.96 * sigma
+            ci_high = mean + 1.96 * sigma
+            q50 = float(np.quantile(sigma, 0.5))
+            q80 = float(np.quantile(sigma, 0.8))
+            risk_counts = {
+                "LOW": int((sigma < q50).sum()),
+                "MEDIUM": int(((sigma >= q50) & (sigma < q80)).sum()),
+                "HIGH": int((sigma >= q80).sum()),
+            }
+            return {
+                "run_id": run_id,
+                "latest_dir": "",
+                "log_tail": "默认演示数据：当前默认模型下暂无绿债历史输出，已返回演示图表。",
+                "images": [],
+                "csv_preview": {
+                    "exists": True,
+                    "rows": pd.DataFrame(
+                        {
+                            "Date_target": demo_dates.strftime("%Y-%m-%d"),
+                            "Oil_GRU_z_used": (mean * 10.0),
+                            "NewEnergy_MeanPred": mean,
+                            "NewEnergy_Sigma": sigma,
+                            "CI_low": ci_low,
+                            "CI_high": ci_high,
+                            "ConfLevel": 0.95,
+                            "RiskLevel": np.where(sigma >= q80, "HIGH", np.where(sigma >= q50, "MEDIUM", "LOW")),
+                        }
+                    ).to_dict(orient="records"),
+                },
+                "chart_csv_previews": {
+                    "bond_demo_chart_ci_band": {
+                        "exists": True,
+                        "rows": pd.DataFrame(
+                            {
+                                "Date_target": demo_dates.strftime("%Y-%m-%d"),
+                                "NewEnergy_MeanPred": mean,
+                                "CI_low": ci_low,
+                                "CI_high": ci_high,
+                                "NewEnergy_Sigma": sigma,
+                            }
+                        ).to_dict(orient="records"),
+                    },
+                    "bond_demo_chart_sigma": {
+                        "exists": True,
+                        "rows": pd.DataFrame(
+                            {
+                                "Date_target": demo_dates.strftime("%Y-%m-%d"),
+                                "NewEnergy_Sigma": sigma,
+                                "Q50": q50,
+                                "Q80": q80,
+                            }
+                        ).to_dict(orient="records"),
+                    },
+                    "bond_demo_chart_risk_distribution": {
+                        "exists": True,
+                        "rows": [{"RiskLevel": k, "Count": v} for k, v in risk_counts.items()],
+                    },
+                },
+            }
         raise HTTPException(status_code=404, detail="未找到绿债输出目录")
     candidates.sort(key=lambda x: x.stat().st_mtime, reverse=True)
     chosen = None
@@ -2161,13 +2417,42 @@ def get_result_charts(
 
     out: dict[str, Any] = {"run_id": run_id, "charts": {}}
     for key, filename in chart_files.items():
-        # 固定优先读取项目根目录 chart_*.csv
-        payload = _read_chart_csv(APP_DIR, filename, rows=rows)
-        # 根目录不存在时，再回退读取 run 目录
+        # 先读当前 run 目录（优先展示新训练结果）
+        payload = _read_chart_csv(run_dir, filename, rows=rows)
+        # 当前 run 缺失时回退到项目根目录默认 chart_*.csv（默认展示）
         if not payload.get("exists"):
-            payload = _read_chart_csv(run_dir, filename, rows=rows)
+            payload = _read_chart_csv(APP_DIR, filename, rows=rows)
         if not payload.get("exists"):
             payload = _build_legacy_chart_data(run_dir, key, rows=rows)
+        out["charts"][key] = payload
+    return out
+
+
+@app.get("/api/oil/result-charts/default", summary="结果页默认图表（源代码根目录 CSV）")
+def get_default_result_charts(
+    rows: int = Query(5000, ge=100, le=50000),
+    user: dict[str, Any] = Depends(_require_auth_user),
+) -> dict[str, Any]:
+    _ = user
+    chart_files = {
+        "test_predictions": "chart_test_predictions.csv",
+        "train_val_loss": "chart_train_val_loss.csv",
+        "residual_distribution": "chart_residual_distribution.csv",
+        "return_scatter": "chart_return_scatter.csv",
+        "direction_prediction": "chart_direction_prediction.csv",
+        "direction_confusion_matrix": "chart_direction_confusion_matrix.csv",
+        "direction_prob_distribution": "chart_direction_prob_distribution.csv",
+        "backtest_nav_curve": "chart_backtest_nav_curve.csv",
+        "preprocess_before_after_returns": "chart_preprocess_before_after_returns.csv",
+        "preprocess_feature_compare": "chart_preprocess_feature_compare.csv",
+        "vmd_before_after": "chart_vmd_before_after.csv",
+    }
+
+    out: dict[str, Any] = {"run_id": "default-root", "charts": {}}
+    for key, filename in chart_files.items():
+        payload = _read_chart_csv(APP_DIR, filename, rows=rows)
+        if not payload.get("exists"):
+            payload = _build_legacy_chart_data(APP_DIR, key, rows=rows)
         out["charts"][key] = payload
     return out
 

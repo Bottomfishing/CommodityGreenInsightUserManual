@@ -1,5 +1,5 @@
 <template>
-  <div class="home-page">
+  <div class="home-page" :class="{ 'home-page--long-page': isLongContentPage }">
     <!-- ══════════════════════════════════════════════════
          顶部贯穿导航栏
          ══════════════════════════════════════════════════ -->
@@ -90,13 +90,16 @@
             <line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
           <input
+            ref="searchInputRef"
             v-model="searchQuery"
             type="text"
             placeholder="搜索功能、数据、报告..."
             @focus="searchFocused = true"
             @blur="searchFocused = false"
+            @keydown.enter.prevent="handleSearchSubmit"
+            @keydown.esc.prevent="clearSearch"
           />
-          <kbd class="search-kbd">⌘K</kbd>
+          <kbd class="search-kbd">{{ searchShortcutLabel }}</kbd>
         </div>
 
         <div class="nav-user" @click="handleLogout" title="退出登录">
@@ -125,7 +128,11 @@
     <!-- ══════════════════════════════════════════════════
          主内容区域
          ══════════════════════════════════════════════════ -->
-    <main class="main-content">
+    <main
+      ref="mainContentRef"
+      class="main-content"
+      :class="{ 'main-content--long-page': isLongContentPage }"
+    >
       <section class="page-heading">
         <div class="page-heading-inner">
           <div class="heading-lines">
@@ -141,14 +148,15 @@
 
       <nav class="page-tabs">
         <button
-          v-for="tab in pageTabs"
+          v-for="tab in filteredPageTabs"
           :key="tab.key"
           class="page-tab-btn"
           :class="{ active: activePage === tab.key }"
-          @click="activePage = tab.key"
+          @click="setActivePage(tab.key)"
         >
           {{ tab.label }}
         </button>
+        <span v-if="searchQuery.trim() && !filteredPageTabs.length" class="page-tab-empty">无匹配功能</span>
       </nav>
 
       <template v-if="activePage === 'dashboard'">
@@ -307,12 +315,11 @@
               <dv-border-box-1 style="width: 100%; height: 100%">
                 <div class="bento-inner bento-ai-mini">
                   <div class="bento-icon ai-icon">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5" />
-                      <path d="M8.5 8.5v.01" />
-                      <path d="M16 15.5v.01" />
-                      <path d="M12 12v.01" />
-                    </svg>
+                    <img
+                      class="ai-icon-img"
+                      src="/assistant-avatar.png"
+                      alt="新手助手小绿头像"
+                    />
                   </div>
                   <div class="bento-title">新手助手小绿</div>
                   <button class="bento-btn bento-btn--primary bento-btn--mini" @click="openAIChat">对话</button>
@@ -381,7 +388,7 @@
       </template>
 
       <section v-else class="feature-panel">
-        <dv-border-box-1 style="width: 100%; height: 100%">
+        <div class="feature-panel-frame">
           <div class="feature-panel-inner">
             <h2 class="feature-title">{{ currentTabTitle }}</h2>
             <p class="feature-desc">{{ currentTabDesc }}</p>
@@ -403,20 +410,16 @@
               </div>
               <dv-decoration-3 class="module-head-line" />
               <div class="monitor-mode-row">
-                <label class="radio-item"><input v-model="monitorMode" type="radio" value="selected" /> 监控已选 Run</label>
-                <label class="radio-item"><input v-model="monitorMode" type="radio" value="latest" /> 监控最新 Run</label>
-                <label class="radio-item"><input v-model="monitorMode" type="radio" value="manual" /> 手动输入 RunId</label>
+                <label class="radio-item"><input v-model="monitorMode" type="radio" value="default" /> 监控默认模型</label>
+                <label class="radio-item"><input v-model="monitorMode" type="radio" value="latest" /> 监控最新训练</label>
+                <label class="radio-item"><input v-model="monitorMode" type="radio" value="history" /> 查看您的模型</label>
               </div>
-              <label v-if="monitorMode === 'manual'" class="field">
-                <span>手动 RunId</span>
-                <input v-model.trim="manualRunId" type="text" placeholder="run_YYYYMMDD_HHMMSS_topN" />
-              </label>
-              <div class="form-grid">
+              <div v-if="monitorMode === 'history'" class="form-grid">
                 <label class="field">
-                  <span>选择 run</span>
+                  <span>历史模型（Run）</span>
                   <select v-model="selectedRunId">
-                    <option value="">自动选择最新</option>
-                    <option v-for="run in runList" :key="run.run_id" :value="run.run_id">
+                    <option value="">请选择您的历史模型</option>
+                    <option v-for="run in runList" :key="`history-${run.run_id}`" :value="run.run_id">
                       {{ run.run_id }}（{{ run.status || "unknown" }}）
                     </option>
                   </select>
@@ -440,18 +443,27 @@
                 <div class="status-chip">prediction_results.csv: {{ fileStatuses.predResults }}</div>
                 <div class="status-chip">run.log: {{ fileStatuses.runLog }}</div>
               </div>
+              <div class="monitor-progress">
+                <div class="monitor-progress-head">
+                  <span>训练进度</span>
+                  <span>{{ monitorProgressLabel }}</span>
+                </div>
+                <div class="monitor-progress-track">
+                  <div class="monitor-progress-fill" :style="{ width: `${monitorProgressPct}%` }"></div>
+                </div>
+              </div>
               <div class="data-block">
                 <h3>Loss 曲线（实时）</h3>
                 <div v-if="!hasLossSeries" class="chart-empty">暂无 Loss 数据</div>
                 <div v-else ref="lossChartRef" class="chart-box"></div>
               </div>
               <div class="data-block">
-                <h3>价格对比曲线（实时）</h3>
+                <h3>价格对比曲线（训练完获得）</h3>
                 <div v-if="!hasPriceSeries" class="chart-empty">暂无价格对比数据</div>
                 <div v-else ref="priceChartRef" class="chart-box"></div>
               </div>
               <div class="data-block">
-                <h3>收益对比曲线（实时）</h3>
+                <h3>收益对比曲线（训练完获得）</h3>
                 <div v-if="!hasReturnSeries" class="chart-empty">暂无收益对比数据</div>
                 <div v-else ref="returnChartRef" class="chart-box"></div>
               </div>
@@ -502,7 +514,7 @@
                 <h3>运行日志</h3>
                 <div v-if="!logText" class="chart-empty">暂无日志</div>
                 <div v-else class="log-columns">
-                  <pre v-for="(column, idx) in logColumns" :key="`log-col-${idx}`">{{ column }}</pre>
+                  <pre class="log-terminal-pre">{{ logText }}</pre>
                 </div>
               </div>
             </div>
@@ -706,6 +718,10 @@
                 <div v-if="!greenBondLatest" class="chart-empty">暂无数据，点击“查看最新结果”获取。</div>
                 <template v-else>
                   <div class="data-block">
+                    <h3>运行日志（tail）</h3>
+                    <pre class="log-pre">{{ greenBondLatest.log_tail || greenBondLatest.error || "暂无日志" }}</pre>
+                  </div>
+                  <div class="data-block">
                     <h3>CSV 预览</h3>
                     <div v-if="!greenBondLatest.csv_preview?.exists" class="chart-empty">
                       {{ greenBondLatest.error || "未发现输出 CSV" }}
@@ -768,12 +784,6 @@
                 </div>
               </div>
 
-              <div class="data-block">
-                <h3>脚本说明</h3>
-                <div class="chart-empty">
-                  当前页面已接入 `predict_bond_from_gru.py` 对应后端任务（`/oil/runs/{run_id}/bond`），可直接启动并查看最新 CSV 结果。
-                </div>
-              </div>
             </div>
 
             <div v-else-if="activePage === 'live'" class="work-panel">
@@ -782,6 +792,26 @@
                 <span class="module-head-title">实盘预测</span>
               </div>
               <dv-decoration-3 class="module-head-line" />
+              <div class="form-grid">
+                <label class="field">
+                  <span>历史 Run</span>
+                  <select v-model="liveWeightsRunId">
+                    <option value="">默认权重（全局）</option>
+                    <option v-for="run in runList" :key="`live-run-${run.run_id}`" :value="run.run_id">
+                      {{ run.run_id }}（{{ run.status || "unknown" }}）
+                    </option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>权重文件</span>
+                  <select v-model="liveWeightsName" :disabled="!liveWeightsRunId || liveWeightsOptions.length === 0">
+                    <option value="">自动选择（该 run 最新 .h5）</option>
+                    <option v-for="name in liveWeightsOptions" :key="`live-weight-${name}`" :value="name">
+                      {{ name }}
+                    </option>
+                  </select>
+                </label>
+              </div>
               <div class="feature-actions">
                 <button class="feature-btn feature-btn--primary" :disabled="livePredictLoading" @click="runLivePredict">
                   {{ livePredictLoading ? "推理中..." : "开始实盘推理（仅推理）" }}
@@ -819,7 +849,7 @@
               <button class="feature-btn" @click="activePage = 'dashboard'">返回总览</button>
             </div>
           </div>
-        </dv-border-box-1>
+        </div>
       </section>
     </main>
 
@@ -849,6 +879,7 @@ import DownloadPanel from "../components/home/DownloadPanel.vue";
 import {
   createOilRun,
   fetchAnalytics,
+  fetchDefaultResultCharts,
   fetchResultCharts,
   fetchFiles,
   fetchOverview,
@@ -884,7 +915,7 @@ const activePage = ref<
 >("dashboard");
 const pageTabs = [
   { key: "dashboard", label: "总览" },
-  { key: "run", label: "运行配置" },
+  { key: "run", label: "训练您的模型" },
   { key: "monitor", label: "训练监控" },
   { key: "results", label: "结果预览" },
   { key: "download", label: "下载导出" },
@@ -892,24 +923,30 @@ const pageTabs = [
   { key: "greenBond", label: "绿色债券预测" },
   { key: "live", label: "实盘预测" },
 ] as const;
+type PageTabKey = (typeof pageTabs)[number]["key"];
 const pageMeta: Record<(typeof pageTabs)[number]["key"], { title: string; desc: string }> = {
   dashboard: { title: "总览大屏", desc: "核心行情、功能入口与实时数据监控。" },
-  run: { title: "运行配置", desc: "配置数据上传、模型参数与任务启动流程。" },
+  run: { title: "训练您的模型", desc: "配置数据上传、模型参数与任务启动流程。" },
   monitor: { title: "训练监控", desc: "查看任务状态、训练进度与运行日志。" },
   results: { title: "结果预览", desc: "查看指标结果、图表表现与分析摘要。" },
   download: { title: "下载导出", desc: "导出报告、图表和模型输出文件。" },
   greenStock: { title: "绿色股票预测", desc: "基于油价因子与多维特征的绿色股票收益/风险预测。" },
   greenBond: { title: "绿色债券预测", desc: "基于油价因子与利率环境的绿色债券收益/风险预测。" },
-  live: { title: "实盘预测", desc: "实时拉取行情并输出下一步预测与风险提示，使用 `wti_live_predict.py` 推理逻辑，权重固定为 `gru_sequence_weights.weights.h5`，不进行训练。" },
+  live: { title: "实盘预测", desc: "实时拉取行情并输出下一步预测与风险提示，可选择您的模型的权重文件，用您训练好的模型进行推理。" },
 };
 const currentTabTitle = computed(() => pageMeta[activePage.value].title);
 const currentTabDesc = computed(() => pageMeta[activePage.value].desc);
 const currentPath = computed(() => `/home/${activePage.value}`);
+const isLongContentPage = computed(() =>
+  ["monitor", "results", "greenStock", "greenBond"].includes(activePage.value),
+);
+const mainContentRef = ref<HTMLElement | null>(null);
 const systemBusy = ref(false);
 const runList = ref<any[]>([]);
 const selectedRunId = ref("");
 
 const runForm = reactive({
+  modelName: "",
   topN: 50,
   epochs: 100,
   forecastSteps: 15,
@@ -931,6 +968,9 @@ const aiReportText = ref("");
 const runFiles = ref<any[]>([]);
 const livePredictLoading = ref(false);
 const livePredictResult = ref<any>(null);
+const liveWeightsRunId = ref("");
+const liveWeightsName = ref("");
+const liveWeightsOptions = ref<string[]>([]);
 
 // ===== 绿色股票（新能源整合预测）=====
 const greenStockZipFile = ref<File | null>(null);
@@ -976,8 +1016,8 @@ let bondCiWidthChart: any = null;
 let bondMeanHistChart: any = null;
 let bondScatterChart: any = null;
 let refreshTimer: number | undefined;
-const monitorMode = ref<"selected" | "latest" | "manual">("selected");
-const manualRunId = ref("");
+const DEFAULT_MONITOR_RUN_ID = "默认数据";
+const monitorMode = ref<"default" | "latest" | "history">("default");
 const monitorAutoRefresh = ref(true);
 const monitorRefreshSec = ref(3);
 const fileStatuses = reactive({
@@ -1011,6 +1051,155 @@ const wtiCandleChartRef = ref<HTMLDivElement | null>(null);
 const wtiCandleData = ref<any[]>([]);
 let wtiCandleChart: any = null;
 
+function buildDefaultMonitorPayload() {
+  const dates = Array.from({ length: 24 }, (_, i) => `T${String(i + 1).padStart(2, "0")}`);
+  const loss_series = dates.map((_, i) => ({
+    epoch: i + 1,
+    loss: Number((1.08 * Math.exp(-i / 10) + 0.035 * Math.sin(i / 2.2) + 0.06).toFixed(6)),
+    val_loss: Number((1.16 * Math.exp(-i / 11) + 0.04 * Math.cos(i / 2.5) + 0.08).toFixed(6)),
+  }));
+  const price_series = dates.map((d, i) => {
+    const base = 72 + i * 0.18 + Math.sin(i / 2.6) * 0.9;
+    return {
+      Date_target: d,
+      Actual_P_t_plus_H: Number(base.toFixed(4)),
+      GRU_Pred_P_t_plus_H: Number((base + Math.sin(i / 3.1) * 0.18).toFixed(4)),
+    };
+  });
+  const return_series = price_series.map((r: any, i: number, arr: any[]) => {
+    if (i === 0) return { Date_target: r.Date_target, Actual_Return: 0, GRU_Pred_Return: 0 };
+    const prev = arr[i - 1].Actual_P_t_plus_H || 1;
+    const predPrev = arr[i - 1].GRU_Pred_P_t_plus_H || 1;
+    return {
+      Date_target: r.Date_target,
+      Actual_Return: Number((((r.Actual_P_t_plus_H - prev) / prev) * 100).toFixed(4)),
+      GRU_Pred_Return: Number((((r.GRU_Pred_P_t_plus_H - predPrev) / predPrev) * 100).toFixed(4)),
+    };
+  });
+  return {
+    run_id: "default-preview",
+    loss_series,
+    price_series,
+    return_series,
+    run_log_tail: [
+      "[default] monitor preview mode",
+      "Epoch 24/24 - loss: 0.0623 - val_loss: 0.0819",
+      "No active training task. Showing default dashboard.",
+    ].join("\n"),
+    is_log_active: false,
+    is_recently_started: false,
+  };
+}
+
+function buildDefaultResultChartsPayload() {
+  const idx = Array.from({ length: 36 }, (_, i) => i + 1);
+  const prices = idx.map((i) => 70 + i * 0.16 + Math.sin(i / 3) * 0.8);
+  const predPrices = prices.map((v, i) => v + Math.cos(i / 4) * 0.22);
+  const trainLoss = idx.slice(0, 24).map((i) => 1.06 * Math.exp(-i / 10) + 0.06);
+  const valLoss = idx.slice(0, 24).map((i) => 1.12 * Math.exp(-i / 10.5) + 0.085);
+  const returns = prices.map((v, i) => (i === 0 ? 0 : (v - prices[i - 1]) / prices[i - 1]));
+  const predReturns = predPrices.map((v, i) => (i === 0 ? 0 : (v - predPrices[i - 1]) / predPrices[i - 1]));
+  const residuals = returns.map((v, i) => v - predReturns[i]);
+  return {
+    run_id: "default-preview",
+    charts: {
+      test_predictions: {
+        exists: true,
+        file: "chart_test_predictions.csv",
+        rows: idx.map((x, i) => ({
+          test_index: x,
+          actual_price: Number(prices[i].toFixed(4)),
+          pred_price: Number(predPrices[i].toFixed(4)),
+          actual_return: Number(returns[i].toFixed(6)),
+          pred_return: Number(predReturns[i].toFixed(6)),
+        })),
+      },
+      train_val_loss: {
+        exists: true,
+        file: "chart_train_val_loss.csv",
+        rows: trainLoss.map((v, i) => ({
+          epoch: i + 1,
+          train_loss: Number(v.toFixed(6)),
+          val_loss: Number(valLoss[i].toFixed(6)),
+        })),
+      },
+      return_scatter: {
+        exists: true,
+        file: "chart_return_scatter.csv",
+        rows: returns.slice(1).map((v, i) => ({
+          y_true: Number(v.toFixed(6)),
+          y_pred: Number(predReturns[i + 1].toFixed(6)),
+        })),
+      },
+      residual_distribution: {
+        exists: true,
+        file: "chart_residual_distribution.csv",
+        rows: residuals.slice(1).map((v, i) => ({
+          sample_index: i + 1,
+          residual: Number(v.toFixed(6)),
+        })),
+      },
+      direction_prediction: {
+        exists: true,
+        file: "chart_direction_prediction.csv",
+        rows: returns.slice(1).map((v, i) => ({
+          sample_index: i + 1,
+          true_direction: v >= 0 ? 1 : 0,
+          pred_direction: predReturns[i + 1] >= 0 ? 1 : 0,
+        })),
+      },
+      direction_confusion_matrix: {
+        exists: true,
+        file: "chart_direction_confusion_matrix.csv",
+        rows: [
+          { true_label: "down", pred_label: "down", count: 9 },
+          { true_label: "down", pred_label: "up", count: 2 },
+          { true_label: "up", pred_label: "down", count: 1 },
+          { true_label: "up", pred_label: "up", count: 12 },
+        ],
+      },
+      direction_prob_distribution: {
+        exists: true,
+        file: "chart_direction_prob_distribution.csv",
+        rows: returns.slice(1).map((v, i) => ({
+          sample_index: i + 1,
+          prob_up: Number((0.5 + v * 12).toFixed(4)),
+        })),
+      },
+      backtest_nav_curve: {
+        exists: true,
+        file: "chart_backtest_nav_curve.csv",
+        rows: idx.map((x, i) => ({
+          test_index: x,
+          strategy_nav: Number((1 + i * 0.008 + Math.sin(i / 6) * 0.01).toFixed(6)),
+          buy_hold_nav: Number((1 + i * 0.004 + Math.cos(i / 8) * 0.008).toFixed(6)),
+        })),
+      },
+      vmd_before_after: {
+        exists: true,
+        file: "chart_vmd_before_after.csv",
+        rows: idx.map((x, i) => ({
+          sample_index: x,
+          before: Number((returns[i] * 100).toFixed(6)),
+          after: Number((predReturns[i] * 100).toFixed(6)),
+        })),
+      },
+    },
+  };
+}
+
+function withDefaultResultCharts(payload: any) {
+  const fallback = buildDefaultResultChartsPayload();
+  const source = payload && typeof payload === "object" ? payload : {};
+  const sourceCharts = source.charts && typeof source.charts === "object" ? source.charts : {};
+  const mergedCharts: Record<string, any> = { ...fallback.charts };
+  for (const key of Object.keys(sourceCharts)) {
+    const rows = Array.isArray(sourceCharts[key]?.rows) ? sourceCharts[key].rows : [];
+    if (rows.length) mergedCharts[key] = sourceCharts[key];
+  }
+  return { ...fallback, ...source, charts: mergedCharts };
+}
+
 const overviewPreview = computed(() =>
   overviewData.value ? JSON.stringify(overviewData.value, null, 2) : "暂无概览数据",
 );
@@ -1042,20 +1231,11 @@ const dashboardLossRows = computed(() => {
     valLoss: formatMetricNumber(item?.val_loss),
   }));
 });
-const logColumns = computed(() => {
-  const text = (logText.value || "").trim();
-  if (!text) return [];
-  const lines = text.split(/\r?\n/);
-  const mid = Math.ceil(lines.length / 2);
-  const left = lines.slice(0, mid).join("\n");
-  const right = lines.slice(mid).join("\n");
-  return [left, right];
-});
 const runCount = computed(() => runList.value.length);
 const activeMonitorRunId = computed(() => {
-  if (monitorMode.value === "manual") return manualRunId.value || "";
+  if (monitorMode.value === "default") return DEFAULT_MONITOR_RUN_ID;
   if (monitorMode.value === "latest") return runList.value?.[0]?.run_id || "";
-  return selectedRunId.value;
+  return selectedRunId.value || "";
 });
 const hasLossSeries = computed(
   () => Array.isArray(dashboardData.value?.loss_series) && dashboardData.value.loss_series.length > 0,
@@ -1066,10 +1246,88 @@ const hasPriceSeries = computed(
 const hasReturnSeries = computed(
   () => Array.isArray(dashboardData.value?.return_series) && dashboardData.value.return_series.length > 0,
 );
+const activeRunStatus = computed(() => {
+  const rid = activeMonitorRunId.value;
+  if (!rid) return "";
+  const hit = runList.value.find((r: any) => String(r?.run_id || "") === rid);
+  return String(hit?.status || "").toLowerCase();
+});
+const monitorProgressPct = computed(() => {
+  const trainedEpochs = Number(dashboardMeta.value.totalEpochs || 0);
+  const targetEpochs = Math.max(Number(runForm.epochs || 0), 1);
+  if (trainedEpochs <= 0) return 0;
+  let pct = Math.round((trainedEpochs / targetEpochs) * 100);
+  if (activeRunStatus.value === "running") {
+    pct = Math.min(99, Math.max(1, pct));
+  } else {
+    pct = Math.min(100, Math.max(1, pct));
+  }
+  return pct;
+});
+const monitorProgressLabel = computed(() => {
+  if (!hasLossSeries.value) return "暂无训练数据（如果您已经开启了训练，但此进度条不动，说明目前在进行特征工程阶段，等进入模型训练阶段进度条会动，在上栏可以查看您现在是否在运行）";
+  const epochs = Number(dashboardMeta.value.totalEpochs || 0);
+  const target = Math.max(Number(runForm.epochs || 0), 1);
+  if (activeRunStatus.value === "running") {
+    return `${epochs}/${target} · 训练中 ${monitorProgressPct.value}%`;
+  }
+  return `${epochs}/${target} · ${monitorProgressPct.value}%`;
+});
 
 // ===== 搜索 =====
 const searchQuery = ref("");
 const searchFocused = ref(false);
+const searchInputRef = ref<HTMLInputElement | null>(null);
+const searchShortcutLabel = /Mac|iPhone|iPad|iPod/i.test(navigator.platform) ? "⌘K" : "Ctrl+K";
+const pageSearchKeywords: Record<PageTabKey, string[]> = {
+  dashboard: ["总览", "大屏", "首页", "dashboard", "overview", "监控台"],
+  run: ["运行", "配置", "上传", "训练参数", "run", "config", "zip"],
+  monitor: ["监控", "日志", "训练", "loss", "monitor", "log"],
+  results: ["结果", "预览", "图表", "报告", "results", "report", "chart"],
+  download: ["下载", "导出", "文件", "zip", "download", "export"],
+  greenStock: ["绿色股票", "新能源", "stock", "new energy"],
+  greenBond: ["绿色债券", "bond", "国债", "利率"],
+  live: ["实盘", "实时", "预测", "live", "wti"],
+};
+const filteredPageTabs = computed(() => {
+  const keyword = searchQuery.value.trim().toLowerCase();
+  if (!keyword) return pageTabs;
+  return pageTabs.filter((tab) => {
+    const meta = pageMeta[tab.key];
+    const searchText = [
+      tab.label,
+      meta.title,
+      meta.desc,
+      ...(pageSearchKeywords[tab.key] || []),
+    ]
+      .join(" ")
+      .toLowerCase();
+    return searchText.includes(keyword);
+  });
+});
+
+function focusSearchInput() {
+  searchFocused.value = true;
+  nextTick(() => {
+    searchInputRef.value?.focus();
+    searchInputRef.value?.select();
+  });
+}
+
+function clearSearch() {
+  if (searchQuery.value.trim()) {
+    searchQuery.value = "";
+    return;
+  }
+  searchFocused.value = false;
+  searchInputRef.value?.blur();
+}
+
+function handleSearchSubmit() {
+  const first = filteredPageTabs.value[0];
+  if (!first) return;
+  setActivePage(first.key);
+}
 
 // ===== 时间 =====
 const currentTime = ref("");
@@ -1214,12 +1472,14 @@ function onGreenStockZipSelected(event: Event) {
 }
 
 async function startGreenStockPredict() {
-  if (!selectedRunId.value) {
+  let runId = activeMonitorRunId.value || selectedRunId.value || "";
+  if (!runId) {
     await refreshRuns();
-    if (!selectedRunId.value) {
-      window.alert("请先选择一个 run_id");
-      return;
-    }
+    runId = activeMonitorRunId.value || selectedRunId.value || "";
+  }
+  if (!runId) {
+    window.alert("请先选择一个 run_id");
+    return;
   }
   greenStockLoading.value = true;
   greenStockStartMsg.value = "";
@@ -1235,7 +1495,7 @@ async function startGreenStockPredict() {
     formData.append("make_viz", String(greenStockConfig.makeViz));
     formData.append("rebuild_returns", String(greenStockConfig.rebuildReturns));
 
-    const res = await startNewEnergy(selectedRunId.value, formData);
+    const res = await startNewEnergy(runId, formData);
     greenStockStartMsg.value =
       typeof res?.message === "string"
         ? res.message
@@ -1248,13 +1508,15 @@ async function startGreenStockPredict() {
 }
 
 async function refreshGreenStockLatest() {
-  if (!selectedRunId.value) {
+  let runId = activeMonitorRunId.value || selectedRunId.value || "";
+  if (!runId) {
     await refreshRuns();
-    if (!selectedRunId.value) return;
+    runId = activeMonitorRunId.value || selectedRunId.value || "";
+    if (!runId) return;
   }
   greenStockLatestLoading.value = true;
   try {
-    const latest = await fetchNewEnergyLatest(selectedRunId.value, 80);
+    const latest = await fetchNewEnergyLatest(runId, 80);
     greenStockLatest.value = latest;
     await nextTick();
     await renderGreenStockCharts();
@@ -1443,12 +1705,14 @@ function onGreenBondZipSelected(event: Event) {
 }
 
 async function startGreenBondPredict() {
-  if (!selectedRunId.value) {
+  let runId = activeMonitorRunId.value || selectedRunId.value || "";
+  if (!runId) {
     await refreshRuns();
-    if (!selectedRunId.value) {
-      window.alert("请先选择一个 run_id");
-      return;
-    }
+    runId = activeMonitorRunId.value || selectedRunId.value || "";
+  }
+  if (!runId) {
+    window.alert("请先选择一个 run_id");
+    return;
   }
   greenBondLoading.value = true;
   greenBondStartMsg.value = "";
@@ -1458,7 +1722,7 @@ async function startGreenBondPredict() {
       // 可选字段：bond_zip_file
       formData.append("bond_zip_file", greenBondZipFile.value);
     }
-    const res = await startBond(selectedRunId.value, formData);
+    const res = await startBond(runId, formData);
     greenBondStartMsg.value =
       typeof res?.message === "string" ? res.message : "绿债预测已启动（后端已接收任务）";
   } catch (err: any) {
@@ -1469,13 +1733,15 @@ async function startGreenBondPredict() {
 }
 
 async function refreshGreenBondLatest() {
-  if (!selectedRunId.value) {
+  let runId = activeMonitorRunId.value || selectedRunId.value || "";
+  if (!runId) {
     await refreshRuns();
-    if (!selectedRunId.value) return;
+    runId = activeMonitorRunId.value || selectedRunId.value || "";
+    if (!runId) return;
   }
   greenBondLatestLoading.value = true;
   try {
-    const latest = await fetchBondLatest(selectedRunId.value, 80);
+    const latest = await fetchBondLatest(runId, 80);
     greenBondLatest.value = latest;
     await nextTick();
     await renderGreenBondCharts();
@@ -1489,12 +1755,38 @@ async function refreshGreenBondLatest() {
 async function runLivePredict() {
   livePredictLoading.value = true;
   try {
-    const res = await fetchLiveWtiPredict();
+    const res = await fetchLiveWtiPredict({
+      run_id: liveWeightsRunId.value || undefined,
+      weights_name: liveWeightsName.value || undefined,
+    });
     livePredictResult.value = res;
   } catch (err: any) {
     livePredictResult.value = { error: err?.message || "实盘推理失败" };
   } finally {
     livePredictLoading.value = false;
+  }
+}
+
+async function refreshLiveWeightsOptions() {
+  if (!liveWeightsRunId.value) {
+    liveWeightsOptions.value = [];
+    liveWeightsName.value = "";
+    return;
+  }
+  try {
+    const files = await fetchFiles(liveWeightsRunId.value);
+    const items = Array.isArray(files) ? files : files?.items || [];
+    const names = items
+      .map((item: any) => String(item?.name || item || "").trim())
+      .filter((name: string) => /\.(?:weights\.)?h5$/i.test(name))
+      .sort((a: string, b: string) => b.localeCompare(a));
+    liveWeightsOptions.value = names;
+    if (liveWeightsName.value && !names.includes(liveWeightsName.value)) {
+      liveWeightsName.value = "";
+    }
+  } catch {
+    liveWeightsOptions.value = [];
+    liveWeightsName.value = "";
   }
 }
 
@@ -1643,8 +1935,9 @@ async function refreshRuns() {
     const [status, runs] = await Promise.all([fetchSystemStatus(), fetchRunList()]);
     systemBusy.value = !!status?.global_busy;
     runList.value = Array.isArray(runs) ? runs : [];
-    if (!selectedRunId.value && runList.value.length) {
-      selectedRunId.value = runList.value[0].run_id || "";
+    if (selectedRunId.value) {
+      const exists = runList.value.some((r: any) => String(r?.run_id || "") === selectedRunId.value);
+      if (!exists) selectedRunId.value = "";
     }
   } catch {
     systemBusy.value = false;
@@ -1710,10 +2003,6 @@ async function refreshWtiCandles() {
 }
 
 async function submitRun() {
-  if (!selectedRunFile.value) {
-    window.alert("请先选择 ZIP 文件");
-    return;
-  }
   if (runForm.topN < 5 || runForm.topN > 200) {
     window.alert("TopN 必须在 5~200 之间");
     return;
@@ -1729,7 +2018,8 @@ async function submitRun() {
   runLoading.value = true;
   try {
     const formData = new FormData();
-    formData.append("zip_file", selectedRunFile.value);
+    if (selectedRunFile.value) formData.append("zip_file", selectedRunFile.value);
+    if (runForm.modelName.trim()) formData.append("model_name", runForm.modelName.trim());
     formData.append("top_n", String(runForm.topN));
     formData.append("epochs", String(runForm.epochs));
     formData.append("forecast_steps", String(runForm.forecastSteps));
@@ -1765,23 +2055,26 @@ async function stopCurrentRun() {
 async function refreshMonitor() {
   let runId = activeMonitorRunId.value;
   if (!runId) {
-    await refreshRuns();
-    runId = activeMonitorRunId.value;
-    if (!runId) return;
+    dashboardData.value = buildDefaultMonitorPayload();
+    logText.value = dashboardData.value.run_log_tail || "";
+    fileStatuses.trainingLog = "默认展示";
+    fileStatuses.predResults = "默认展示";
+    fileStatuses.runLog = "默认展示";
+    await nextTick();
+    renderMonitorCharts();
+    return;
   }
 
   try {
     const resolved = await resolveMonitor({
-      mode: monitorMode.value,
-      selected_run_id: monitorMode.value === "selected" ? selectedRunId.value || undefined : undefined,
-      manual_dir: monitorMode.value === "manual" ? manualRunId.value || undefined : undefined,
+      mode: monitorMode.value === "history" ? "selected" : monitorMode.value,
+      selected_run_id: monitorMode.value === "history" ? selectedRunId.value || undefined : undefined,
     });
     const resolvedRunId =
       resolved?.run_id ||
       (typeof resolved?.monitor_dir === "string" ? resolved.monitor_dir.split(/[/\\]/).pop() : "");
     if (resolvedRunId) {
       runId = resolvedRunId;
-      if (monitorMode.value !== "manual") selectedRunId.value = resolvedRunId;
     }
   } catch {
     // 后端不支持 resolve 时回退到当前前端 runId
@@ -1812,16 +2105,35 @@ async function refreshMonitor() {
     await nextTick();
     renderMonitorCharts();
   } catch (err: any) {
-    logText.value = `读取监控失败：${err?.message || "未知错误"}`;
+    dashboardData.value = buildDefaultMonitorPayload();
+    logText.value = dashboardData.value.run_log_tail || `读取监控失败：${err?.message || "未知错误"}`;
+    fileStatuses.trainingLog = "默认展示";
+    fileStatuses.predResults = "默认展示";
+    fileStatuses.runLog = "默认展示";
+    await nextTick();
+    renderMonitorCharts();
   } finally {
     monitorLoading.value = false;
   }
 }
 
 async function refreshResults() {
-  if (!selectedRunId.value) {
-    await refreshRuns();
-    if (!selectedRunId.value) return;
+  const forceDefaultCharts = monitorMode.value === "default";
+  if (forceDefaultCharts || !selectedRunId.value) {
+    try {
+      const charts = await fetchDefaultResultCharts();
+      resultChartsData.value = withDefaultResultCharts(charts);
+    } catch (firstErr) {
+      try {
+        // 兼容后端未热更新到 default 接口时，直接走共享 run_id。
+        const charts = await fetchResultCharts("默认数据");
+        resultChartsData.value = withDefaultResultCharts(charts);
+      } catch (secondErr: any) {
+        console.error("load default result charts failed", firstErr, secondErr);
+        resultChartsData.value = buildDefaultResultChartsPayload();
+      }
+    }
+    return;
   }
   resultsLoading.value = true;
   try {
@@ -1832,9 +2144,9 @@ async function refreshResults() {
     ]);
     overviewData.value = overview;
     analyticsData.value = analytics;
-    resultChartsData.value = charts;
+    resultChartsData.value = withDefaultResultCharts(charts);
   } catch (err: any) {
-    window.alert(`读取结果失败：${err?.message || "未知错误"}`);
+    resultChartsData.value = buildDefaultResultChartsPayload();
   } finally {
     resultsLoading.value = false;
   }
@@ -1892,7 +2204,10 @@ async function handlePageChange() {
   if (activePage.value === "download") await refreshFiles();
   if (activePage.value === "greenStock") await refreshGreenStockLatest();
   if (activePage.value === "greenBond") await refreshGreenBondLatest();
-  if (activePage.value === "live") await runLivePredict();
+  if (activePage.value === "live") {
+    await refreshLiveWeightsOptions();
+    await runLivePredict();
+  }
 }
 
 function setupAutoRefresh() {
@@ -1943,9 +2258,71 @@ function cleanupTimers() {
   }
 }
 
+function isScrollableY(el: HTMLElement) {
+  const style = window.getComputedStyle(el);
+  const overflowY = style.overflowY;
+  const canScroll =
+    (overflowY === "auto" || overflowY === "scroll" || overflowY === "overlay") &&
+    el.scrollHeight > el.clientHeight + 1;
+  return canScroll;
+}
+
+function hasScrollableAncestor(target: EventTarget | null) {
+  let node = target instanceof HTMLElement ? target : null;
+  while (node && node !== document.body) {
+    if (isScrollableY(node)) return true;
+    node = node.parentElement;
+  }
+  return false;
+}
+
+function isEditableTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  const tag = target.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+}
+
+let wheelPendingY = 0;
+let wheelRafId: number | null = null;
+function normalizeWheelDeltaY(event: WheelEvent) {
+  let dy = event.deltaY;
+  // 0: pixel, 1: line, 2: page
+  if (event.deltaMode === 1) dy *= 16;
+  else if (event.deltaMode === 2) dy *= window.innerHeight;
+  return dy;
+}
+function flushWheelScroll() {
+  if (wheelPendingY !== 0) {
+    window.scrollBy({ top: wheelPendingY, left: 0, behavior: "auto" });
+    wheelPendingY = 0;
+  }
+  wheelRafId = null;
+}
+
+function handleGlobalWheel(event: WheelEvent) {
+  if (!isLongContentPage.value) return;
+  if (event.ctrlKey) return;
+  if (Math.abs(event.deltaY) < Math.abs(event.deltaX)) return;
+  if (isEditableTarget(event.target)) return;
+  wheelPendingY += normalizeWheelDeltaY(event);
+  if (wheelRafId == null) wheelRafId = window.requestAnimationFrame(flushWheelScroll);
+  event.preventDefault();
+}
+
 function handleGlobalKeydown(event: KeyboardEvent) {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+    event.preventDefault();
+    focusSearchInput();
+    return;
+  }
   if (event.key === "Escape" && aiChatOpen.value) {
     aiChatOpen.value = false;
+    return;
+  }
+  if (event.key === "Escape" && searchFocused.value) {
+    event.preventDefault();
+    clearSearch();
   }
 }
 
@@ -1973,6 +2350,10 @@ onMounted(() => {
   setupAutoRefresh();
   window.addEventListener("resize", handleWindowResize);
   window.addEventListener("keydown", handleGlobalKeydown);
+  window.addEventListener("wheel", handleGlobalWheel, {
+    passive: false,
+    capture: true,
+  });
 });
 
 watch(activePage, () => {
@@ -1986,7 +2367,13 @@ watch(selectedRunId, () => {
   handlePageChange();
 });
 
-watch([monitorMode, manualRunId], () => {
+watch(liveWeightsRunId, () => {
+  if (activePage.value === "live") {
+    refreshLiveWeightsOptions();
+  }
+});
+
+watch(monitorMode, () => {
   if (activePage.value === "monitor") refreshMonitor();
 });
 
@@ -2000,6 +2387,12 @@ onBeforeUnmount(() => {
   cleanupTimers();
   window.removeEventListener("resize", handleWindowResize);
   window.removeEventListener("keydown", handleGlobalKeydown);
+  window.removeEventListener("wheel", handleGlobalWheel, true);
+  if (wheelRafId != null) {
+    window.cancelAnimationFrame(wheelRafId);
+    wheelRafId = null;
+    wheelPendingY = 0;
+  }
   disposeMonitorCharts();
   wtiCandleChart?.dispose();
   wtiCandleChart = null;
@@ -2046,7 +2439,11 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   overflow-x: hidden;
+  overflow-y: hidden;
   position: relative;
+}
+.home-page--long-page {
+  overflow-y: auto;
 }
 .home-page::before,
 .home-page::after {
@@ -2161,6 +2558,7 @@ onBeforeUnmount(() => {
   padding: 6px 16px;
   transition: background 0.2s;
   border-radius: 8px;
+  min-width: 0;
 }
 .stat-item:hover {
   background: rgba(255, 255, 255, 0.03);
@@ -2209,6 +2607,9 @@ onBeforeUnmount(() => {
   font-family: "SF Mono", "Cascadia Code", "Consolas", monospace;
   font-size: 11px;
   color: rgba(148, 163, 184, 0.6);
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .stat-val--success {
   color: #34d399;
@@ -2312,7 +2713,19 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  overflow: visible;
+  overflow-x: hidden;
+  overflow-y: hidden;
+}
+.main-content--long-page {
+  overflow-y: auto;
+}
+.main-content--long-page .data-block pre {
+  max-height: none;
+  overflow: auto;
+}
+.main-content--long-page .log-columns pre {
+  max-height: none;
+  overflow: auto;
 }
 .dashboard-top-line,
 .dashboard-bottom-line {
@@ -2387,6 +2800,11 @@ onBeforeUnmount(() => {
   gap: 10px;
   flex-wrap: wrap;
 }
+.page-tab-empty {
+  font-size: 12px;
+  color: rgba(148, 163, 184, 0.75);
+  padding: 6px 4px;
+}
 .page-tab-btn {
   border: 1px solid rgba(148, 163, 184, 0.2);
   background: rgba(15, 23, 42, 0.55);
@@ -2409,17 +2827,33 @@ onBeforeUnmount(() => {
 }
 
 .feature-panel {
-  flex: 1;
+  flex: none;
+  width: 100%;
   min-height: 360px;
+  overflow: visible;
+}
+.feature-panel-frame {
+  width: 100%;
+  border-radius: 14px;
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  background:
+    linear-gradient(180deg, rgba(2, 12, 28, 0.72), rgba(1, 8, 20, 0.76)),
+    radial-gradient(circle at 92% 8%, rgba(56, 189, 248, 0.08), transparent 42%);
+  box-shadow:
+    inset 0 0 26px rgba(56, 189, 248, 0.06),
+    0 10px 24px rgba(2, 6, 23, 0.24);
+  overflow: visible;
 }
 .feature-panel-inner {
-  height: 100%;
+  height: auto;
+  min-height: 100%;
   padding: 24px;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: flex-start;
   gap: 12px;
+  overflow: visible;
 }
 .feature-title {
   font-size: 24px;
@@ -2555,21 +2989,23 @@ onBeforeUnmount(() => {
 }
 .data-block pre {
   margin: 0;
-  max-height: 220px;
+  max-height: none;
   overflow: auto;
   font-size: 11px;
   line-height: 1.5;
   color: rgba(226, 232, 240, 0.9);
   font-family: "Cascadia Code", "Consolas", monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  max-width: 100%;
 }
 .log-columns {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  display: block;
 }
-.log-columns pre {
+.log-terminal-pre {
   margin: 0;
-  max-height: 240px;
+  max-height: 360px;
   overflow: auto;
   padding: 8px 10px;
   border: 1px solid rgba(56, 189, 248, 0.18);
@@ -2579,6 +3015,10 @@ onBeforeUnmount(() => {
   line-height: 1.5;
   color: rgba(226, 232, 240, 0.92);
   font-family: "Cascadia Code", "Consolas", monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  max-width: 100%;
 }
 .train-dashboard {
   display: flex;
@@ -2615,7 +3055,7 @@ onBeforeUnmount(() => {
 .train-loss-table-wrap {
   border: 1px solid rgba(56, 189, 248, 0.16);
   border-radius: 8px;
-  overflow: hidden;
+  overflow: visible;
 }
 .train-loss-table {
   width: 100%;
@@ -2685,6 +3125,34 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
+}
+.monitor-progress {
+  width: 100%;
+  border: 1px solid rgba(56, 189, 248, 0.18);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: rgba(3, 10, 24, 0.5);
+}
+.monitor-progress-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: rgba(186, 230, 253, 0.9);
+}
+.monitor-progress-track {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(30, 41, 59, 0.82);
+  overflow: hidden;
+}
+.monitor-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #22d3ee, #3b82f6);
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.45);
+  transition: width 0.35s ease;
 }
 .status-chip {
   border: 1px solid rgba(56, 189, 248, 0.2);
@@ -2841,6 +3309,9 @@ onBeforeUnmount(() => {
   background:
     linear-gradient(180deg, rgba(2, 12, 28, 0.65), rgba(1, 8, 20, 0.68)),
     radial-gradient(circle at 90% 12%, rgba(56, 189, 248, 0.06), transparent 45%);
+}
+.main-content-grid > * {
+  min-width: 0;
 }
 
 /* 左侧功能区 */
@@ -3235,16 +3706,19 @@ onBeforeUnmount(() => {
   margin-bottom: 8px;
 }
 .ai-icon {
-  background: linear-gradient(
-    135deg,
-    rgba(139, 92, 246, 0.15),
-    rgba(59, 130, 246, 0.15)
-  );
-  color: #a78bfa;
+  background: transparent;
   width: 50px;
   height: 50px;
   border-radius: 16px;
-  box-shadow: 0 0 24px rgba(139, 92, 246, 0.1);
+  box-shadow: 0 0 20px rgba(74, 222, 128, 0.24);
+  overflow: hidden;
+  border: 1px solid rgba(134, 239, 172, 0.35);
+}
+.ai-icon-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 .upload-icon {
   background: rgba(34, 211, 238, 0.08);
@@ -3374,7 +3848,7 @@ onBeforeUnmount(() => {
 .feature-btn,
 .field input,
 .field select,
-.log-columns pre,
+.log-terminal-pre,
 .train-metric-card,
 .train-loss-table-wrap,
 .file-item {
@@ -3519,9 +3993,6 @@ onBeforeUnmount(() => {
   }
   .user-name {
     display: none;
-  }
-  .log-columns {
-    grid-template-columns: 1fr;
   }
 }
 </style>
