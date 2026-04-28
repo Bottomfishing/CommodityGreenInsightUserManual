@@ -1028,6 +1028,7 @@ const liveWeightsName = ref("");
 const liveWeightsOptions = ref<string[]>([]);
 const liveAdvancedOpen = ref(false);
 const liveDatasetFile = ref<File | null>(null);
+let monitorRefreshRequestId = 0;
 
 // ===== 绿色股票（新能源整合预测）=====
 const greenStockZipFile = ref<File | null>(null);
@@ -2219,8 +2220,12 @@ async function stopCurrentRun() {
 }
 
 async function refreshMonitor() {
+  const reqId = ++monitorRefreshRequestId;
+  const requestedMode = monitorMode.value;
+  const requestedSelectedRunId = selectedRunId.value;
   let runId = activeMonitorRunId.value;
   if (!runId) {
+    if (reqId !== monitorRefreshRequestId) return;
     dashboardData.value = buildDefaultMonitorPayload();
     logText.value = dashboardData.value.run_log_tail || "";
     fileStatuses.trainingLog = "默认展示";
@@ -2233,9 +2238,10 @@ async function refreshMonitor() {
 
   try {
     const resolved = await resolveMonitor({
-      mode: monitorMode.value === "history" ? "selected" : monitorMode.value,
-      selected_run_id: monitorMode.value === "history" ? selectedRunId.value || undefined : undefined,
+      mode: requestedMode === "history" ? "selected" : requestedMode,
+      selected_run_id: requestedMode === "history" ? requestedSelectedRunId || undefined : undefined,
     });
+    if (reqId !== monitorRefreshRequestId) return;
     const resolvedRunId =
       resolved?.run_id ||
       (typeof resolved?.monitor_dir === "string" ? resolved.monitor_dir.split(/[/\\]/).pop() : "");
@@ -2252,6 +2258,7 @@ async function refreshMonitor() {
       fetchTrainingDashboard(runId),
       fetchRunLog(runId, 300),
     ]);
+    if (reqId !== monitorRefreshRequestId) return;
     const normalizedDashboard = dashboard && typeof dashboard === "object" ? { ...dashboard } : {};
     let priceRows = Array.isArray(normalizedDashboard.price_series) ? normalizedDashboard.price_series : [];
     let returnRows = Array.isArray(normalizedDashboard.return_series) ? normalizedDashboard.return_series : [];
@@ -2285,6 +2292,7 @@ async function refreshMonitor() {
         // ignore fallback failures
       }
     }
+    if (reqId !== monitorRefreshRequestId) return;
 
     normalizedDashboard.price_series = priceRows;
     normalizedDashboard.return_series = returnRows;
@@ -2306,12 +2314,14 @@ async function refreshMonitor() {
     await nextTick();
     try {
       await ensureEchartsReady();
+      if (reqId !== monitorRefreshRequestId) return;
       renderMonitorCharts();
     } catch (chartErr) {
       // 图表库加载失败不应阻断日志与监控数据刷新
       console.warn("monitor charts render skipped:", chartErr);
     }
   } catch (err: any) {
+    if (reqId !== monitorRefreshRequestId) return;
     dashboardData.value = buildDefaultMonitorPayload();
     logText.value = dashboardData.value.run_log_tail || `读取监控失败：${err?.message || "未知错误"}`;
     fileStatuses.trainingLog = "默认展示";
@@ -2320,7 +2330,9 @@ async function refreshMonitor() {
     await nextTick();
     renderMonitorCharts();
   } finally {
-    monitorLoading.value = false;
+    if (reqId === monitorRefreshRequestId) {
+      monitorLoading.value = false;
+    }
   }
 }
 
