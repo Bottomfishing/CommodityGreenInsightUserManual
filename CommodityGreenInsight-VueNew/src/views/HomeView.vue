@@ -812,7 +812,7 @@
               <dv-decoration-3 class="module-head-line" />
               <div class="form-grid">
                 <label class="field">
-                  <span>使用您的金融模型</span>
+                  <span>历史 Run</span>
                   <select v-model="liveWeightsRunId">
                     <option value="">默认权重（全局）</option>
                     <option v-for="run in runList" :key="`live-run-${run.run_id}`" :value="run.run_id">
@@ -821,7 +821,7 @@
                   </select>
                 </label>
                 <label class="field">
-                  <span>您的金融模型的权重文件</span>
+                  <span>权重文件</span>
                   <select v-model="liveWeightsName" :disabled="!liveWeightsRunId || liveWeightsOptions.length === 0">
                     <option value="">自动选择（该 run 最新 .h5）</option>
                     <option v-for="name in liveWeightsOptions" :key="`live-weight-${name}`" :value="name">
@@ -2074,6 +2074,10 @@ async function refreshRuns() {
     const [status, runs] = await Promise.all([fetchSystemStatus(), fetchRunList()]);
     systemBusy.value = !!status?.global_busy;
     runList.value = Array.isArray(runs) ? runs : [];
+    if (selectedRunId.value) {
+      const exists = runList.value.some((r: any) => String(r?.run_id || "") === selectedRunId.value);
+      if (!exists) selectedRunId.value = "";
+    }
   } catch {
     systemBusy.value = false;
   }
@@ -2191,7 +2195,6 @@ async function submitRun() {
 
     const result = await createOilRun(formData);
     selectedRunId.value = result?.run_id || selectedRunId.value;
-    monitorMode.value = "history";
     activePage.value = "monitor";
     await refreshRuns();
     await refreshMonitor();
@@ -2217,111 +2220,107 @@ async function stopCurrentRun() {
 
 async function refreshMonitor() {
   let runId = activeMonitorRunId.value;
+  if (!runId) {
+    dashboardData.value = buildDefaultMonitorPayload();
+    logText.value = dashboardData.value.run_log_tail || "";
+    fileStatuses.trainingLog = "默认展示";
+    fileStatuses.predResults = "默认展示";
+    fileStatuses.runLog = "默认展示";
+    await nextTick();
+    renderMonitorCharts();
+    return;
+  }
+
   try {
-    if (!runId) {
-      dashboardData.value = buildDefaultMonitorPayload();
-      logText.value = dashboardData.value.run_log_tail || "";
-      fileStatuses.trainingLog = "默认展示";
-      fileStatuses.predResults = "默认展示";
-      fileStatuses.runLog = "默认展示";
-      await nextTick();
-      renderMonitorCharts();
-      return;
-    }
-
-    try {
-      const resolved = await resolveMonitor({
-        mode: monitorMode.value === "history" ? "selected" : monitorMode.value,
-        selected_run_id: monitorMode.value === "history" ? selectedRunId.value || undefined : undefined,
-      });
-      const resolvedRunId =
-        resolved?.run_id ||
-        (typeof resolved?.monitor_dir === "string" ? resolved.monitor_dir.split(/[/\\]/).pop() : "");
-      if (resolvedRunId) {
-        runId = resolvedRunId;
-      }
-    } catch {
-      // 后端不支持 resolve 时回退到当前前端 runId
-    }
-
-    monitorLoading.value = true;
-    try {
-      const [dashboard, runLog] = await Promise.all([
-        fetchTrainingDashboard(runId, 2000),
-        fetchRunLog(runId, 300),
-      ]);
-      const normalizedDashboard = dashboard && typeof dashboard === "object" ? { ...dashboard } : {};
-      let priceRows = Array.isArray(normalizedDashboard.price_series) ? normalizedDashboard.price_series : [];
-      let returnRows = Array.isArray(normalizedDashboard.return_series) ? normalizedDashboard.return_series : [];
-
-      // 兜底：若监控接口未返回价格/收益序列，则尝试从结果图表 CSV 聚合数据回填。
-      if ((!priceRows.length || !returnRows.length) && runId && runId !== DEFAULT_MONITOR_RUN_ID) {
-        try {
-          const chartsPayload = await fetchResultCharts(runId, 5000);
-          const chartRows = Array.isArray(chartsPayload?.charts?.test_predictions?.rows)
-            ? chartsPayload.charts.test_predictions.rows
-            : [];
-          if (!priceRows.length) {
-            priceRows = chartRows
-              .filter((r: any) => r && r.actual_price != null && r.pred_price != null)
-              .map((r: any) => ({
-                Date_target: r.test_index ?? "",
-                Actual_P_t_plus_H: r.actual_price,
-                GRU_Pred_P_t_plus_H: r.pred_price,
-              }));
-          }
-          if (!returnRows.length) {
-            returnRows = chartRows
-              .filter((r: any) => r && r.actual_return != null && r.pred_return != null)
-              .map((r: any) => ({
-                Date_target: r.test_index ?? "",
-                Actual_Return: r.actual_return,
-                GRU_Pred_Return: r.pred_return,
-              }));
-          }
-        } catch {
-          // ignore fallback failures
-        }
-      }
-
-      normalizedDashboard.price_series = priceRows;
-      normalizedDashboard.return_series = returnRows;
-      dashboardData.value = normalizedDashboard;
-      logText.value =
-        typeof runLog === "string"
-          ? runLog
-          : typeof runLog?.log_tail === "string"
-            ? runLog.log_tail
-            : JSON.stringify(runLog, null, 2);
-      const hasLoss = Array.isArray(normalizedDashboard?.loss_series) && normalizedDashboard.loss_series.length > 0;
-      const hasPrice =
-        (Array.isArray(normalizedDashboard?.price_series) && normalizedDashboard.price_series.length > 0) ||
-        (Array.isArray(normalizedDashboard?.return_series) && normalizedDashboard.return_series.length > 0);
-      const hasLog = !!logText.value;
-      fileStatuses.trainingLog = hasLoss ? "已生成" : "未找到/为空";
-      fileStatuses.predResults = hasPrice ? "已生成" : "未找到/为空";
-      fileStatuses.runLog = hasLog ? "已生成" : "未找到/为空";
-      await nextTick();
-      try {
-        await ensureEchartsReady();
-        renderMonitorCharts();
-      } catch (chartErr) {
-        // 图表库加载失败不应阻断日志与监控数据刷新
-        console.warn("monitor charts render skipped:", chartErr);
-      }
-    } catch (err: any) {
-      dashboardData.value = buildDefaultMonitorPayload();
-      logText.value = dashboardData.value.run_log_tail || `读取监控失败：${err?.message || "未知错误"}`;
-      fileStatuses.trainingLog = "默认展示";
-      fileStatuses.predResults = "默认展示";
-      fileStatuses.runLog = "默认展示";
-      await nextTick();
-      renderMonitorCharts();
-    } finally {
-      monitorLoading.value = false;
+    const resolved = await resolveMonitor({
+      mode: monitorMode.value === "history" ? "selected" : monitorMode.value,
+      selected_run_id: monitorMode.value === "history" ? selectedRunId.value || undefined : undefined,
+    });
+    const resolvedRunId =
+      resolved?.run_id ||
+      (typeof resolved?.monitor_dir === "string" ? resolved.monitor_dir.split(/[/\\]/).pop() : "");
+    if (resolvedRunId) {
+      runId = resolvedRunId;
     }
   } catch {
-    // ignore
+    // 后端不支持 resolve 时回退到当前前端 runId
+  }
+
+  monitorLoading.value = true;
+  try {
+    const [dashboard, runLog] = await Promise.all([
+      fetchTrainingDashboard(runId),
+      fetchRunLog(runId, 300),
+    ]);
+    const normalizedDashboard = dashboard && typeof dashboard === "object" ? { ...dashboard } : {};
+    let priceRows = Array.isArray(normalizedDashboard.price_series) ? normalizedDashboard.price_series : [];
+    let returnRows = Array.isArray(normalizedDashboard.return_series) ? normalizedDashboard.return_series : [];
+
+    // 兜底：若监控接口未返回价格/收益序列，则尝试从结果图表 CSV 聚合数据回填。
+    if ((!priceRows.length || !returnRows.length) && runId && runId !== DEFAULT_MONITOR_RUN_ID) {
+      try {
+        const chartsPayload = await fetchResultCharts(runId);
+        const chartRows = Array.isArray(chartsPayload?.charts?.test_predictions?.rows)
+          ? chartsPayload.charts.test_predictions.rows
+          : [];
+        if (!priceRows.length) {
+          priceRows = chartRows
+            .filter((r: any) => r && r.actual_price != null && r.pred_price != null)
+            .map((r: any) => ({
+              Date_target: r.test_index ?? "",
+              Actual_P_t_plus_H: r.actual_price,
+              GRU_Pred_P_t_plus_H: r.pred_price,
+            }));
+        }
+        if (!returnRows.length) {
+          returnRows = chartRows
+            .filter((r: any) => r && r.actual_return != null && r.pred_return != null)
+            .map((r: any) => ({
+              Date_target: r.test_index ?? "",
+              Actual_Return: r.actual_return,
+              GRU_Pred_Return: r.pred_return,
+            }));
+        }
+      } catch {
+        // ignore fallback failures
+      }
+    }
+
+    normalizedDashboard.price_series = priceRows;
+    normalizedDashboard.return_series = returnRows;
+    dashboardData.value = normalizedDashboard;
+    logText.value =
+      typeof runLog === "string"
+        ? runLog
+        : typeof runLog?.log_tail === "string"
+          ? runLog.log_tail
+          : JSON.stringify(runLog, null, 2);
+    const hasLoss = Array.isArray(normalizedDashboard?.loss_series) && normalizedDashboard.loss_series.length > 0;
+    const hasPrice =
+      (Array.isArray(normalizedDashboard?.price_series) && normalizedDashboard.price_series.length > 0) ||
+      (Array.isArray(normalizedDashboard?.return_series) && normalizedDashboard.return_series.length > 0);
+    const hasLog = !!logText.value;
+    fileStatuses.trainingLog = hasLoss ? "已生成" : "未找到/为空";
+    fileStatuses.predResults = hasPrice ? "已生成" : "未找到/为空";
+    fileStatuses.runLog = hasLog ? "已生成" : "未找到/为空";
+    await nextTick();
+    try {
+      await ensureEchartsReady();
+      renderMonitorCharts();
+    } catch (chartErr) {
+      // 图表库加载失败不应阻断日志与监控数据刷新
+      console.warn("monitor charts render skipped:", chartErr);
+    }
+  } catch (err: any) {
+    dashboardData.value = buildDefaultMonitorPayload();
+    logText.value = dashboardData.value.run_log_tail || `读取监控失败：${err?.message || "未知错误"}`;
+    fileStatuses.trainingLog = "默认展示";
+    fileStatuses.predResults = "默认展示";
+    fileStatuses.runLog = "默认展示";
+    await nextTick();
+    renderMonitorCharts();
+  } finally {
+    monitorLoading.value = false;
   }
 }
 
@@ -2414,36 +2413,6 @@ function exportZip() {
   window.open(getZipExportUrl(selectedRunId.value), "_blank");
 }
 
-function disposeGreenStockCharts() {
-  neCiChart?.dispose();
-  neSigmaChart?.dispose();
-  neRiskChart?.dispose();
-  neCiWidthChart?.dispose();
-  neMeanHistChart?.dispose();
-  neScatterChart?.dispose();
-  neCiChart = null;
-  neSigmaChart = null;
-  neRiskChart = null;
-  neCiWidthChart = null;
-  neMeanHistChart = null;
-  neScatterChart = null;
-}
-
-function disposeBondCharts() {
-  bondCiChart?.dispose();
-  bondSigmaChart?.dispose();
-  bondRiskChart?.dispose();
-  bondCiWidthChart?.dispose();
-  bondMeanHistChart?.dispose();
-  bondScatterChart?.dispose();
-  bondCiChart = null;
-  bondSigmaChart = null;
-  bondRiskChart = null;
-  bondCiWidthChart = null;
-  bondMeanHistChart = null;
-  bondScatterChart = null;
-}
-
 async function handlePageChange() {
   if (activePage.value === "dashboard") {
     await refreshWtiCandles();
@@ -2451,15 +2420,8 @@ async function handlePageChange() {
   if (activePage.value === "monitor") await refreshMonitor();
   if (activePage.value === "results") await refreshResults();
   if (activePage.value === "download") await refreshFiles();
-  // 绿色股票和债券页面：首次进入时加载默认数据，之后不再自动刷新
-  if (activePage.value === "greenStock" && !greenStockLatest.value) {
-    disposeBondCharts();
-    await refreshGreenStockLatest();
-  }
-  if (activePage.value === "greenBond" && !greenBondLatest.value) {
-    disposeGreenStockCharts();
-    await refreshGreenBondLatest();
-  }
+  if (activePage.value === "greenStock") await refreshGreenStockLatest();
+  if (activePage.value === "greenBond") await refreshGreenBondLatest();
   if (activePage.value === "live") {
     await refreshLiveWeightsOptions();
     await runLivePredict();
@@ -2612,16 +2574,9 @@ onMounted(() => {
   });
 });
 
-watch(activePage, (newPage, oldPage) => {
-  // 清理旧页面的图表
-  if (oldPage === "monitor") {
+watch(activePage, () => {
+  if (activePage.value !== "monitor") {
     disposeMonitorCharts();
-  }
-  if (oldPage === "greenStock") {
-    disposeGreenStockCharts();
-  }
-  if (oldPage === "greenBond") {
-    disposeBondCharts();
   }
   handlePageChange();
 });
@@ -2639,9 +2594,8 @@ watch(liveWeightsRunId, () => {
 watch(monitorMode, () => {
   if (activePage.value === "monitor") refreshMonitor();
   if (activePage.value === "results") refreshResults();
-  // 绿色股票和债券页面默认不自动刷新，只有点击训练时才重新生成
-  // if (activePage.value === "greenStock") refreshGreenStockLatest();
-  // if (activePage.value === "greenBond") refreshGreenBondLatest();
+  if (activePage.value === "greenStock") refreshGreenStockLatest();
+  if (activePage.value === "greenBond") refreshGreenBondLatest();
 });
 
 watch(latestModelTrainingRunning, async (isRunning) => {

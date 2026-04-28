@@ -1,8 +1,8 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHashHistory } from 'vue-router'
 import { getToken } from '@/api/auth'
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHashHistory(),
   routes: [
     {
       path: '/login',
@@ -86,6 +86,14 @@ const router = createRouter({
 // 导航守卫：已登录访问落地页 → 自动跳 /home
 router.beforeEach((to) => {
   const token = getToken()
+  // Intro 链路优先：任何 /intro/* 路径都允许直接访问，避免被其他逻辑重定向覆盖
+  if (to.path.startsWith('/intro')) {
+    return true
+  }
+  // 兜底：若异常跳回 Landing，但当前 URL 仍是 intro 链路，则强制拉回地球页
+  if (to.name === 'Landing' && window.location.hash.startsWith('#/intro')) {
+    return { path: '/intro/globe' }
+  }
   if (to.meta.requiresAuth && !token) {
     return { name: 'Landing' }
   }
