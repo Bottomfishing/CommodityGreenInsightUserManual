@@ -301,10 +301,13 @@
             <div class="left-candle-square">
               <dv-border-box-1 style="width: 100%; height: 100%">
                 <div class="panel-inner panel-inner--tight">
-                  <div class="panel-head">
+                  <div class="panel-head panel-head--stack">
                     <div class="panel-title-row">
                       <span class="panel-tag">WTI</span>
-                      <span class="panel-title">近20日蜡烛图</span>
+                      <span class="panel-title">近20周蜡烛图</span>
+                    </div>
+                    <div class="panel-subtitle panel-subtitle--small">
+                      数据来源：FRED WTI 现货（MySQL）｜截止：{{ wtiCandleLatestDate || "暂无" }}
                     </div>
                   </div>
                   <div ref="wtiCandleChartRef" class="candle-chart-box"></div>
@@ -390,7 +393,12 @@
       <section v-else class="feature-panel">
         <div class="feature-panel-frame">
           <div class="feature-panel-inner">
-            <h2 class="feature-title">{{ currentTabTitle }}</h2>
+            <div class="feature-title-row">
+              <h2 class="feature-title">{{ currentTabTitle }}</h2>
+              <span v-if="latestModelTrainingRunning" class="feature-title-hint">
+                您的模型正在训练中，可以先观看我们模型的可视化
+              </span>
+            </div>
             <p class="feature-desc">{{ currentTabDesc }}</p>
 
             <RunPanel
@@ -410,8 +418,8 @@
               </div>
               <dv-decoration-3 class="module-head-line" />
               <div class="monitor-mode-row">
-                <label class="radio-item"><input v-model="monitorMode" type="radio" value="default" /> 监控默认模型</label>
-                <label class="radio-item"><input v-model="monitorMode" type="radio" value="latest" /> 监控最新训练</label>
+                <label class="radio-item"><input v-model="monitorMode" type="radio" value="default" /> 监控我们的模型</label>
+                <label class="radio-item"><input v-model="monitorMode" type="radio" value="latest" /> 监控您最新训练的模型</label>
                 <label class="radio-item"><input v-model="monitorMode" type="radio" value="history" /> 查看您的模型</label>
               </div>
               <div v-if="monitorMode === 'history'" class="form-grid">
@@ -457,15 +465,18 @@
                 <div v-if="!hasLossSeries" class="chart-empty">暂无 Loss 数据</div>
                 <div v-else ref="lossChartRef" class="chart-box"></div>
               </div>
-              <div class="data-block">
+              <div v-if="showMonitorCompletionCharts" class="data-block">
                 <h3>价格对比曲线（训练完获得）</h3>
                 <div v-if="!hasPriceSeries" class="chart-empty">暂无价格对比数据</div>
                 <div v-else ref="priceChartRef" class="chart-box"></div>
               </div>
-              <div class="data-block">
+              <div v-if="showMonitorCompletionCharts" class="data-block">
                 <h3>收益对比曲线（训练完获得）</h3>
                 <div v-if="!hasReturnSeries" class="chart-empty">暂无收益对比数据</div>
                 <div v-else ref="returnChartRef" class="chart-box"></div>
+              </div>
+              <div v-else class="chart-empty">
+                您的模型训练中：价格对比曲线与收益对比曲线将在训练完成后自动生成并展示。
               </div>
               <div class="data-block">
                 <h3>训练面板</h3>
@@ -527,6 +538,7 @@
               :overview-preview="overviewPreview"
               :analytics-preview="analyticsPreview"
               :ai-report-text="aiReportText"
+              :training-hint="resultsTrainingHint"
               @refresh="refreshResults"
               @generate="generateReport"
             />
@@ -603,6 +615,9 @@
               </div>
 
               <div v-if="greenStockStartMsg" class="status-chip">{{ greenStockStartMsg }}</div>
+              <div v-if="latestModelTrainingRunning" class="status-chip">
+                您的模型正在训练中，可以线观看我们模型的可视化
+              </div>
 
               <div class="data-block">
                 <h3>最新结果预览</h3>
@@ -712,6 +727,9 @@
               </div>
 
               <div v-if="greenBondStartMsg" class="status-chip">{{ greenBondStartMsg }}</div>
+              <div v-if="latestModelTrainingRunning" class="status-chip">
+                您的模型正在训练中，可以线观看我们模型的可视化
+              </div>
 
               <div class="data-block">
                 <h3>最新结果预览</h3>
@@ -794,7 +812,7 @@
               <dv-decoration-3 class="module-head-line" />
               <div class="form-grid">
                 <label class="field">
-                  <span>历史 Run</span>
+                  <span>使用您的金融模型</span>
                   <select v-model="liveWeightsRunId">
                     <option value="">默认权重（全局）</option>
                     <option v-for="run in runList" :key="`live-run-${run.run_id}`" :value="run.run_id">
@@ -803,7 +821,7 @@
                   </select>
                 </label>
                 <label class="field">
-                  <span>权重文件</span>
+                  <span>您的金融模型的权重文件</span>
                   <select v-model="liveWeightsName" :disabled="!liveWeightsRunId || liveWeightsOptions.length === 0">
                     <option value="">自动选择（该 run 最新 .h5）</option>
                     <option v-for="name in liveWeightsOptions" :key="`live-weight-${name}`" :value="name">
@@ -814,8 +832,44 @@
               </div>
               <div class="feature-actions">
                 <button class="feature-btn feature-btn--primary" :disabled="livePredictLoading" @click="runLivePredict">
-                  {{ livePredictLoading ? "推理中..." : "开始实盘推理（仅推理）" }}
+                  <template v-if="livePredictLoading">
+                    <span class="btn-loading">
+                      <i class="btn-loading-spinner" aria-hidden="true"></i>
+                      推理中...
+                    </span>
+                  </template>
+                  <template v-else>开始实盘推理（仅推理）</template>
                 </button>
+                <button class="feature-btn" :disabled="livePredictLoading" @click="liveAdvancedOpen = !liveAdvancedOpen">
+                  {{ liveAdvancedOpen ? "收起高级" : "高级实盘" }}
+                </button>
+              </div>
+              <div v-if="liveAdvancedOpen" class="data-block">
+                <h3>高级实盘（上传自定义数据集）</h3>
+                <div class="form-grid">
+                  <label class="field">
+                    <span>数据集文件（csv/xlsx，需包含 close 列）</span>
+                    <input type="file" accept=".csv,.xlsx,.xls" @change="onLiveDatasetSelected" />
+                  </label>
+                </div>
+                <div class="feature-actions">
+                  <button
+                    class="feature-btn feature-btn--primary"
+                    :disabled="livePredictLoading || !liveDatasetFile"
+                    @click="runLivePredictAdvanced"
+                  >
+                    <template v-if="livePredictLoading">
+                      <span class="btn-loading">
+                        <i class="btn-loading-spinner" aria-hidden="true"></i>
+                        推理中...
+                      </span>
+                    </template>
+                    <template v-else>使用自定义数据集推理</template>
+                  </button>
+                  <span class="chart-empty" style="min-height: 40px; padding: 0 10px;">
+                    {{ liveDatasetFile ? `已选择：${liveDatasetFile.name}` : "尚未选择文件" }}
+                  </span>
+                </div>
               </div>
               <div class="data-block">
                 <h3>推理结果</h3>
@@ -886,8 +940,9 @@ import {
   fetchRunList,
   fetchRunLog,
   fetchSystemStatus,
-  fetchWtiLast20Candles,
+  fetchWtiSpotLast20,
   fetchLiveWtiPredict,
+  fetchLiveWtiPredictAdvanced,
   fetchTrainingDashboard,
   generateAIReport,
   getZipExportUrl,
@@ -926,8 +981,8 @@ const pageTabs = [
 type PageTabKey = (typeof pageTabs)[number]["key"];
 const pageMeta: Record<(typeof pageTabs)[number]["key"], { title: string; desc: string }> = {
   dashboard: { title: "总览大屏", desc: "核心行情、功能入口与实时数据监控。" },
-  run: { title: "训练您的模型", desc: "配置数据上传、模型参数与任务启动流程。" },
-  monitor: { title: "训练监控", desc: "查看任务状态、训练进度与运行日志。" },
+  run: { title: "训练您的模型(时间可能较长)", desc: "配置数据上传、模型参数与任务启动流程。" },
+  monitor: { title: "训练监控（因为是深度学习训练时间可能较长，您可以后台运行等待）", desc: "查看任务状态、训练进度与运行日志。" },
   results: { title: "结果预览", desc: "查看指标结果、图表表现与分析摘要。" },
   download: { title: "下载导出", desc: "导出报告、图表和模型输出文件。" },
   greenStock: { title: "绿色股票预测", desc: "基于油价因子与多维特征的绿色股票收益/风险预测。" },
@@ -971,6 +1026,8 @@ const livePredictResult = ref<any>(null);
 const liveWeightsRunId = ref("");
 const liveWeightsName = ref("");
 const liveWeightsOptions = ref<string[]>([]);
+const liveAdvancedOpen = ref(false);
+const liveDatasetFile = ref<File | null>(null);
 
 // ===== 绿色股票（新能源整合预测）=====
 const greenStockZipFile = ref<File | null>(null);
@@ -1020,6 +1077,7 @@ const DEFAULT_MONITOR_RUN_ID = "默认数据";
 const monitorMode = ref<"default" | "latest" | "history">("default");
 const monitorAutoRefresh = ref(true);
 const monitorRefreshSec = ref(3);
+const latestTrainingWasRunning = ref(false);
 const fileStatuses = reactive({
   trainingLog: "未知",
   predResults: "未知",
@@ -1049,6 +1107,8 @@ void priceChartRef;
 void returnChartRef;
 const wtiCandleChartRef = ref<HTMLDivElement | null>(null);
 const wtiCandleData = ref<any[]>([]);
+const wtiCandleSource = ref<string>("");
+const wtiCandleLatestDate = ref<string>("");
 let wtiCandleChart: any = null;
 
 function buildDefaultMonitorPayload() {
@@ -1232,6 +1292,8 @@ const dashboardLossRows = computed(() => {
   }));
 });
 const runCount = computed(() => runList.value.length);
+const latestRunId = computed(() => String(runList.value?.[0]?.run_id || ""));
+const latestRunStatus = computed(() => String(runList.value?.[0]?.status || "").toLowerCase());
 const activeMonitorRunId = computed(() => {
   if (monitorMode.value === "default") return DEFAULT_MONITOR_RUN_ID;
   if (monitorMode.value === "latest") return runList.value?.[0]?.run_id || "";
@@ -1252,9 +1314,29 @@ const activeRunStatus = computed(() => {
   const hit = runList.value.find((r: any) => String(r?.run_id || "") === rid);
   return String(hit?.status || "").toLowerCase();
 });
+const latestModelTrainingRunning = computed(
+  () =>
+    monitorMode.value === "latest" &&
+    !!latestRunId.value &&
+    (latestRunStatus.value === "running" || systemBusy.value),
+);
+const showMonitorCompletionCharts = computed(() => !latestModelTrainingRunning.value);
+const resultsTrainingHint = computed(() =>
+  latestModelTrainingRunning.value ? "您的模型正在训练中，可以线观看我们模型的可视化" : "",
+);
+const effectiveMonitorTargetEpochs = computed(() => {
+  // 优先从日志解析“最终生效训练参数: epochs=xx”，避免 Optuna 覆盖后进度条显示 9/100 这种错觉。
+  const text = String(logText.value || "");
+  const m = text.match(/最终生效训练参数:\s*epochs\s*=\s*(\d+)/);
+  if (m?.[1]) {
+    const n = Number(m[1]);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return Math.max(Number(runForm.epochs || 0), 1);
+});
 const monitorProgressPct = computed(() => {
   const trainedEpochs = Number(dashboardMeta.value.totalEpochs || 0);
-  const targetEpochs = Math.max(Number(runForm.epochs || 0), 1);
+  const targetEpochs = effectiveMonitorTargetEpochs.value;
   if (trainedEpochs <= 0) return 0;
   let pct = Math.round((trainedEpochs / targetEpochs) * 100);
   if (activeRunStatus.value === "running") {
@@ -1267,7 +1349,7 @@ const monitorProgressPct = computed(() => {
 const monitorProgressLabel = computed(() => {
   if (!hasLossSeries.value) return "暂无训练数据（如果您已经开启了训练，但此进度条不动，说明目前在进行特征工程阶段，等进入模型训练阶段进度条会动，在上栏可以查看您现在是否在运行）";
   const epochs = Number(dashboardMeta.value.totalEpochs || 0);
-  const target = Math.max(Number(runForm.epochs || 0), 1);
+  const target = effectiveMonitorTargetEpochs.value;
   if (activeRunStatus.value === "running") {
     return `${epochs}/${target} · 训练中 ${monitorProgressPct.value}%`;
   }
@@ -1508,6 +1590,22 @@ async function startGreenStockPredict() {
 }
 
 async function refreshGreenStockLatest() {
+  const forceDefault = monitorMode.value === "default" || latestModelTrainingRunning.value;
+  if (forceDefault) {
+    greenStockLatestLoading.value = true;
+    try {
+      // 默认展示：读取 web_runs/默认数据 下的真实产物
+      const latest = await fetchNewEnergyLatest(DEFAULT_MONITOR_RUN_ID, 500);
+      greenStockLatest.value = latest;
+      await nextTick();
+      await renderGreenStockCharts();
+    } catch (err: any) {
+      greenStockLatest.value = { error: err?.message || "读取默认绿色股票结果失败" };
+    } finally {
+      greenStockLatestLoading.value = false;
+    }
+    return;
+  }
   let runId = activeMonitorRunId.value || selectedRunId.value || "";
   if (!runId) {
     await refreshRuns();
@@ -1733,6 +1831,22 @@ async function startGreenBondPredict() {
 }
 
 async function refreshGreenBondLatest() {
+  const forceDefault = monitorMode.value === "default" || latestModelTrainingRunning.value;
+  if (forceDefault) {
+    greenBondLatestLoading.value = true;
+    try {
+      // 默认展示：读取 web_runs/默认数据 下的真实产物
+      const latest = await fetchBondLatest(DEFAULT_MONITOR_RUN_ID, 500);
+      greenBondLatest.value = latest;
+      await nextTick();
+      await renderGreenBondCharts();
+    } catch (err: any) {
+      greenBondLatest.value = { error: err?.message || "读取默认绿色债券结果失败" };
+    } finally {
+      greenBondLatestLoading.value = false;
+    }
+    return;
+  }
   let runId = activeMonitorRunId.value || selectedRunId.value || "";
   if (!runId) {
     await refreshRuns();
@@ -1762,6 +1876,31 @@ async function runLivePredict() {
     livePredictResult.value = res;
   } catch (err: any) {
     livePredictResult.value = { error: err?.message || "实盘推理失败" };
+  } finally {
+    livePredictLoading.value = false;
+  }
+}
+
+function onLiveDatasetSelected(event: Event) {
+  const target = event.target as HTMLInputElement;
+  liveDatasetFile.value = target.files?.[0] || null;
+}
+
+async function runLivePredictAdvanced() {
+  if (!liveDatasetFile.value) {
+    window.alert("请先选择数据集文件（csv/xlsx）");
+    return;
+  }
+  livePredictLoading.value = true;
+  try {
+    const formData = new FormData();
+    formData.append("live_file", liveDatasetFile.value);
+    if (liveWeightsRunId.value) formData.append("run_id", liveWeightsRunId.value);
+    if (liveWeightsName.value) formData.append("weights_name", liveWeightsName.value);
+    const res = await fetchLiveWtiPredictAdvanced(formData);
+    livePredictResult.value = res;
+  } catch (err: any) {
+    livePredictResult.value = { error: err?.message || "高级实盘推理失败" };
   } finally {
     livePredictLoading.value = false;
   }
@@ -1935,10 +2074,6 @@ async function refreshRuns() {
     const [status, runs] = await Promise.all([fetchSystemStatus(), fetchRunList()]);
     systemBusy.value = !!status?.global_busy;
     runList.value = Array.isArray(runs) ? runs : [];
-    if (selectedRunId.value) {
-      const exists = runList.value.some((r: any) => String(r?.run_id || "") === selectedRunId.value);
-      if (!exists) selectedRunId.value = "";
-    }
   } catch {
     systemBusy.value = false;
   }
@@ -1950,13 +2085,40 @@ async function refreshWtiCandles() {
     await ensureEchartsReady();
     const ec = (window as any).echarts;
     if (!ec || !wtiCandleChartRef.value) return;
-    const res = await fetchWtiLast20Candles();
-    wtiCandleData.value = Array.isArray(res?.items) ? res.items : [];
-    const rows = wtiCandleData.value;
-    if (!rows.length) return;
+    // 仅使用 MySQL 里的 FRED 现货（真实数据），不再回退 CSV。
+    let candleRows: any[] = [];
+    try {
+      const res = await fetchWtiSpotLast20();
+      const spotRows = Array.isArray(res?.items) ? res.items : [];
+      const spotCloseRows = spotRows
+        .map((r: any) => ({ date: String(r?.date || ""), close: Number(r?.close) }))
+        .filter((r: any) => r.date && Number.isFinite(r.close));
+      if (spotCloseRows.length >= 2) {
+        candleRows = spotCloseRows.map((r: any, i: number) => {
+          const prevClose = i > 0 ? spotCloseRows[i - 1].close : r.close;
+          const open = prevClose;
+          const close = r.close;
+          const high = Math.max(open, close);
+          const low = Math.min(open, close);
+          return { date: r.date, open, high, low, close, volume: 0 };
+        });
+        wtiCandleSource.value = "mysql:WTI_SPOT_FRED(close→OHLC)";
+        wtiCandleLatestDate.value = spotCloseRows[spotCloseRows.length - 1]?.date || "";
+      } else {
+        const c = spotCloseRows.length;
+        wtiCandleSource.value = `mysql:WTI_SPOT_FRED(不足2条:${c})`;
+        wtiCandleLatestDate.value = spotCloseRows[spotCloseRows.length - 1]?.date || "";
+      }
+    } catch (e: any) {
+      wtiCandleSource.value = `mysql:WTI_SPOT_FRED(失败:${e?.message || "error"})`;
+      wtiCandleLatestDate.value = "";
+      candleRows = [];
+    }
+    wtiCandleData.value = candleRows;
+    if (!candleRows.length) return;
 
-    const xData = rows.map((r: any) => r.date);
-    const candleData = rows.map((r: any) => [r.open, r.close, r.low, r.high]);
+    const xData = candleRows.map((r: any) => r.date);
+    const candleData = candleRows.map((r: any) => [r.open, r.close, r.low, r.high]);
     await nextTick();
     if (wtiCandleChart) {
       wtiCandleChart.dispose();
@@ -2029,6 +2191,7 @@ async function submitRun() {
 
     const result = await createOilRun(formData);
     selectedRunId.value = result?.run_id || selectedRunId.value;
+    monitorMode.value = "history";
     activePage.value = "monitor";
     await refreshRuns();
     await refreshMonitor();
@@ -2054,72 +2217,118 @@ async function stopCurrentRun() {
 
 async function refreshMonitor() {
   let runId = activeMonitorRunId.value;
-  if (!runId) {
-    dashboardData.value = buildDefaultMonitorPayload();
-    logText.value = dashboardData.value.run_log_tail || "";
-    fileStatuses.trainingLog = "默认展示";
-    fileStatuses.predResults = "默认展示";
-    fileStatuses.runLog = "默认展示";
-    await nextTick();
-    renderMonitorCharts();
-    return;
-  }
-
   try {
-    const resolved = await resolveMonitor({
-      mode: monitorMode.value === "history" ? "selected" : monitorMode.value,
-      selected_run_id: monitorMode.value === "history" ? selectedRunId.value || undefined : undefined,
-    });
-    const resolvedRunId =
-      resolved?.run_id ||
-      (typeof resolved?.monitor_dir === "string" ? resolved.monitor_dir.split(/[/\\]/).pop() : "");
-    if (resolvedRunId) {
-      runId = resolvedRunId;
+    if (!runId) {
+      dashboardData.value = buildDefaultMonitorPayload();
+      logText.value = dashboardData.value.run_log_tail || "";
+      fileStatuses.trainingLog = "默认展示";
+      fileStatuses.predResults = "默认展示";
+      fileStatuses.runLog = "默认展示";
+      await nextTick();
+      renderMonitorCharts();
+      return;
+    }
+
+    try {
+      const resolved = await resolveMonitor({
+        mode: monitorMode.value === "history" ? "selected" : monitorMode.value,
+        selected_run_id: monitorMode.value === "history" ? selectedRunId.value || undefined : undefined,
+      });
+      const resolvedRunId =
+        resolved?.run_id ||
+        (typeof resolved?.monitor_dir === "string" ? resolved.monitor_dir.split(/[/\\]/).pop() : "");
+      if (resolvedRunId) {
+        runId = resolvedRunId;
+      }
+    } catch {
+      // 后端不支持 resolve 时回退到当前前端 runId
+    }
+
+    monitorLoading.value = true;
+    try {
+      const [dashboard, runLog] = await Promise.all([
+        fetchTrainingDashboard(runId, 2000),
+        fetchRunLog(runId, 300),
+      ]);
+      const normalizedDashboard = dashboard && typeof dashboard === "object" ? { ...dashboard } : {};
+      let priceRows = Array.isArray(normalizedDashboard.price_series) ? normalizedDashboard.price_series : [];
+      let returnRows = Array.isArray(normalizedDashboard.return_series) ? normalizedDashboard.return_series : [];
+
+      // 兜底：若监控接口未返回价格/收益序列，则尝试从结果图表 CSV 聚合数据回填。
+      if ((!priceRows.length || !returnRows.length) && runId && runId !== DEFAULT_MONITOR_RUN_ID) {
+        try {
+          const chartsPayload = await fetchResultCharts(runId, 5000);
+          const chartRows = Array.isArray(chartsPayload?.charts?.test_predictions?.rows)
+            ? chartsPayload.charts.test_predictions.rows
+            : [];
+          if (!priceRows.length) {
+            priceRows = chartRows
+              .filter((r: any) => r && r.actual_price != null && r.pred_price != null)
+              .map((r: any) => ({
+                Date_target: r.test_index ?? "",
+                Actual_P_t_plus_H: r.actual_price,
+                GRU_Pred_P_t_plus_H: r.pred_price,
+              }));
+          }
+          if (!returnRows.length) {
+            returnRows = chartRows
+              .filter((r: any) => r && r.actual_return != null && r.pred_return != null)
+              .map((r: any) => ({
+                Date_target: r.test_index ?? "",
+                Actual_Return: r.actual_return,
+                GRU_Pred_Return: r.pred_return,
+              }));
+          }
+        } catch {
+          // ignore fallback failures
+        }
+      }
+
+      normalizedDashboard.price_series = priceRows;
+      normalizedDashboard.return_series = returnRows;
+      dashboardData.value = normalizedDashboard;
+      logText.value =
+        typeof runLog === "string"
+          ? runLog
+          : typeof runLog?.log_tail === "string"
+            ? runLog.log_tail
+            : JSON.stringify(runLog, null, 2);
+      const hasLoss = Array.isArray(normalizedDashboard?.loss_series) && normalizedDashboard.loss_series.length > 0;
+      const hasPrice =
+        (Array.isArray(normalizedDashboard?.price_series) && normalizedDashboard.price_series.length > 0) ||
+        (Array.isArray(normalizedDashboard?.return_series) && normalizedDashboard.return_series.length > 0);
+      const hasLog = !!logText.value;
+      fileStatuses.trainingLog = hasLoss ? "已生成" : "未找到/为空";
+      fileStatuses.predResults = hasPrice ? "已生成" : "未找到/为空";
+      fileStatuses.runLog = hasLog ? "已生成" : "未找到/为空";
+      await nextTick();
+      try {
+        await ensureEchartsReady();
+        renderMonitorCharts();
+      } catch (chartErr) {
+        // 图表库加载失败不应阻断日志与监控数据刷新
+        console.warn("monitor charts render skipped:", chartErr);
+      }
+    } catch (err: any) {
+      dashboardData.value = buildDefaultMonitorPayload();
+      logText.value = dashboardData.value.run_log_tail || `读取监控失败：${err?.message || "未知错误"}`;
+      fileStatuses.trainingLog = "默认展示";
+      fileStatuses.predResults = "默认展示";
+      fileStatuses.runLog = "默认展示";
+      await nextTick();
+      renderMonitorCharts();
+    } finally {
+      monitorLoading.value = false;
     }
   } catch {
-    // 后端不支持 resolve 时回退到当前前端 runId
-  }
-
-  monitorLoading.value = true;
-  try {
-    await ensureEchartsReady();
-    const [dashboard, runLog] = await Promise.all([
-      fetchTrainingDashboard(runId),
-      fetchRunLog(runId, 300),
-    ]);
-    dashboardData.value = dashboard;
-    logText.value =
-      typeof runLog === "string"
-        ? runLog
-        : typeof runLog?.log_tail === "string"
-          ? runLog.log_tail
-          : JSON.stringify(runLog, null, 2);
-    const hasLoss = Array.isArray(dashboard?.loss_series) && dashboard.loss_series.length > 0;
-    const hasPrice =
-      (Array.isArray(dashboard?.price_series) && dashboard.price_series.length > 0) ||
-      (Array.isArray(dashboard?.return_series) && dashboard.return_series.length > 0);
-    const hasLog = !!logText.value;
-    fileStatuses.trainingLog = hasLoss ? "已生成" : "未找到/为空";
-    fileStatuses.predResults = hasPrice ? "已生成" : "未找到/为空";
-    fileStatuses.runLog = hasLog ? "已生成" : "未找到/为空";
-    await nextTick();
-    renderMonitorCharts();
-  } catch (err: any) {
-    dashboardData.value = buildDefaultMonitorPayload();
-    logText.value = dashboardData.value.run_log_tail || `读取监控失败：${err?.message || "未知错误"}`;
-    fileStatuses.trainingLog = "默认展示";
-    fileStatuses.predResults = "默认展示";
-    fileStatuses.runLog = "默认展示";
-    await nextTick();
-    renderMonitorCharts();
-  } finally {
-    monitorLoading.value = false;
+    // ignore
   }
 }
 
 async function refreshResults() {
-  const forceDefaultCharts = monitorMode.value === "default";
+  const forceDefaultCharts = monitorMode.value === "default" || latestModelTrainingRunning.value;
   if (forceDefaultCharts || !selectedRunId.value) {
+    aiReportText.value = "";
     try {
       const charts = await fetchDefaultResultCharts();
       resultChartsData.value = withDefaultResultCharts(charts);
@@ -2156,13 +2365,23 @@ async function generateReport() {
   if (!selectedRunId.value) return;
   resultsLoading.value = true;
   try {
-    const data = await generateAIReport(selectedRunId.value);
+    const data = await generateAIReport(selectedRunId.value, true);
     aiReportText.value = typeof data === "string" ? data : JSON.stringify(data, null, 2);
   } catch (err: any) {
     window.alert(`生成报告失败：${err?.message || "未知错误"}`);
   } finally {
     resultsLoading.value = false;
   }
+}
+
+async function refreshAllModelViewsAfterTrainingDone() {
+  if (!latestRunId.value) return;
+  selectedRunId.value = latestRunId.value;
+  await refreshMonitor();
+  await refreshResults();
+  await generateReport();
+  await refreshGreenStockLatest();
+  await refreshGreenBondLatest();
 }
 
 async function refreshFiles() {
@@ -2195,6 +2414,36 @@ function exportZip() {
   window.open(getZipExportUrl(selectedRunId.value), "_blank");
 }
 
+function disposeGreenStockCharts() {
+  neCiChart?.dispose();
+  neSigmaChart?.dispose();
+  neRiskChart?.dispose();
+  neCiWidthChart?.dispose();
+  neMeanHistChart?.dispose();
+  neScatterChart?.dispose();
+  neCiChart = null;
+  neSigmaChart = null;
+  neRiskChart = null;
+  neCiWidthChart = null;
+  neMeanHistChart = null;
+  neScatterChart = null;
+}
+
+function disposeBondCharts() {
+  bondCiChart?.dispose();
+  bondSigmaChart?.dispose();
+  bondRiskChart?.dispose();
+  bondCiWidthChart?.dispose();
+  bondMeanHistChart?.dispose();
+  bondScatterChart?.dispose();
+  bondCiChart = null;
+  bondSigmaChart = null;
+  bondRiskChart = null;
+  bondCiWidthChart = null;
+  bondMeanHistChart = null;
+  bondScatterChart = null;
+}
+
 async function handlePageChange() {
   if (activePage.value === "dashboard") {
     await refreshWtiCandles();
@@ -2202,8 +2451,15 @@ async function handlePageChange() {
   if (activePage.value === "monitor") await refreshMonitor();
   if (activePage.value === "results") await refreshResults();
   if (activePage.value === "download") await refreshFiles();
-  if (activePage.value === "greenStock") await refreshGreenStockLatest();
-  if (activePage.value === "greenBond") await refreshGreenBondLatest();
+  // 绿色股票和债券页面：首次进入时加载默认数据，之后不再自动刷新
+  if (activePage.value === "greenStock" && !greenStockLatest.value) {
+    disposeBondCharts();
+    await refreshGreenStockLatest();
+  }
+  if (activePage.value === "greenBond" && !greenBondLatest.value) {
+    disposeGreenStockCharts();
+    await refreshGreenBondLatest();
+  }
   if (activePage.value === "live") {
     await refreshLiveWeightsOptions();
     await runLivePredict();
@@ -2356,9 +2612,16 @@ onMounted(() => {
   });
 });
 
-watch(activePage, () => {
-  if (activePage.value !== "monitor") {
+watch(activePage, (newPage, oldPage) => {
+  // 清理旧页面的图表
+  if (oldPage === "monitor") {
     disposeMonitorCharts();
+  }
+  if (oldPage === "greenStock") {
+    disposeGreenStockCharts();
+  }
+  if (oldPage === "greenBond") {
+    disposeBondCharts();
   }
   handlePageChange();
 });
@@ -2375,6 +2638,28 @@ watch(liveWeightsRunId, () => {
 
 watch(monitorMode, () => {
   if (activePage.value === "monitor") refreshMonitor();
+  if (activePage.value === "results") refreshResults();
+  // 绿色股票和债券页面默认不自动刷新，只有点击训练时才重新生成
+  // if (activePage.value === "greenStock") refreshGreenStockLatest();
+  // if (activePage.value === "greenBond") refreshGreenBondLatest();
+});
+
+watch(latestModelTrainingRunning, async (isRunning) => {
+  if (isRunning) {
+    latestTrainingWasRunning.value = true;
+    return;
+  }
+  if (!latestTrainingWasRunning.value) return;
+  if (monitorMode.value !== "latest") {
+    latestTrainingWasRunning.value = false;
+    return;
+  }
+  latestTrainingWasRunning.value = false;
+  try {
+    await refreshAllModelViewsAfterTrainingDone();
+  } catch (err) {
+    console.warn("auto refresh after training completion failed", err);
+  }
 });
 
 watch([monitorAutoRefresh, monitorRefreshSec], () => {
@@ -2443,7 +2728,7 @@ onBeforeUnmount(() => {
   position: relative;
 }
 .home-page--long-page {
-  overflow-y: auto;
+  overflow-y: visible;
 }
 .home-page::before,
 .home-page::after {
@@ -2717,7 +3002,7 @@ onBeforeUnmount(() => {
   overflow-y: hidden;
 }
 .main-content--long-page {
-  overflow-y: auto;
+  overflow-y: visible;
 }
 .main-content--long-page .data-block pre {
   max-height: none;
@@ -2855,9 +3140,23 @@ onBeforeUnmount(() => {
   gap: 12px;
   overflow: visible;
 }
+.feature-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
 .feature-title {
   font-size: 24px;
   color: #f8fafc;
+}
+.feature-title-hint {
+  font-size: 13px;
+  color: rgba(186, 230, 253, 0.9);
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(56, 189, 248, 0.24);
+  background: rgba(7, 25, 52, 0.55);
 }
 .feature-desc {
   color: rgba(148, 163, 184, 0.78);
@@ -2891,6 +3190,29 @@ onBeforeUnmount(() => {
   border-color: rgba(34, 211, 238, 0.55);
   color: #e0f2fe;
   transform: translateY(-1px);
+}
+.btn-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 20px;
+  font-weight: 700;
+}
+.btn-loading-spinner {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 3px solid rgba(224, 242, 254, 0.22);
+  border-top-color: #e0f2fe;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+  animation: btnSpinnerSpin 0.7s linear infinite;
+}
+@keyframes btnSpinnerSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 .work-panel {
   width: 100%;
@@ -3627,10 +3949,21 @@ onBeforeUnmount(() => {
   margin-bottom: 12px;
   flex-shrink: 0;
 }
+.panel-head--stack {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 4px;
+}
 .panel-title-row {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+.panel-subtitle--small {
+  font-size: 12px;
+  color: rgba(148, 163, 184, 0.88);
+  line-height: 1.35;
 }
 .panel-tag {
   font-size: 9px;

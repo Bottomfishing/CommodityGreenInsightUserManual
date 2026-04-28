@@ -23,7 +23,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 
 try:
-    from sqlalchemy import DateTime, Integer, String, Text, create_engine
+    from sqlalchemy import DateTime, Integer, String, Text, create_engine, text
     from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
     _SQLALCHEMY_AVAILABLE = True
@@ -52,6 +52,10 @@ AI_BASE_URL = os.environ.get("YIBU_BASE_URL", "https://yibuapi.com/v1")
 AI_API_KEY = os.environ.get("YIBU_API_KEY", "")
 AI_MODEL = os.environ.get("YIBU_MODEL", "gpt-4o")
 MYSQL_URL = os.environ.get("MYSQL_URL", "").strip()
+MYSQL_URL_SERVER = os.environ.get("MYSQL_URL_SERVER", "").strip()
+# 默认优先使用服务器 MySQL，确保与爬虫入库使用同一数据源；可用环境变量覆盖。
+MYSQL_URL_DEFAULT_SERVER = "mysql+pymysql://oiluser:StrongPass_123!@47.110.235.34:3306/oil_data?charset=utf8mb4"
+MYSQL_URL = MYSQL_URL_SERVER or MYSQL_URL_DEFAULT_SERVER or MYSQL_URL
 DB_ENABLED = bool(_SQLALCHEMY_AVAILABLE and MYSQL_URL)
 AUTH_SECRET = os.environ.get("AUTH_SECRET", "change-this-auth-secret")
 STATIC_RESULT_IMAGE_DIR = Path(
@@ -883,6 +887,11 @@ def _build_oil_train_cmd_and_env(
             "WTI_GRU_FORECAST_NEXT": "1" if int(forecast_steps) > 0 else "0",
             "WTI_GRU_SAVE_MODEL_WEIGHTS": "1",
             "WTI_GRU_WEIGHTS_OUTPUT_PATH": str(weights_output_name),
+            # Web 端默认禁用绘图，避免生成大量 png 并影响体验
+            "WTI_GRU_NO_PLOT": "1",
+            "WTI_GRU_VMD_PLOT": "0",
+            # Web 端默认严格按表单参数训练，避免被 optuna_best_params_full.json 覆盖。
+            "WTI_GRU_OPTUNA_LOAD_BEST": "0",
         }
         # 新脚本当前不使用 top_n/cutoff_date/forecast_steps（多步），保留记录便于后续扩展。
         if cutoff_date:
@@ -924,6 +933,11 @@ def _generate_enterprise_bank_ai_report(run_dir: Path, force: bool = False) -> s
     base_text = report_md.read_text(encoding="utf-8", errors="replace")
     ctx = ""
     pred_csv = run_dir / "prediction_results.csv"
+    # 兼容 wti_gru_sequence 仅输出 chart_test_predictions.csv 的场景
+    if not pred_csv.is_file():
+        fallback_pred_csv = run_dir / "chart_test_predictions.csv"
+        if fallback_pred_csv.is_file():
+            pred_csv = fallback_pred_csv
     if pred_csv.is_file():
         try:
             df = pd.read_csv(pred_csv)
@@ -954,7 +968,18 @@ def _tail_text(path: Path, max_lines: int = 200) -> str:
     if not path.is_file():
         return ""
     try:
-        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        raw = path.read_bytes()
+        text = ""
+        # Windows/PowerShell 的 Tee-Object 可能写 UTF-16；这里做多编码兜底，避免前端出现乱码。
+        for enc in ("utf-8", "utf-8-sig", "utf-16", "utf-16le", "gbk"):
+            try:
+                text = raw.decode(enc)
+                break
+            except Exception:
+                continue
+        if not text:
+            text = raw.decode("utf-8", errors="replace")
+        lines = text.splitlines()
         return "\n".join(_strip_ansi(x) for x in lines[-max_lines:])
     except Exception:
         return ""
@@ -972,10 +997,22 @@ def _parse_keras_loss_from_run_log(run_log_path: Path) -> pd.DataFrame | None:
     val_loss_re = re.compile(r"(?:^|\s)val_loss:\s*([0-9]*\.?[0-9]+)(?:\s|$)")
     rows: list[dict[str, Any]] = []
     current_epoch: int | None = None
+    current_loss: float | None = None
+    current_val_loss: float | None = None
+
+    def _flush_epoch() -> None:
+        nonlocal current_epoch, current_loss, current_val_loss
+        if current_epoch is not None and current_loss is not None:
+            rows.append({"epoch": current_epoch, "loss": current_loss, "val_loss": current_val_loss})
+        current_epoch = None
+        current_loss = None
+        current_val_loss = None
+
     for line in lines:
         s = _strip_ansi(line).strip()
         m_epoch = epoch_re.match(s)
         if m_epoch:
+            _flush_epoch()
             current_epoch = int(m_epoch.group(1))
             continue
         if current_epoch is None or "loss" not in s:
@@ -987,15 +1024,18 @@ def _parse_keras_loss_from_run_log(run_log_path: Path) -> pd.DataFrame | None:
             loss_val = float(m_loss.group(1))
         except Exception:
             continue
-        v = None
+        current_loss = loss_val
+
         m_v = val_loss_re.search(s)
         if m_v:
             try:
-                v = float(m_v.group(1))
+                current_val_loss = float(m_v.group(1))
             except Exception:
-                v = None
-        rows.append({"epoch": current_epoch, "loss": loss_val, "val_loss": v})
-        current_epoch = None
+                current_val_loss = None
+            # 出现 val_loss 基本可视为该 epoch 汇总行，立即落盘。
+            _flush_epoch()
+
+    _flush_epoch()
     if not rows:
         return None
     df = pd.DataFrame(rows).drop_duplicates(subset=["epoch"], keep="last").sort_values("epoch")
@@ -1138,6 +1178,127 @@ def get_wti_last20_candles(user: dict[str, Any] = Depends(_require_auth_user)) -
             }
         )
     return {"source": str(WTI_LAST20_CSV), "count": len(items), "items": items}
+
+
+@app.get("/api/market/wti-spot-last20", summary="WTI现货近20条（来自 MySQL/FRED）")
+def get_wti_spot_last20(user: dict[str, Any] = Depends(_require_auth_user)) -> dict[str, Any]:
+    _ = user
+    if not DB_ENABLED:
+        raise HTTPException(status_code=503, detail="MySQL 未启用")
+    session = _db_get_session()
+    if session is None:
+        raise HTTPException(status_code=503, detail="数据库连接不可用")
+    try:
+        # 优先按 country='WTI_SPOT_FRED' 读取；若部署时写入的 key 不一致，则回退按 source='fred_wti_weekly' 匹配。
+        rows = session.execute(
+            text(
+                """
+                SELECT last_update, current_price, country, source
+                FROM global_gasoline_prices
+                WHERE country = 'WTI_SPOT_FRED'
+                ORDER BY last_update DESC
+                LIMIT 20
+                """
+            )
+        ).mappings().all()
+        if not rows:
+            rows = session.execute(
+                text(
+                    """
+                    SELECT last_update, current_price, country, source
+                    FROM global_gasoline_prices
+                    WHERE source = 'fred_wti_weekly'
+                    ORDER BY last_update DESC
+                    LIMIT 20
+                    """
+                )
+            ).mappings().all()
+        items: list[dict[str, Any]] = []
+        for r in rows:
+            d = r.get("last_update")
+            p = r.get("current_price")
+            try:
+                price = float(p)
+            except Exception:
+                continue
+            if not np.isfinite(price):
+                continue
+            date_s = None
+            if d is not None:
+                date_s = str(d)[:10]
+            if not date_s:
+                continue
+            items.append({"date": date_s, "close": price, "country": str(r.get("country") or ""), "source": str(r.get("source") or "")})
+        items.sort(key=lambda x: x["date"])
+        # 对外仍保持简洁；前端只用 date/close
+        return {
+            "source": "mysql:global_gasoline_prices:WTI_SPOT_FRED",
+            "count": len(items),
+            "items": [{"date": i["date"], "close": i["close"]} for i in items],
+            "debug": {
+                "mysql_enabled": True,
+                "matched_country": items[0]["country"] if items else "",
+                "matched_source": items[0]["source"] if items else "",
+            },
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"读取 WTI 现货失败: {exc}") from exc
+    finally:
+        session.close()
+
+
+@app.get("/api/market/global-gasoline-prices", summary="全球汽油价格节点数据")
+def get_global_gasoline_prices(user: dict[str, Any] = Depends(_require_auth_user)) -> dict[str, Any]:
+    _ = user
+    if not DB_ENABLED:
+        raise HTTPException(status_code=503, detail="MySQL 未启用")
+    session = _db_get_session()
+    if session is None:
+        raise HTTPException(status_code=503, detail="数据库连接不可用")
+    try:
+        rows = session.execute(
+            text(
+                """
+                SELECT country, current_price, measure, last_update, page_url, source, fetched_at
+                FROM global_gasoline_prices
+                ORDER BY country ASC
+                """
+            )
+        ).mappings().all()
+        items: list[dict[str, Any]] = []
+        latest_fetched_at: str | None = None
+        for row in rows:
+            price = row.get("current_price")
+            try:
+                price_val = float(price)
+            except Exception:
+                continue
+            if not np.isfinite(price_val):
+                continue
+            fetched_at_val = str(row.get("fetched_at") or "") if row.get("fetched_at") is not None else None
+            if fetched_at_val and (latest_fetched_at is None or fetched_at_val > latest_fetched_at):
+                latest_fetched_at = fetched_at_val
+            items.append(
+                {
+                    "country": str(row.get("country") or "").strip(),
+                    "current_price": price_val,
+                    "measure": str(row.get("measure") or "").strip(),
+                    "last_update": str(row.get("last_update") or "") if row.get("last_update") is not None else None,
+                    "page_url": str(row.get("page_url") or "").strip(),
+                    "source": str(row.get("source") or "").strip(),
+                    "fetched_at": fetched_at_val,
+                }
+            )
+        return {
+            "count": len(items),
+            "items": items,
+            "source": "mysql:global_gasoline_prices",
+            "latest_fetched_at": latest_fetched_at,
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"读取全球油价失败: {exc}") from exc
+    finally:
+        session.close()
 
 
 @app.get("/api/live/wti/predict", summary="WTI 实盘单步推理（仅推理）")
@@ -1300,6 +1461,172 @@ def live_wti_predict(
             "model": "wti_live_predict.py",
             "weights_file": str(selected_weights_path.resolve()),
             "mode": "inference_only_fallback",
+            "fallback_reason": f"unexpected_error:{exc}",
+        }
+
+
+@app.post("/api/live/wti/predict/advanced", summary="WTI 实盘单步推理（上传自定义数据集）")
+async def live_wti_predict_advanced(
+    live_file: UploadFile = File(..., description="自定义实盘数据集（csv/xlsx，需包含 close/ClosePrice 列）"),
+    run_id: str | None = Form(None, description="可选：指定历史 run_id，使用该 run 下权重"),
+    weights_name: str | None = Form(None, description="可选：指定 run 目录中的权重文件名"),
+    user: dict[str, Any] = Depends(_require_auth_user),
+) -> dict[str, Any]:
+    _ = user
+    selected_weights_path = LIVE_WEIGHTS
+    try:
+        script_path = APP_DIR / LIVE_PREDICT_SCRIPT_NAME
+        if run_id:
+            _assert_run_access(run_id, int(user["id"]))
+            run_dir = (WEB_RUNS_DIR / run_id).resolve()
+            if not run_dir.is_dir():
+                raise HTTPException(status_code=404, detail="指定 run_id 不存在")
+            selected_name = str(weights_name or "").strip()
+            if selected_name:
+                if Path(selected_name).name != selected_name:
+                    raise HTTPException(status_code=400, detail="weights_name 仅允许文件名")
+                if not re.search(r"\.(?:weights\.)?h5$", selected_name, re.IGNORECASE):
+                    raise HTTPException(status_code=400, detail="weights_name 必须为 .h5 或 .weights.h5")
+                candidate = (run_dir / selected_name).resolve()
+                if candidate.parent != run_dir or not candidate.is_file():
+                    raise HTTPException(status_code=404, detail="指定权重文件不存在")
+                selected_weights_path = candidate
+            else:
+                h5_files = sorted(
+                    [p for p in run_dir.iterdir() if p.is_file() and re.search(r"\.(?:weights\.)?h5$", p.name, re.IGNORECASE)],
+                    key=lambda p: p.name,
+                    reverse=True,
+                )
+                if not h5_files:
+                    raise HTTPException(status_code=404, detail="该 run 下未找到 .h5 权重文件")
+                selected_weights_path = h5_files[0]
+
+        issues: list[str] = []
+        can_run_script = True
+        if not script_path.is_file():
+            can_run_script = False
+            issues.append(f"missing_script:{LIVE_PREDICT_SCRIPT_NAME}")
+        if not LIVE_PARAMS_JSON.is_file():
+            can_run_script = False
+            issues.append(f"missing_params:{LIVE_PARAMS_JSON}")
+        if not selected_weights_path.is_file():
+            can_run_script = False
+            issues.append(f"missing_weights:{selected_weights_path}")
+
+        raw = await live_file.read()
+        if not raw:
+            raise HTTPException(status_code=400, detail="上传文件为空")
+
+        name = str(live_file.filename or "").lower()
+        try:
+            if name.endswith(".xlsx") or name.endswith(".xls"):
+                df = pd.read_excel(io.BytesIO(raw))
+            else:
+                df = pd.read_csv(io.BytesIO(raw))
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"读取上传文件失败: {exc}") from exc
+
+        cols_lower = {str(c).lower(): str(c) for c in df.columns}
+        close_col = cols_lower.get("close") or cols_lower.get("closeprice")
+        if close_col is None:
+            for k in ["adj close", "last", "price", "settle", "settlement"]:
+                if k in cols_lower:
+                    close_col = cols_lower[k]
+                    break
+        if close_col is None:
+            raise HTTPException(status_code=400, detail="上传数据集缺少 close 列（支持 close/ClosePrice/price/settle）")
+
+        live_df = pd.DataFrame({"ClosePrice": pd.to_numeric(df[close_col], errors="coerce")}).dropna()
+        if len(live_df) < 5:
+            issues.append("insufficient_live_points")
+            raise HTTPException(status_code=400, detail="有效收盘价样本不足（至少 5 条）")
+
+        live_input_csv = APP_DIR / "_live_wti_input_advanced.csv"
+        live_df.to_csv(live_input_csv, index=False, encoding="utf-8-sig")
+
+        cmd = [
+            "python",
+            "-u",
+            str(script_path),
+            "--input-csv",
+            str(live_input_csv.resolve()),
+            "--params-json",
+            str(LIVE_PARAMS_JSON.resolve()),
+            "--weights",
+            str(selected_weights_path.resolve()),
+            "--json",
+        ]
+        result = None
+        if can_run_script:
+            result = subprocess.run(cmd, capture_output=True, text=True, cwd=str(APP_DIR))
+        if result is not None and result.returncode == 0:
+            raw_out = (result.stdout or "").strip().splitlines()
+            if raw_out:
+                last = raw_out[-1]
+                try:
+                    payload = json.loads(last)
+                    payload["model"] = "wti_live_predict.py"
+                    payload["weights_file"] = str(selected_weights_path.resolve())
+                    payload["mode"] = "inference_only_advanced"
+                    payload["input_mode"] = "uploaded_dataset"
+                    return payload
+                except Exception:
+                    pass
+
+        closes = live_df["ClosePrice"].astype(float).values
+        last_price = float(closes[-1])
+        recent_ret = np.diff(closes[-5:]) / np.maximum(closes[-6:-1], 1e-12) if len(closes) >= 6 else np.diff(closes) / np.maximum(closes[:-1], 1e-12)
+        pred_return = float(np.mean(recent_ret)) if len(recent_ret) else 0.0
+        vol = float(np.std(recent_ret)) if len(recent_ret) else 0.0
+        pred_price = float(last_price * (1.0 + pred_return))
+        prob_up = float(np.clip(0.5 + pred_return / 0.02, 0.0, 1.0))
+        confidence = float(np.clip(1.0 - min(1.0, vol / 0.03), 0.15, 0.95))
+        return {
+            "input_csv": str(live_input_csv.resolve()),
+            "weights": str(selected_weights_path.resolve()),
+            "window_len": int(min(15, len(closes))),
+            "return_type": "simple",
+            "vmd_k": 8,
+            "drop_high_freq": 1,
+            "drop_mode": "freq",
+            "last_price": last_price,
+            "pred_denoised_return": pred_return,
+            "pred_price": pred_price,
+            "true_vs_denoised_confidence": confidence,
+            "pred_prob_up": prob_up,
+            "model": "wti_live_predict.py",
+            "weights_file": str(selected_weights_path.resolve()),
+            "mode": "inference_only_advanced_fallback",
+            "input_mode": "uploaded_dataset",
+            "fallback_reason": "; ".join(
+                issues
+                + (
+                    []
+                    if result is None
+                    else [f"script_failed: rc={result.returncode}; stderr={(result.stderr or '').strip()[:280]}"]
+                )
+            ),
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        return {
+            "input_csv": "",
+            "weights": str(selected_weights_path.resolve()),
+            "window_len": 15,
+            "return_type": "simple",
+            "vmd_k": 8,
+            "drop_high_freq": 1,
+            "drop_mode": "freq",
+            "last_price": 74.0,
+            "pred_denoised_return": 0.0015,
+            "pred_price": 74.0 * (1.0 + 0.0015),
+            "true_vs_denoised_confidence": 0.5,
+            "pred_prob_up": 0.5,
+            "model": "wti_live_predict.py",
+            "weights_file": str(selected_weights_path.resolve()),
+            "mode": "inference_only_advanced_fallback",
+            "input_mode": "uploaded_dataset",
             "fallback_reason": f"unexpected_error:{exc}",
         }
 
@@ -1690,6 +2017,31 @@ def get_training_dashboard_data(
                 price_rows = dfp[["Date_target", "Actual_P_t_plus_H", "GRU_Pred_P_t_plus_H"]].to_dict(orient="records")
             if {"Date_target", "Actual_Return", "GRU_Pred_Return"}.issubset(dfp.columns):
                 return_rows = dfp[["Date_target", "Actual_Return", "GRU_Pred_Return"]].to_dict(orient="records")
+            # 兼容 chart_test_predictions.csv 字段名
+            if not price_rows and {"test_index", "actual_price", "pred_price"}.issubset(dfp.columns):
+                price_rows = (
+                    dfp[["test_index", "actual_price", "pred_price"]]
+                    .rename(
+                        columns={
+                            "test_index": "Date_target",
+                            "actual_price": "Actual_P_t_plus_H",
+                            "pred_price": "GRU_Pred_P_t_plus_H",
+                        }
+                    )
+                    .to_dict(orient="records")
+                )
+            if not return_rows and {"test_index", "actual_return", "pred_return"}.issubset(dfp.columns):
+                return_rows = (
+                    dfp[["test_index", "actual_return", "pred_return"]]
+                    .rename(
+                        columns={
+                            "test_index": "Date_target",
+                            "actual_return": "Actual_Return",
+                            "pred_return": "GRU_Pred_Return",
+                        }
+                    )
+                    .to_dict(orient="records")
+                )
         except Exception:
             pass
 
@@ -2016,7 +2368,23 @@ def get_latest_new_energy_result(
             return _build_demo_new_energy_payload()
         raise HTTPException(status_code=404, detail="还没有新能源运行记录")
     candidates.sort(key=lambda x: x.stat().st_mtime, reverse=True)
-    latest = candidates[0]
+    # 选择“最近一次成功产出”的目录：避免最新一次运行失败（仅有 log 无 csv）导致前端图表为空。
+    def _is_success_dir(p: Path) -> bool:
+        try:
+            csvs = list(p.glob("*.csv"))
+            if not csvs:
+                return False
+            for c in csvs:
+                n = c.name.lower()
+                if "_chart_" in n:
+                    return True
+                if "new_energy_forecast" in n and "_chart_" not in n:
+                    return True
+            return False
+        except Exception:
+            return False
+
+    latest = next((p for p in candidates if _is_success_dir(p)), candidates[0])
     log_text = _tail_text(latest / "new_energy_run.log", max_lines=200)
     csv_candidates = sorted(latest.glob("*.csv"), key=lambda p: p.name.lower())
     main_csv = next(

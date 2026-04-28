@@ -105,11 +105,23 @@ export async function fetchWtiLast20Candles() {
   return request<any>('GET', '/market/wti-last20-candles')
 }
 
+export async function fetchWtiSpotLast20() {
+  return request<any>('GET', '/market/wti-spot-last20')
+}
+
+export async function fetchGlobalGasolinePrices() {
+  return request<any>('GET', '/market/global-gasoline-prices')
+}
+
 export async function fetchLiveWtiPredict(params?: { run_id?: string; weights_name?: string }) {
   return request<any>('GET', '/live/wti/predict', undefined, false, {
     run_id: params?.run_id,
     weights_name: params?.weights_name,
   })
+}
+
+export async function fetchLiveWtiPredictAdvanced(formData: FormData) {
+  return request<any>('POST', '/live/wti/predict/advanced', formData, true)
 }
 
 export async function fetchRunList() {

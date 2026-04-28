@@ -574,7 +574,10 @@ def main() -> None:
     df["y_lag1"] = df["green_bond_yield"].shift(1)
     df["y_lag2"] = df["green_bond_yield"].shift(2)
     # PolicyRateAvg_t：用美/欧政策利率预期均值近似
-    df["policy_rate_avg"] = (df["fed_rate_exp"].astype(float) + df["ecb_rate_exp"].astype(float)) / 2.0
+    # 注意：部分数据源可能缺失 fed/ecb 预期（列存在但全 NaN），这里必须兜底，否则后续 dropna 会把样本清空。
+    df["policy_rate_avg"] = (pd.to_numeric(df["fed_rate_exp"], errors="coerce") + pd.to_numeric(df["ecb_rate_exp"], errors="coerce")) / 2.0
+    if df["policy_rate_avg"].isna().all():
+        df["policy_rate_avg"] = 0.0
     crisis_col = (args.crisis_dummy_col or "").strip()
     if crisis_col and crisis_col in df.columns:
         df["crisis_x_oil_vol"] = df[crisis_col].astype(float) * df["oil_volatility"].astype(float)
@@ -592,7 +595,31 @@ def main() -> None:
             df, chol_window=int(args.chol_window), ewma_span=int(args.ewma_span)
         )
         df["greenium_x_vol_lag1"] = df["greenium_x_vol"].shift(1)
-    df = df.dropna().reset_index(drop=True)
+    # 统一将主要特征转为数值并稳健填充，避免因为某一列（如 policy_rate_avg）全 NaN 导致有效样本变 0。
+    feature_fill_cols = [
+        "oil_price_pred",
+        "treasury_10y",
+        "policy_rate_avg",
+        "greenium_lag1",
+        "esg_flow_lag1",
+        "oil_volatility",
+        "y_lag1",
+        "y_lag2",
+        # stage2 / 交互项与衍生项（避免 GBDT 因 NaN 直接报错）
+        "oil_vol_x_greenium_lag1",
+        "oil_vol_x_esg_flow_lag1",
+        "oil_price_pred_x_oil_vol",
+        "treasury_x_policy_rate_avg",
+        "greenium_x_esg_flow_lag1",
+        "oil_volatility_sq",
+    ]
+    for c in feature_fill_cols:
+        if c in df.columns:
+            df[c] = pd.to_numeric(df[c], errors="coerce")
+            df[c] = df[c].ffill().bfill().fillna(0.0)
+
+    # 只对必要列做缺失过滤，避免无关列的 NaN 抹掉所有样本
+    df = df.dropna(subset=["date", "green_bond_yield", "treasury_10y"]).reset_index(drop=True)
 
     # 主预测方程（按你给的公式）：
     # Y_{GB,t+1} = α
@@ -663,7 +690,9 @@ def main() -> None:
         ci_high = mean_pred + 1.96 * sigma
         out = pd.DataFrame(
             {
-                "Date_target": pd.to_datetime(demo_dates).strftime("%Y-%m-%d"),
+                "Date_target": pd.to_datetime(demo_dates).strftime("%Y-%m-%d")
+                if isinstance(demo_dates, (pd.DatetimeIndex, list, tuple, np.ndarray))
+                else pd.to_datetime(demo_dates).dt.strftime("%Y-%m-%d"),
                 "Oil_GRU_z_used": 0.0,
                 "NewEnergy_MeanPred": mean_pred,
                 "NewEnergy_Sigma": sigma,

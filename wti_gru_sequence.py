@@ -2093,6 +2093,18 @@ def make_default_args() -> SimpleNamespace:
     weights_output_env = os.environ.get("WTI_GRU_WEIGHTS_OUTPUT_PATH", "").strip()
     if weights_output_env:
         args.weights_output_path = weights_output_env
+
+    no_plot_env = os.environ.get("WTI_GRU_NO_PLOT", "").strip()
+    if no_plot_env:
+        args.no_plot = no_plot_env not in {"0", "false", "False"}
+
+    vmd_plot_env = os.environ.get("WTI_GRU_VMD_PLOT", "").strip()
+    if vmd_plot_env:
+        args.vmd_plot = vmd_plot_env not in {"0", "false", "False"}
+
+    optuna_load_best_env = os.environ.get("WTI_GRU_OPTUNA_LOAD_BEST", "").strip()
+    if optuna_load_best_env:
+        args.optuna_load_best = optuna_load_best_env not in {"0", "false", "False"}
     return args
 
 
@@ -3201,6 +3213,53 @@ def main() -> None:
         ax_nav.legend(loc="best")
         fig_nav.savefig("backtest_nav_curve.png", dpi=180, bbox_inches="tight")
         print("回测净值图已保存: backtest_nav_curve.png")
+
+        # -----------------------------
+        # 9) 生成企业银行团队报告
+        # -----------------------------
+        try:
+            from datetime import datetime
+            
+            report_lines = []
+            report_lines.append("# 油价预测分析报告（企业银行团队版）")
+            report_lines.append("")
+            report_lines.append(f"- 生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            report_lines.append(f"- 预测步长：H=1（天），窗口：LOOKBACK={time_steps}")
+            report_lines.append(f"- 特征选择：RandomForest Top-N={args.rf_top_n}")
+            report_lines.append("")
+            report_lines.append("## 1. 预测效果（Test）")
+            
+            report_lines.append(f"- MAE：{mae:.6f}")
+            report_lines.append(f"- RMSE：{rmse:.6f}")
+            report_lines.append(f"- R2：{r2:.4f}")
+            report_lines.append(f"- 方向预测准确率：{dir_acc:.4f}")
+            report_lines.append("")
+            report_lines.append("## 2. 主要驱动因子（示例 Top-10）")
+            report_lines.append("- 图表：`top_drivers_spearman.png`、`top_drivers_rf_importance.png`")
+            report_lines.append("")
+            report_lines.append("## 3. 风险区间与信号")
+            report_lines.append("- 风险区间：按 |预测收益| 分位数划分（LOW/MEDIUM/HIGH）")
+            report_lines.append("- 信号：LONG / SHORT / FLAT（阈值来自预测收益幅度）")
+            report_lines.append("- 图表：`direction_confusion_matrix.png`")
+            report_lines.append("")
+            report_lines.append("## 4. 简单回测（信号驱动）")
+            report_lines.append("- 图表：`backtest_nav_curve.png`")
+            report_lines.append("")
+            report_lines.append("## 5. 风险提示（概要）")
+            report_lines.append("- 模型预测用于短期风险识别与情景提示，不构成投资建议。")
+            report_lines.append("- 当风险区间为 HIGH 且信号为 LONG/SHORT 时，建议结合库存/宏观/地缘事件进行人工复核。")
+            report_lines.append("- 建议与基准（随机游走/简单技术指标）并行监控，避免过拟合与结构性突变风险。")
+            report_lines.append("")
+            report_lines.append("## 6. 输出文件清单")
+            report_lines.append("- `prediction_results.csv`：对齐后的预测/真实/收益")
+            report_lines.append("- `training_log.csv`：训练日志（epoch/loss/val_loss）")
+            report_lines.append("- 图：`gru_predictions.png`、`gru_returns.png`、`backtest_nav_curve.png`、`direction_confusion_matrix.png`")
+            
+            with open("bank_team_report.md", "w", encoding="utf-8") as f:
+                f.write("\n".join(report_lines))
+            print("报告已保存: bank_team_report.md")
+        except Exception as e:
+            print(f"[警告] 报告生成失败：{e}")
 
         plt.show()
 

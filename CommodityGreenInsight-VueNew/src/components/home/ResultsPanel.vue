@@ -3,6 +3,7 @@
     <div class="module-head">
       <span class="module-head-tag">RESULTS</span>
       <span class="module-head-title">结果预览面板</span>
+      <span v-if="trainingHint" class="module-head-hint">{{ trainingHint }}</span>
     </div>
     <dv-decoration-3 class="module-head-line" />
 
@@ -39,6 +40,7 @@ const props = defineProps<{
   overviewPreview: string;
   analyticsPreview: string;
   aiReportText: string;
+  trainingHint?: string;
 }>();
 
 const FIXED_AI_REPORT_MD = `# WTI 原油价格量化预测模型结果分析报告
@@ -429,6 +431,10 @@ const emit = defineEmits<{
   font-size: 15px;
   font-weight: 700;
   color: #e2e8f0;
+}
+.module-head-hint {
+  font-size: 12px;
+  color: rgba(186, 230, 253, 0.88);
 }
 .module-head-line {
   width: 220px;
