@@ -1,0 +1,26 @@
+[backend:bond] started_at=2026-04-26T15:45:12.209287 pid=42304
+[info] 可用特征: ['date', 'treasury_10y', 'fed_rate_exp', 'ecb_rate_exp', 'greenium', 'esg_flow', 'oil_volatility', 'green_bond_yield']
+[warning] 缺失特征: []
+[info] 核心特征完整
+[info] 已合并 oil_pred.csv，行数: 374
+Traceback (most recent call last):
+  File "F:\ProgramData\anaconda3\envs\oilprice\lib\site-packages\pandas\core\indexes\base.py", line 3812, in get_loc
+    return self._engine.get_loc(casted_key)
+  File "pandas/_libs/index.pyx", line 167, in pandas._libs.index.IndexEngine.get_loc
+  File "pandas/_libs/index.pyx", line 196, in pandas._libs.index.IndexEngine.get_loc
+  File "pandas/_libs/hashtable_class_helper.pxi", line 7088, in pandas._libs.hashtable.PyObjectHashTable.get_item
+  File "pandas/_libs/hashtable_class_helper.pxi", line 7096, in pandas._libs.hashtable.PyObjectHashTable.get_item
+KeyError: 'oil_price_pred'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\predict_bond_from_gru.py", line 983, in <module>
+    main()
+  File "C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\predict_bond_from_gru.py", line 526, in main
+    missing_ratio = df["oil_price_pred"].isna().mean()
+  File "F:\ProgramData\anaconda3\envs\oilprice\lib\site-packages\pandas\core\frame.py", line 4113, in __getitem__
+    indexer = self.columns.get_loc(key)
+  File "F:\ProgramData\anaconda3\envs\oilprice\lib\site-packages\pandas\core\indexes\base.py", line 3819, in get_loc
+    raise KeyError(key) from err
+KeyError: 'oil_price_pred'

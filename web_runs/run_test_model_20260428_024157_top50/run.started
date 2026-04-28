@@ -1,0 +1,6 @@
+started_at=2026-04-28 02:41:57
+top_n=50
+epochs=100
+forecast_steps=15
+cutoff_date=
+model_name=test_model

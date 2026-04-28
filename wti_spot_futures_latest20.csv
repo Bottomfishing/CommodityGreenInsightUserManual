@@ -1,0 +1,22 @@
+country,last_update,current_price,measure,page_url,source,fetched_at
+WTI_SPOT_FRED,2025-12-05,59.48,USD/Barrel,https://fred.stlouisfed.org/series/WCOILWTICO,fred_wti_weekly,2026-04-28 16:14:37
+WTI_SPOT_FRED,2025-12-12,58.3,USD/Barrel,https://fred.stlouisfed.org/series/WCOILWTICO,fred_wti_weekly,2026-04-28 16:14:37
+WTI_SPOT_FRED,2025-12-19,56.3,USD/Barrel,https://fred.stlouisfed.org/series/WCOILWTICO,fred_wti_weekly,2026-04-28 16:14:37
+WTI_SPOT_FRED,2025-12-26,58.01,USD/Barrel,https://fred.stlouisfed.org/series/WCOILWTICO,fred_wti_weekly,2026-04-28 16:14:37
+WTI_SPOT_FRED,2026-01-02,57.54,USD/Barrel,https://fred.stlouisfed.org/series/WCOILWTICO,fred_wti_weekly,2026-04-28 16:14:37
+WTI_SPOT_FRED,2026-01-09,57.56,USD/Barrel,https://fred.stlouisfed.org/series/WCOILWTICO,fred_wti_weekly,2026-04-28 16:14:37
+WTI_SPOT_FRED,2026-01-16,60.12,USD/Barrel,https://fred.stlouisfed.org/series/WCOILWTICO,fred_wti_weekly,2026-04-28 16:14:37
+WTI_SPOT_FRED,2026-01-23,60.16,USD/Barrel,https://fred.stlouisfed.org/series/WCOILWTICO,fred_wti_weekly,2026-04-28 16:14:37
+WTI_SPOT_FRED,2026-01-30,62.9,USD/Barrel,https://fred.stlouisfed.org/series/WCOILWTICO,fred_wti_weekly,2026-04-28 16:14:37
+WTI_SPOT_FRED,2026-02-06,63.09,USD/Barrel,https://fred.stlouisfed.org/series/WCOILWTICO,fred_wti_weekly,2026-04-28 16:14:37
+WTI_SPOT_FRED,2026-02-13,63.93,USD/Barrel,https://fred.stlouisfed.org/series/WCOILWTICO,fred_wti_weekly,2026-04-28 16:14:37
+WTI_SPOT_FRED,2026-02-20,65.3,USD/Barrel,https://fred.stlouisfed.org/series/WCOILWTICO,fred_wti_weekly,2026-04-28 16:14:37
+WTI_SPOT_FRED,2026-02-27,65.87,USD/Barrel,https://fred.stlouisfed.org/series/WCOILWTICO,fred_wti_weekly,2026-04-28 16:14:37
+WTI_SPOT_FRED,2026-03-06,78.37,USD/Barrel,https://fred.stlouisfed.org/series/WCOILWTICO,fred_wti_weekly,2026-04-28 16:14:37
+WTI_SPOT_FRED,2026-03-13,91.85,USD/Barrel,https://fred.stlouisfed.org/series/WCOILWTICO,fred_wti_weekly,2026-04-28 16:14:37
+WTI_SPOT_FRED,2026-03-20,96.07,USD/Barrel,https://fred.stlouisfed.org/series/WCOILWTICO,fred_wti_weekly,2026-04-28 16:14:37
+WTI_SPOT_FRED,2026-03-27,94.29,USD/Barrel,https://fred.stlouisfed.org/series/WCOILWTICO,fred_wti_weekly,2026-04-28 16:14:37
+WTI_SPOT_FRED,2026-04-03,105.67,USD/Barrel,https://fred.stlouisfed.org/series/WCOILWTICO,fred_wti_weekly,2026-04-28 16:14:37
+WTI_SPOT_FRED,2026-04-10,104.54,USD/Barrel,https://fred.stlouisfed.org/series/WCOILWTICO,fred_wti_weekly,2026-04-28 16:14:37
+WTI_SPOT_FRED,2026-04-17,93.84,USD/Barrel,https://fred.stlouisfed.org/series/WCOILWTICO,fred_wti_weekly,2026-04-28 16:14:37
+WTI_FUTURES_BARCHART,2026-04-29,99.86,USD/Barrel,https://www.barchart.com/futures/quotes/CL*0/overview,barchart_cl_overview,2026-04-28 16:14:37

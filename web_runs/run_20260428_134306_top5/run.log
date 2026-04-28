@@ -1,0 +1,26 @@
+[backend] started_at=2026-04-28T13:43:06.585825 pid=26628
+[输出目录] C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\web_runs\run_20260428_134306_top5
+  已加载地缘事件：事件日=20, 净冲击和=9.000
+已按 main_0309 风格加载多源数据: C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\OilData
+最终生效训练参数: epochs=20, batch_size=64, time_steps=60, cell=lstm, loss=huber, lr=0.001
+特征筛选开关: rf_select_enable=True, shap_refine_enable=True, shap_top_n=30
+滑动窗口长度 time_steps = 60：每个 x 为过去 60 个点，形状 (60, 1)；单点预测 horizon=1（下一天）。
+当前 RNN 单元: LSTM，双向
+原始收益统计: std=2.44266123e-02
+样本行数（有效数值）: 2764
+2496
+选用的训练截止 length = 2496
+VMD IMF 调试统计（用于检查是否删错分量）:
+idx	std	energy	zcr	peak_freq_norm
+1	0.006718	4.512560e-05	0.1024	0.052098
+2	0.006620	4.383074e-05	0.3970	0.201158
+3	0.006710	4.501750e-05	0.5910	0.297033
+VMD 删除规则（drop_mode=freq）: 丢弃 IMF 索引 [3]，保留 [1, 2]
+VMD 已启用: K=3, drop_high_freq=1；全局 VMD 已应用到整条收益标签后再做滑窗。
+VMD 后收益统计: std=9.56757476e-03
+目标: 收益率（simple），压缩: none（固定）
+数据集划分：时间序列先后 — 窗终点行下标 i ∈ [60, 2494] 为训练窗；i ∈ [2495, 2762] 为测试窗（再截断到 --max-test 并对齐 batch）。 仅说明划分区间；实际 scaler 是否全量 fit 由 scaler_fit 控制。
+Scaler: fit=仅训练段（严格评估，避免泄露）
+Scaler 类型: StandardScaler
+已加载本文件内置完整特征工程（full）。
+RF 拟合目标统计: n=2496, std=0.00978666

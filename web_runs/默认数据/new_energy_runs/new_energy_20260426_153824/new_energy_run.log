@@ -1,0 +1,38 @@
+[backend:new_energy] started_at=2026-04-26T15:38:24.195581 pid=26648
+[new_energy] 已生成 returns：C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\web_runs\run_20260424_140117_top50\new_energy_runs\new_energy_20260426_153824\new_energy_returns_new_energy.csv（样本数=341）
+[new_energy] 开始调用 predict_new_energy_from_gru.py ...
+已保存：C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\web_runs\run_20260424_140117_top50\new_energy_runs\new_energy_20260426_153824\new_energy_forecast_new_energy_conf0.95.csv
+已保存图表CSV：
+  - C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\web_runs\run_20260424_140117_top50\new_energy_runs\new_energy_20260426_153824\new_energy_forecast_new_energy_conf0.95_chart_ci_band.csv
+  - C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\web_runs\run_20260424_140117_top50\new_energy_runs\new_energy_20260426_153824\new_energy_forecast_new_energy_conf0.95_chart_sigma.csv
+  - C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\web_runs\run_20260424_140117_top50\new_energy_runs\new_energy_20260426_153824\new_energy_forecast_new_energy_conf0.95_chart_risk_distribution.csv
+  - C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\web_runs\run_20260424_140117_top50\new_energy_runs\new_energy_20260426_153824\new_energy_forecast_new_energy_conf0.95_chart_ci_width_hist.csv
+  - C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\web_runs\run_20260424_140117_top50\new_energy_runs\new_energy_20260426_153824\new_energy_forecast_new_energy_conf0.95_chart_meanpred_hist.csv
+  - C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\web_runs\run_20260424_140117_top50\new_energy_runs\new_energy_20260426_153824\new_energy_forecast_new_energy_conf0.95_chart_lambda_sigma_scatter.csv
+已保存图表：C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\web_runs\run_20260424_140117_top50\new_energy_runs\new_energy_20260426_153824\new_energy_forecast_new_energy_conf0.95_plot_ci.png / C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\web_runs\run_20260424_140117_top50\new_energy_runs\new_energy_20260426_153824\new_energy_forecast_new_energy_conf0.95_plot_sigma.png / C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\web_runs\run_20260424_140117_top50\new_energy_runs\new_energy_20260426_153824\new_energy_forecast_new_energy_conf0.95_plot_risk.png
+
+============================================================
+新能源风险与置信区间分析报告（基于油价 GRU 预测递推）
+============================================================
+样本数：374
+置信水平：0.95（对应 z_alpha=1.960）
+RiskLevel 统计：{'LOW': 187, 'MEDIUM': 112, 'HIGH': 75}
+NewEnergy_Sigma 分位数：
+  0.1分位：0.953304
+  0.5分位：0.978257
+  0.9分位：1.026181
+CI 宽度（CI_high-CI_low）均值：3.866707
+CI 宽度（最大值）：10.310399
+Top-5 高波动日期（按 Sigma）：
+Date_target  NewEnergy_Sigma RiskLevel
+ 2023-04-17         2.630204      HIGH
+ 2025-08-06         1.114309      HIGH
+ 2025-04-07         1.113892      HIGH
+ 2025-04-11         1.107765      HIGH
+ 2023-08-04         1.107455      HIGH
+
+提示：已提供新能源历史数据，MeanPred 来自截图均值方程的简化回归近似（AR+外生控制）。
+[new_energy] 完成输出：C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\web_runs\run_20260424_140117_top50\new_energy_runs\new_energy_20260426_153824\new_energy_forecast_new_energy_conf0.95.csv
+[可视化] 已生成：C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\web_runs\run_20260424_140117_top50\new_energy_runs\new_energy_20260426_153824\compare_sigma_timeseries.png
+[可视化] 已生成：C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\web_runs\run_20260424_140117_top50\new_energy_runs\new_energy_20260426_153824\compare_risk_distribution.png
+[可视化] 已生成：C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\web_runs\run_20260424_140117_top50\new_energy_runs\new_energy_20260426_153824\compare_ci_width_boxplot.png

@@ -1,0 +1,852 @@
+[backend] started_at=2026-04-28T13:03:03.326231 pid=49704
+[输出目录] C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\web_runs\run_test3_20260428_130303_top5
+  已加载地缘事件：事件日=20, 净冲击和=9.000
+已按 main_0309 风格加载多源数据: C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\OilData
+已从 C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\crude-oil-price-prediction-master\optuna_best_params_full.json 载入运行参数，跳过 Optuna 搜索。
+最终生效训练参数: epochs=22, batch_size=64, time_steps=15, cell=gru, loss=mse, lr=0.0007551673510828488
+特征筛选开关: rf_select_enable=True, shap_refine_enable=True, shap_top_n=4
+滑动窗口长度 time_steps = 15：每个 x 为过去 15 个点，形状 (15, 1)；单点预测 horizon=1（下一天）。
+当前 RNN 单元: GRU，双向
+原始收益统计: std=2.44266123e-02
+样本行数（有效数值）: 2764
+2112
+2176
+选用的训练截止 length = 2176
+VMD IMF 调试统计（用于检查是否删错分量）:
+idx	std	energy	zcr	peak_freq_norm
+1	0.005709	3.258882e-05	0.0691	0.032923
+2	0.004964	2.464293e-05	0.1564	0.073444
+3	0.005984	3.580909e-05	0.2660	0.138567
+4	0.005481	3.004229e-05	0.3920	0.201158
+5	0.005527	3.054746e-05	0.4919	0.246382
+6	0.005579	3.112550e-05	0.5983	0.297033
+7	0.005102	2.602680e-05	0.7799	0.386397
+8	0.005798	3.361927e-05	0.8878	0.443560
+VMD 删除规则（drop_mode=freq）: 丢弃 IMF 索引 [8]，保留 [1, 2, 3, 4, 5, 6, 7]
+VMD 已启用: K=8, drop_high_freq=1；全局 VMD 已应用到整条收益标签后再做滑窗。
+VMD 后收益统计: std=1.55412754e-02
+目标: 收益率（simple），压缩: none（固定）
+数据集划分：时间序列先后 — 窗终点行下标 i ∈ [15, 2174] 为训练窗；i ∈ [2175, 2762] 为测试窗（再截断到 --max-test 并对齐 batch）。 仅说明划分区间；实际 scaler 是否全量 fit 由 scaler_fit 控制。
+Scaler: fit=仅训练段（严格评估，避免泄露）
+Scaler 类型: StandardScaler
+已加载本文件内置完整特征工程（full）。
+RF 拟合目标统计: n=2176, std=0.01654804
+RF 重要性统计: max=4.19707718e-02, sum=1.00000000e+00
+RF 特征筛选已启用：Top-19 / 317
+RF 选中特征（前 30 展示）: ['SP500_Momentum_20', 'ret1', 'Production_MA_60', 'VIX_Std_60', 'ret2', 'mom1', 'US10Y_Momentum_5', 'Basis_Change', 'US10Y_Momentum_20', 'US10Y_Momentum_10', 'US10Y_Momentum_60', 'SP500_Momentum_60', 'Stocks_Z_20', 'OVX_Std_20', 'OVX_Momentum_60', 'OVX_Diff2', 'US10Y_Return', 'macd', 'Stocks_Std_10']
+RF 特征重要性图已保存: rf_feature_importance.png
+SHAP 精炼：自 RF Top-19 保留 4 列 (shap_top_n=4)
+SHAP 最终特征（前 30 展示）: ['ret1', 'ret2', 'mom1', 'macd']
+SHAP 重要性图已保存: shap_feature_importance.png
+最终训练特征总数: 4
+最终训练特征列表（完整）:
+[001] ret1
+[002] ret2
+[003] mom1
+[004] macd
+已启用 rework 特征工程输入，特征维度=4
+xtrain (2112, 15, 4) ytrain (2112, 1)
+xtest (576, 15, 4) ytest (576, 1)
+ydir_train (2112, 1) （方向头：1=涨,0=跌）
+验证集切分完成：train=1728, val=384 (val_ratio=0.20)
+EarlyStopping 已启用: monitor=val_loss, patience=5, min_delta=5.442195556868095e-05
+2026-04-28 13:13:11.094819: I tensorflow/core/platform/cpu_feature_guard.cc:182] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: SSE SSE2 SSE3 SSE4.1 SSE4.2 AVX AVX2 AVX_VNNI FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+双头模型：收益回归 + 方向二分类；loss_weights return=1.0, dir=2.5（方向权更大）
+Model: "model"
+__________________________________________________________________________________________________
+ Layer (type)                Output Shape                 Param #   Connected to                  
+==================================================================================================
+ input_1 (InputLayer)        [(None, 15, 4)]              0         []                            
+                                                                                                  
+ bidirectional (Bidirection  (None, 15, 128)              26880     ['input_1[0][0]']             
+ al)                                                                                              
+                                                                                                  
+ bidirectional_1 (Bidirecti  (None, 128)                  74496     ['bidirectional[0][0]']       
+ onal)                                                                                            
+                                                                                                  
+ dropout (Dropout)           (None, 128)                  0         ['bidirectional_1[0][0]']     
+                                                                                                  
+ dense (Dense)               (None, 10)                   1290      ['dropout[0][0]']             
+                                                                                                  
+ dense_1 (Dense)             (None, 16)                   2064      ['dropout[0][0]']             
+                                                                                                  
+ return (Dense)              (None, 1)                    11        ['dense[0][0]']               
+                                                                                                  
+ dir (Dense)                 (None, 1)                    17        ['dense_1[0][0]']             
+                                                                                                  
+==================================================================================================
+Total params: 104758 (409.21 KB)
+Trainable params: 104758 (409.21 KB)
+Non-trainable params: 0 (0.00 Byte)
+__________________________________________________________________________________________________
+Epoch 1/22
+
+ 1/27 [>.............................] - ETA: 1:23 - loss: 2.4904 - return_loss: 0.7429 - dir_loss: 0.6990 - dir_dir_acc: 0.4844
+ 5/27 [====>.........................] - ETA: 0s - loss: 2.3998 - return_loss: 0.6534 - dir_loss: 0.6985 - dir_dir_acc: 0.4719  
+ 9/27 [=========>....................] - ETA: 0s - loss: 2.4911 - return_loss: 0.7502 - dir_loss: 0.6964 - dir_dir_acc: 0.4826
+13/27 [=============>................] - ETA: 0s - loss: 2.5107 - return_loss: 0.7693 - dir_loss: 0.6966 - dir_dir_acc: 0.4724
+17/27 [=================>............] - ETA: 0s - loss: 2.5395 - return_loss: 0.8009 - dir_loss: 0.6954 - dir_dir_acc: 0.4798
+22/27 [=======================>......] - ETA: 0s - loss: 2.7318 - return_loss: 0.9948 - dir_loss: 0.6948 - dir_dir_acc: 0.4822
+27/27 [==============================] - ETA: 0s - loss: 2.7849 - return_loss: 1.0492 - dir_loss: 0.6943 - dir_dir_acc: 0.4919
+27/27 [==============================] - 4s 42ms/step - loss: 2.7849 - return_loss: 1.0492 - dir_loss: 0.6943 - dir_dir_acc: 0.4919 - val_loss: 2.6221 - val_return_loss: 0.9059 - val_dir_loss: 0.6865 - val_dir_dir_acc: 0.5651
+Epoch 2/22
+
+ 1/27 [>.............................] - ETA: 0s - loss: 2.4407 - return_loss: 0.6913 - dir_loss: 0.6997 - dir_dir_acc: 0.5469
+ 6/27 [=====>........................] - ETA: 0s - loss: 2.5824 - return_loss: 0.8559 - dir_loss: 0.6906 - dir_dir_acc: 0.5339
+10/27 [==========>...................] - ETA: 0s - loss: 2.8068 - return_loss: 1.0852 - dir_loss: 0.6886 - dir_dir_acc: 0.5500
+15/27 [===============>..............] - ETA: 0s - loss: 2.6998 - return_loss: 0.9784 - dir_loss: 0.6886 - dir_dir_acc: 0.5542
+20/27 [=====================>........] - ETA: 0s - loss: 2.7865 - return_loss: 1.0623 - dir_loss: 0.6897 - dir_dir_acc: 0.5508
+25/27 [==========================>...] - ETA: 0s - loss: 2.7726 - return_loss: 1.0471 - dir_loss: 0.6902 - dir_dir_acc: 0.5394
+27/27 [==============================] - 0s 15ms/step - loss: 2.7558 - return_loss: 1.0296 - dir_loss: 0.6905 - dir_dir_acc: 0.5428 - val_loss: 2.6124 - val_return_loss: 0.9092 - val_dir_loss: 0.6813 - val_dir_dir_acc: 0.5833
+Epoch 3/22
+
+ 1/27 [>.............................] - ETA: 0s - loss: 3.1504 - return_loss: 1.4288 - dir_loss: 0.6887 - dir_dir_acc: 0.5938
+ 5/27 [====>.........................] - ETA: 0s - loss: 2.9156 - return_loss: 1.1923 - dir_loss: 0.6893 - dir_dir_acc: 0.5437
+10/27 [==========>...................] - ETA: 0s - loss: 2.7695 - return_loss: 1.0493 - dir_loss: 0.6881 - dir_dir_acc: 0.5578
+14/27 [==============>...............] - ETA: 0s - loss: 2.8072 - return_loss: 1.0904 - dir_loss: 0.6867 - dir_dir_acc: 0.5569
+18/27 [===================>..........] - ETA: 0s - loss: 2.7250 - return_loss: 1.0098 - dir_loss: 0.6861 - dir_dir_acc: 0.5634
+23/27 [========================>.....] - ETA: 0s - loss: 2.7616 - return_loss: 1.0464 - dir_loss: 0.6861 - dir_dir_acc: 0.5618
+27/27 [==============================] - ETA: 0s - loss: 2.7381 - return_loss: 1.0237 - dir_loss: 0.6858 - dir_dir_acc: 0.5642
+27/27 [==============================] - 0s 15ms/step - loss: 2.7381 - return_loss: 1.0237 - dir_loss: 0.6858 - dir_dir_acc: 0.5642 - val_loss: 2.5947 - val_return_loss: 0.8971 - val_dir_loss: 0.6791 - val_dir_dir_acc: 0.5703
+Epoch 4/22
+
+ 1/27 [>.............................] - ETA: 0s - loss: 2.2436 - return_loss: 0.5072 - dir_loss: 0.6946 - dir_dir_acc: 0.5156
+ 4/27 [===>..........................] - ETA: 0s - loss: 2.6744 - return_loss: 0.9613 - dir_loss: 0.6853 - dir_dir_acc: 0.5430
+ 8/27 [=======>......................] - ETA: 0s - loss: 2.8684 - return_loss: 1.1543 - dir_loss: 0.6856 - dir_dir_acc: 0.5566
+13/27 [=============>................] - ETA: 0s - loss: 2.8843 - return_loss: 1.1659 - dir_loss: 0.6874 - dir_dir_acc: 0.5445
+18/27 [===================>..........] - ETA: 0s - loss: 2.7870 - return_loss: 1.0723 - dir_loss: 0.6859 - dir_dir_acc: 0.5477
+23/27 [========================>.....] - ETA: 0s - loss: 2.7921 - return_loss: 1.0808 - dir_loss: 0.6845 - dir_dir_acc: 0.5571
+27/27 [==============================] - 0s 16ms/step - loss: 2.7339 - return_loss: 1.0249 - dir_loss: 0.6836 - dir_dir_acc: 0.5584 - val_loss: 2.5685 - val_return_loss: 0.8784 - val_dir_loss: 0.6761 - val_dir_dir_acc: 0.5729
+Epoch 5/22
+
+ 1/27 [>.............................] - ETA: 0s - loss: 2.3903 - return_loss: 0.6824 - dir_loss: 0.6832 - dir_dir_acc: 0.6875
+ 4/27 [===>..........................] - ETA: 0s - loss: 2.9399 - return_loss: 1.2257 - dir_loss: 0.6857 - dir_dir_acc: 0.5703
+ 8/27 [=======>......................] - ETA: 0s - loss: 2.6880 - return_loss: 0.9714 - dir_loss: 0.6867 - dir_dir_acc: 0.5742
+12/27 [============>.................] - ETA: 0s - loss: 2.7302 - return_loss: 1.0123 - dir_loss: 0.6872 - dir_dir_acc: 0.5716
+16/27 [================>.............] - ETA: 0s - loss: 2.8209 - return_loss: 1.1054 - dir_loss: 0.6862 - dir_dir_acc: 0.5684
+21/27 [======================>.......] - ETA: 0s - loss: 2.7881 - return_loss: 1.0700 - dir_loss: 0.6873 - dir_dir_acc: 0.5707
+25/27 [==========================>...] - ETA: 0s - loss: 2.7437 - return_loss: 1.0305 - dir_loss: 0.6853 - dir_dir_acc: 0.5738
+27/27 [==============================] - 0s 16ms/step - loss: 2.7561 - return_loss: 1.0440 - dir_loss: 0.6848 - dir_dir_acc: 0.5758 - val_loss: 2.5878 - val_return_loss: 0.8978 - val_dir_loss: 0.6760 - val_dir_dir_acc: 0.5547
+Epoch 6/22
+
+ 1/27 [>.............................] - ETA: 0s - loss: 2.4852 - return_loss: 0.8066 - dir_loss: 0.6714 - dir_dir_acc: 0.5469
+ 6/27 [=====>........................] - ETA: 0s - loss: 2.9997 - return_loss: 1.3257 - dir_loss: 0.6696 - dir_dir_acc: 0.5833
+11/27 [===========>..................] - ETA: 0s - loss: 2.8132 - return_loss: 1.1351 - dir_loss: 0.6712 - dir_dir_acc: 0.5810
+16/27 [================>.............] - ETA: 0s - loss: 2.9025 - return_loss: 1.2098 - dir_loss: 0.6771 - dir_dir_acc: 0.5635
+20/27 [=====================>........] - ETA: 0s - loss: 2.8390 - return_loss: 1.1447 - dir_loss: 0.6778 - dir_dir_acc: 0.5664
+24/27 [=========================>....] - ETA: 0s - loss: 2.7480 - return_loss: 1.0543 - dir_loss: 0.6775 - dir_dir_acc: 0.5710
+27/27 [==============================] - 0s 15ms/step - loss: 2.7010 - return_loss: 1.0065 - dir_loss: 0.6778 - dir_dir_acc: 0.5723 - val_loss: 2.5696 - val_return_loss: 0.8843 - val_dir_loss: 0.6741 - val_dir_dir_acc: 0.5677
+Epoch 7/22
+
+ 1/27 [>.............................] - ETA: 0s - loss: 2.8837 - return_loss: 1.1348 - dir_loss: 0.6996 - dir_dir_acc: 0.4844
+ 5/27 [====>.........................] - ETA: 0s - loss: 2.6508 - return_loss: 0.9718 - dir_loss: 0.6716 - dir_dir_acc: 0.5844
+ 9/27 [=========>....................] - ETA: 0s - loss: 2.5440 - return_loss: 0.8468 - dir_loss: 0.6789 - dir_dir_acc: 0.5538
+13/27 [=============>................] - ETA: 0s - loss: 2.6030 - return_loss: 0.9071 - dir_loss: 0.6784 - dir_dir_acc: 0.5709
+17/27 [=================>............] - ETA: 0s - loss: 2.7423 - return_loss: 1.0417 - dir_loss: 0.6802 - dir_dir_acc: 0.5680
+22/27 [=======================>......] - ETA: 0s - loss: 2.7043 - return_loss: 1.0124 - dir_loss: 0.6768 - dir_dir_acc: 0.5767
+26/27 [===========================>..] - ETA: 0s - loss: 2.6737 - return_loss: 0.9805 - dir_loss: 0.6773 - dir_dir_acc: 0.5721
+27/27 [==============================] - 0s 15ms/step - loss: 2.6975 - return_loss: 1.0022 - dir_loss: 0.6781 - dir_dir_acc: 0.5706 - val_loss: 2.5703 - val_return_loss: 0.8846 - val_dir_loss: 0.6743 - val_dir_dir_acc: 0.5625
+Epoch 8/22
+
+ 1/27 [>.............................] - ETA: 0s - loss: 3.3810 - return_loss: 1.6705 - dir_loss: 0.6842 - dir_dir_acc: 0.5312
+ 5/27 [====>.........................] - ETA: 0s - loss: 3.0586 - return_loss: 1.3394 - dir_loss: 0.6877 - dir_dir_acc: 0.5312
+ 9/27 [=========>....................] - ETA: 0s - loss: 2.8300 - return_loss: 1.1300 - dir_loss: 0.6800 - dir_dir_acc: 0.5677
+13/27 [=============>................] - ETA: 0s - loss: 2.7562 - return_loss: 1.0701 - dir_loss: 0.6745 - dir_dir_acc: 0.5733
+17/27 [=================>............] - ETA: 0s - loss: 2.7744 - return_loss: 1.0913 - dir_loss: 0.6732 - dir_dir_acc: 0.5763
+21/27 [======================>.......] - ETA: 0s - loss: 2.7176 - return_loss: 1.0292 - dir_loss: 0.6754 - dir_dir_acc: 0.5759
+25/27 [==========================>...] - ETA: 0s - loss: 2.6978 - return_loss: 1.0064 - dir_loss: 0.6766 - dir_dir_acc: 0.5725
+27/27 [==============================] - 0s 15ms/step - loss: 2.7075 - return_loss: 1.0127 - dir_loss: 0.6780 - dir_dir_acc: 0.5712 - val_loss: 2.5749 - val_return_loss: 0.8874 - val_dir_loss: 0.6750 - val_dir_dir_acc: 0.5417
+Epoch 9/22
+
+ 1/27 [>.............................] - ETA: 0s - loss: 2.2377 - return_loss: 0.5735 - dir_loss: 0.6657 - dir_dir_acc: 0.6094
+ 5/27 [====>.........................] - ETA: 0s - loss: 2.7089 - return_loss: 1.0199 - dir_loss: 0.6756 - dir_dir_acc: 0.5531
+ 9/27 [=========>....................] - ETA: 0s - loss: 2.8879 - return_loss: 1.1860 - dir_loss: 0.6808 - dir_dir_acc: 0.5469
+13/27 [=============>................] - ETA: 0s - loss: 2.8778 - return_loss: 1.1791 - dir_loss: 0.6795 - dir_dir_acc: 0.5577
+17/27 [=================>............] - ETA: 0s - loss: 2.7925 - return_loss: 1.0964 - dir_loss: 0.6785 - dir_dir_acc: 0.5735
+21/27 [======================>.......] - ETA: 0s - loss: 2.7396 - return_loss: 1.0413 - dir_loss: 0.6793 - dir_dir_acc: 0.5655
+26/27 [===========================>..] - ETA: 0s - loss: 2.7040 - return_loss: 1.0105 - dir_loss: 0.6774 - dir_dir_acc: 0.5727Restoring model weights from the end of the best epoch: 4.
+
+27/27 [==============================] - 0s 16ms/step - loss: 2.6810 - return_loss: 0.9903 - dir_loss: 0.6763 - dir_dir_acc: 0.5752 - val_loss: 2.5878 - val_return_loss: 0.8986 - val_dir_loss: 0.6756 - val_dir_dir_acc: 0.5755
+Epoch 9: early stopping
+模型权重已保存: gru_sequence_weights.weights.h5
+测试集 MAE（horizon=1）: 0.008481
+测试集 RMSE（horizon=1）: 0.010975
+测试集 R²（horizon=1）: 0.0100
+测试集 方向一致性（收益正负符号一致率，排除真实=0）: 0.5896（含真实=0: 0.5896）
+测试集 方向头分类准确率（sigmoid≥0.5）: 0.5764
+方向头分类指标: Precision=0.5864, Recall=0.6333, F1=0.6090
+方向头 ROC-AUC（测试集）: 0.5808
+方向头混淆矩阵 [[TN, FP], [FN, TP]]: [[142, 134], [110, 190]]
+测试集 R²（收益还原为价格后，horizon=1）: 0.961895
+测试集 价格指标: MAE=0.6243, RMSE=0.8088, MAPE=0.85%
+Baseline(远期对数收益=0，随机游走) 在收益上的 R2: -0.0001
+Baseline(AR(1) on returns) R2_ret: 0.0870  (phi=0.286)
+Baseline(收益均值) R2_ret: -0.0001  (mu=-0.000016)
+结果图表CSV已保存: chart_test_predictions.csv
+结果图表CSV已保存: chart_train_val_loss.csv
+结果图表CSV已保存: chart_residual_distribution.csv
+结果图表CSV已保存: chart_return_scatter.csv
+结果图表CSV已保存: chart_backtest_nav_curve.csv
+结果图表CSV已保存: chart_direction_prediction.csv
+结果图表CSV已保存: chart_direction_confusion_matrix.csv
+结果图表CSV已保存: chart_direction_prob_distribution.csv
+结果图表CSV已保存: chart_preprocess_before_after_returns.csv
+结果图表CSV已保存: chart_preprocess_feature_compare.csv
+结果图表CSV已保存: chart_vmd_before_after.csv
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2956: UserWarning: Glyph 39044 (\N{CJK UNIFIED IDEOGRAPH-9884}) missing from font(s) DejaVu Sans.
+  fig_pre.savefig("preprocess_before_after_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2956: UserWarning: Glyph 22788 (\N{CJK UNIFIED IDEOGRAPH-5904}) missing from font(s) DejaVu Sans.
+  fig_pre.savefig("preprocess_before_after_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2956: UserWarning: Glyph 29702 (\N{CJK UNIFIED IDEOGRAPH-7406}) missing from font(s) DejaVu Sans.
+  fig_pre.savefig("preprocess_before_after_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2956: UserWarning: Glyph 21069 (\N{CJK UNIFIED IDEOGRAPH-524D}) missing from font(s) DejaVu Sans.
+  fig_pre.savefig("preprocess_before_after_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2956: UserWarning: Glyph 65306 (\N{FULLWIDTH COLON}) missing from font(s) DejaVu Sans.
+  fig_pre.savefig("preprocess_before_after_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2956: UserWarning: Glyph 21407 (\N{CJK UNIFIED IDEOGRAPH-539F}) missing from font(s) DejaVu Sans.
+  fig_pre.savefig("preprocess_before_after_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2956: UserWarning: Glyph 22987 (\N{CJK UNIFIED IDEOGRAPH-59CB}) missing from font(s) DejaVu Sans.
+  fig_pre.savefig("preprocess_before_after_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2956: UserWarning: Glyph 25910 (\N{CJK UNIFIED IDEOGRAPH-6536}) missing from font(s) DejaVu Sans.
+  fig_pre.savefig("preprocess_before_after_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2956: UserWarning: Glyph 30410 (\N{CJK UNIFIED IDEOGRAPH-76CA}) missing from font(s) DejaVu Sans.
+  fig_pre.savefig("preprocess_before_after_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2956: UserWarning: Glyph 24207 (\N{CJK UNIFIED IDEOGRAPH-5E8F}) missing from font(s) DejaVu Sans.
+  fig_pre.savefig("preprocess_before_after_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2956: UserWarning: Glyph 21015 (\N{CJK UNIFIED IDEOGRAPH-5217}) missing from font(s) DejaVu Sans.
+  fig_pre.savefig("preprocess_before_after_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2956: UserWarning: Glyph 21518 (\N{CJK UNIFIED IDEOGRAPH-540E}) missing from font(s) DejaVu Sans.
+  fig_pre.savefig("preprocess_before_after_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2956: UserWarning: Glyph 29992 (\N{CJK UNIFIED IDEOGRAPH-7528}) missing from font(s) DejaVu Sans.
+  fig_pre.savefig("preprocess_before_after_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2956: UserWarning: Glyph 20110 (\N{CJK UNIFIED IDEOGRAPH-4E8E}) missing from font(s) DejaVu Sans.
+  fig_pre.savefig("preprocess_before_after_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2956: UserWarning: Glyph 35757 (\N{CJK UNIFIED IDEOGRAPH-8BAD}) missing from font(s) DejaVu Sans.
+  fig_pre.savefig("preprocess_before_after_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2956: UserWarning: Glyph 32451 (\N{CJK UNIFIED IDEOGRAPH-7EC3}) missing from font(s) DejaVu Sans.
+  fig_pre.savefig("preprocess_before_after_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2956: UserWarning: Glyph 30340 (\N{CJK UNIFIED IDEOGRAPH-7684}) missing from font(s) DejaVu Sans.
+  fig_pre.savefig("preprocess_before_after_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2956: UserWarning: Glyph 65288 (\N{FULLWIDTH LEFT PARENTHESIS}) missing from font(s) DejaVu Sans.
+  fig_pre.savefig("preprocess_before_after_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2956: UserWarning: Glyph 21547 (\N{CJK UNIFIED IDEOGRAPH-542B}) missing from font(s) DejaVu Sans.
+  fig_pre.savefig("preprocess_before_after_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2956: UserWarning: Glyph 23545 (\N{CJK UNIFIED IDEOGRAPH-5BF9}) missing from font(s) DejaVu Sans.
+  fig_pre.savefig("preprocess_before_after_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2956: UserWarning: Glyph 40784 (\N{CJK UNIFIED IDEOGRAPH-9F50}) missing from font(s) DejaVu Sans.
+  fig_pre.savefig("preprocess_before_after_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2956: UserWarning: Glyph 65289 (\N{FULLWIDTH RIGHT PARENTHESIS}) missing from font(s) DejaVu Sans.
+  fig_pre.savefig("preprocess_before_after_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2956: UserWarning: Glyph 26679 (\N{CJK UNIFIED IDEOGRAPH-6837}) missing from font(s) DejaVu Sans.
+  fig_pre.savefig("preprocess_before_after_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2956: UserWarning: Glyph 26412 (\N{CJK UNIFIED IDEOGRAPH-672C}) missing from font(s) DejaVu Sans.
+  fig_pre.savefig("preprocess_before_after_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2956: UserWarning: Glyph 32034 (\N{CJK UNIFIED IDEOGRAPH-7D22}) missing from font(s) DejaVu Sans.
+  fig_pre.savefig("preprocess_before_after_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2956: UserWarning: Glyph 24341 (\N{CJK UNIFIED IDEOGRAPH-5F15}) missing from font(s) DejaVu Sans.
+  fig_pre.savefig("preprocess_before_after_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2956: UserWarning: Glyph 26631 (\N{CJK UNIFIED IDEOGRAPH-6807}) missing from font(s) DejaVu Sans.
+  fig_pre.savefig("preprocess_before_after_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2956: UserWarning: Glyph 20934 (\N{CJK UNIFIED IDEOGRAPH-51C6}) missing from font(s) DejaVu Sans.
+  fig_pre.savefig("preprocess_before_after_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2956: UserWarning: Glyph 21270 (\N{CJK UNIFIED IDEOGRAPH-5316}) missing from font(s) DejaVu Sans.
+  fig_pre.savefig("preprocess_before_after_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2956: UserWarning: Glyph 36755 (\N{CJK UNIFIED IDEOGRAPH-8F93}) missing from font(s) DejaVu Sans.
+  fig_pre.savefig("preprocess_before_after_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2956: UserWarning: Glyph 20986 (\N{CJK UNIFIED IDEOGRAPH-51FA}) missing from font(s) DejaVu Sans.
+  fig_pre.savefig("preprocess_before_after_returns.png", dpi=180, bbox_inches="tight")
+预处理前后（收益）图已保存: preprocess_before_after_returns.png
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2972: UserWarning: Glyph 25968 (\N{CJK UNIFIED IDEOGRAPH-6570}) missing from font(s) DejaVu Sans.
+  fig_hist.savefig("preprocess_distribution_compare.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2972: UserWarning: Glyph 20540 (\N{CJK UNIFIED IDEOGRAPH-503C}) missing from font(s) DejaVu Sans.
+  fig_hist.savefig("preprocess_distribution_compare.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2972: UserWarning: Glyph 39057 (\N{CJK UNIFIED IDEOGRAPH-9891}) missing from font(s) DejaVu Sans.
+  fig_hist.savefig("preprocess_distribution_compare.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2972: UserWarning: Glyph 27425 (\N{CJK UNIFIED IDEOGRAPH-6B21}) missing from font(s) DejaVu Sans.
+  fig_hist.savefig("preprocess_distribution_compare.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2972: UserWarning: Glyph 39044 (\N{CJK UNIFIED IDEOGRAPH-9884}) missing from font(s) DejaVu Sans.
+  fig_hist.savefig("preprocess_distribution_compare.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2972: UserWarning: Glyph 22788 (\N{CJK UNIFIED IDEOGRAPH-5904}) missing from font(s) DejaVu Sans.
+  fig_hist.savefig("preprocess_distribution_compare.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2972: UserWarning: Glyph 29702 (\N{CJK UNIFIED IDEOGRAPH-7406}) missing from font(s) DejaVu Sans.
+  fig_hist.savefig("preprocess_distribution_compare.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2972: UserWarning: Glyph 21069 (\N{CJK UNIFIED IDEOGRAPH-524D}) missing from font(s) DejaVu Sans.
+  fig_hist.savefig("preprocess_distribution_compare.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2972: UserWarning: Glyph 21518 (\N{CJK UNIFIED IDEOGRAPH-540E}) missing from font(s) DejaVu Sans.
+  fig_hist.savefig("preprocess_distribution_compare.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2972: UserWarning: Glyph 20998 (\N{CJK UNIFIED IDEOGRAPH-5206}) missing from font(s) DejaVu Sans.
+  fig_hist.savefig("preprocess_distribution_compare.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2972: UserWarning: Glyph 24067 (\N{CJK UNIFIED IDEOGRAPH-5E03}) missing from font(s) DejaVu Sans.
+  fig_hist.savefig("preprocess_distribution_compare.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2972: UserWarning: Glyph 23545 (\N{CJK UNIFIED IDEOGRAPH-5BF9}) missing from font(s) DejaVu Sans.
+  fig_hist.savefig("preprocess_distribution_compare.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2972: UserWarning: Glyph 27604 (\N{CJK UNIFIED IDEOGRAPH-6BD4}) missing from font(s) DejaVu Sans.
+  fig_hist.savefig("preprocess_distribution_compare.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2972: UserWarning: Glyph 65288 (\N{FULLWIDTH LEFT PARENTHESIS}) missing from font(s) DejaVu Sans.
+  fig_hist.savefig("preprocess_distribution_compare.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2972: UserWarning: Glyph 25910 (\N{CJK UNIFIED IDEOGRAPH-6536}) missing from font(s) DejaVu Sans.
+  fig_hist.savefig("preprocess_distribution_compare.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2972: UserWarning: Glyph 30410 (\N{CJK UNIFIED IDEOGRAPH-76CA}) missing from font(s) DejaVu Sans.
+  fig_hist.savefig("preprocess_distribution_compare.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2972: UserWarning: Glyph 65289 (\N{FULLWIDTH RIGHT PARENTHESIS}) missing from font(s) DejaVu Sans.
+  fig_hist.savefig("preprocess_distribution_compare.png", dpi=180, bbox_inches="tight")
+预处理分布对比图已保存: preprocess_distribution_compare.png
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2986: UserWarning: Glyph 26679 (\N{CJK UNIFIED IDEOGRAPH-6837}) missing from font(s) DejaVu Sans.
+  fig_fx.savefig("preprocess_feature_compare.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2986: UserWarning: Glyph 26412 (\N{CJK UNIFIED IDEOGRAPH-672C}) missing from font(s) DejaVu Sans.
+  fig_fx.savefig("preprocess_feature_compare.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2986: UserWarning: Glyph 32034 (\N{CJK UNIFIED IDEOGRAPH-7D22}) missing from font(s) DejaVu Sans.
+  fig_fx.savefig("preprocess_feature_compare.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2986: UserWarning: Glyph 24341 (\N{CJK UNIFIED IDEOGRAPH-5F15}) missing from font(s) DejaVu Sans.
+  fig_fx.savefig("preprocess_feature_compare.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2986: UserWarning: Glyph 20540 (\N{CJK UNIFIED IDEOGRAPH-503C}) missing from font(s) DejaVu Sans.
+  fig_fx.savefig("preprocess_feature_compare.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2986: UserWarning: Glyph 29305 (\N{CJK UNIFIED IDEOGRAPH-7279}) missing from font(s) DejaVu Sans.
+  fig_fx.savefig("preprocess_feature_compare.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2986: UserWarning: Glyph 24449 (\N{CJK UNIFIED IDEOGRAPH-5F81}) missing from font(s) DejaVu Sans.
+  fig_fx.savefig("preprocess_feature_compare.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2986: UserWarning: Glyph 39044 (\N{CJK UNIFIED IDEOGRAPH-9884}) missing from font(s) DejaVu Sans.
+  fig_fx.savefig("preprocess_feature_compare.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2986: UserWarning: Glyph 22788 (\N{CJK UNIFIED IDEOGRAPH-5904}) missing from font(s) DejaVu Sans.
+  fig_fx.savefig("preprocess_feature_compare.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2986: UserWarning: Glyph 29702 (\N{CJK UNIFIED IDEOGRAPH-7406}) missing from font(s) DejaVu Sans.
+  fig_fx.savefig("preprocess_feature_compare.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2986: UserWarning: Glyph 21069 (\N{CJK UNIFIED IDEOGRAPH-524D}) missing from font(s) DejaVu Sans.
+  fig_fx.savefig("preprocess_feature_compare.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2986: UserWarning: Glyph 21518 (\N{CJK UNIFIED IDEOGRAPH-540E}) missing from font(s) DejaVu Sans.
+  fig_fx.savefig("preprocess_feature_compare.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2986: UserWarning: Glyph 23545 (\N{CJK UNIFIED IDEOGRAPH-5BF9}) missing from font(s) DejaVu Sans.
+  fig_fx.savefig("preprocess_feature_compare.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2986: UserWarning: Glyph 27604 (\N{CJK UNIFIED IDEOGRAPH-6BD4}) missing from font(s) DejaVu Sans.
+  fig_fx.savefig("preprocess_feature_compare.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2986: UserWarning: Glyph 65288 (\N{FULLWIDTH LEFT PARENTHESIS}) missing from font(s) DejaVu Sans.
+  fig_fx.savefig("preprocess_feature_compare.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2986: UserWarning: Glyph 31532 (\N{CJK UNIFIED IDEOGRAPH-7B2C}) missing from font(s) DejaVu Sans.
+  fig_fx.savefig("preprocess_feature_compare.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2986: UserWarning: Glyph 20010 (\N{CJK UNIFIED IDEOGRAPH-4E2A}) missing from font(s) DejaVu Sans.
+  fig_fx.savefig("preprocess_feature_compare.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:2986: UserWarning: Glyph 65289 (\N{FULLWIDTH RIGHT PARENTHESIS}) missing from font(s) DejaVu Sans.
+  fig_fx.savefig("preprocess_feature_compare.png", dpi=180, bbox_inches="tight")
+特征预处理前后图已保存: preprocess_feature_compare.png
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3013: UserWarning: Glyph 26679 (\N{CJK UNIFIED IDEOGRAPH-6837}) missing from font(s) DejaVu Sans.
+  fig_vmd_ba.savefig("vmd_before_after.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3013: UserWarning: Glyph 26412 (\N{CJK UNIFIED IDEOGRAPH-672C}) missing from font(s) DejaVu Sans.
+  fig_vmd_ba.savefig("vmd_before_after.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3013: UserWarning: Glyph 32034 (\N{CJK UNIFIED IDEOGRAPH-7D22}) missing from font(s) DejaVu Sans.
+  fig_vmd_ba.savefig("vmd_before_after.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3013: UserWarning: Glyph 24341 (\N{CJK UNIFIED IDEOGRAPH-5F15}) missing from font(s) DejaVu Sans.
+  fig_vmd_ba.savefig("vmd_before_after.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3013: UserWarning: Glyph 25910 (\N{CJK UNIFIED IDEOGRAPH-6536}) missing from font(s) DejaVu Sans.
+  fig_vmd_ba.savefig("vmd_before_after.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3013: UserWarning: Glyph 30410 (\N{CJK UNIFIED IDEOGRAPH-76CA}) missing from font(s) DejaVu Sans.
+  fig_vmd_ba.savefig("vmd_before_after.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3013: UserWarning: Glyph 21069 (\N{CJK UNIFIED IDEOGRAPH-524D}) missing from font(s) DejaVu Sans.
+  fig_vmd_ba.savefig("vmd_before_after.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3013: UserWarning: Glyph 21518 (\N{CJK UNIFIED IDEOGRAPH-540E}) missing from font(s) DejaVu Sans.
+  fig_vmd_ba.savefig("vmd_before_after.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3013: UserWarning: Glyph 26631 (\N{CJK UNIFIED IDEOGRAPH-6807}) missing from font(s) DejaVu Sans.
+  fig_vmd_ba.savefig("vmd_before_after.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3013: UserWarning: Glyph 31614 (\N{CJK UNIFIED IDEOGRAPH-7B7E}) missing from font(s) DejaVu Sans.
+  fig_vmd_ba.savefig("vmd_before_after.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3013: UserWarning: Glyph 24207 (\N{CJK UNIFIED IDEOGRAPH-5E8F}) missing from font(s) DejaVu Sans.
+  fig_vmd_ba.savefig("vmd_before_after.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3013: UserWarning: Glyph 21015 (\N{CJK UNIFIED IDEOGRAPH-5217}) missing from font(s) DejaVu Sans.
+  fig_vmd_ba.savefig("vmd_before_after.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3013: UserWarning: Glyph 23545 (\N{CJK UNIFIED IDEOGRAPH-5BF9}) missing from font(s) DejaVu Sans.
+  fig_vmd_ba.savefig("vmd_before_after.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3013: UserWarning: Glyph 27604 (\N{CJK UNIFIED IDEOGRAPH-6BD4}) missing from font(s) DejaVu Sans.
+  fig_vmd_ba.savefig("vmd_before_after.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3013: UserWarning: Glyph 65288 (\N{FULLWIDTH LEFT PARENTHESIS}) missing from font(s) DejaVu Sans.
+  fig_vmd_ba.savefig("vmd_before_after.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3013: UserWarning: Glyph 21407 (\N{CJK UNIFIED IDEOGRAPH-539F}) missing from font(s) DejaVu Sans.
+  fig_vmd_ba.savefig("vmd_before_after.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3013: UserWarning: Glyph 22987 (\N{CJK UNIFIED IDEOGRAPH-59CB}) missing from font(s) DejaVu Sans.
+  fig_vmd_ba.savefig("vmd_before_after.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3013: UserWarning: Glyph 65289 (\N{FULLWIDTH RIGHT PARENTHESIS}) missing from font(s) DejaVu Sans.
+  fig_vmd_ba.savefig("vmd_before_after.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3013: UserWarning: Glyph 37325 (\N{CJK UNIFIED IDEOGRAPH-91CD}) missing from font(s) DejaVu Sans.
+  fig_vmd_ba.savefig("vmd_before_after.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3013: UserWarning: Glyph 26500 (\N{CJK UNIFIED IDEOGRAPH-6784}) missing from font(s) DejaVu Sans.
+  fig_vmd_ba.savefig("vmd_before_after.png", dpi=180, bbox_inches="tight")
+VMD 前后对比图已保存: vmd_before_after.png
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3035: UserWarning: Glyph 20998 (\N{CJK UNIFIED IDEOGRAPH-5206}) missing from font(s) DejaVu Sans.
+  fig_vmd.savefig("vmd_decomposition.png", dpi=150)
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3035: UserWarning: Glyph 35299 (\N{CJK UNIFIED IDEOGRAPH-89E3}) missing from font(s) DejaVu Sans.
+  fig_vmd.savefig("vmd_decomposition.png", dpi=150)
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3035: UserWarning: Glyph 65306 (\N{FULLWIDTH COLON}) missing from font(s) DejaVu Sans.
+  fig_vmd.savefig("vmd_decomposition.png", dpi=150)
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3035: UserWarning: Glyph 21407 (\N{CJK UNIFIED IDEOGRAPH-539F}) missing from font(s) DejaVu Sans.
+  fig_vmd.savefig("vmd_decomposition.png", dpi=150)
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3035: UserWarning: Glyph 22987 (\N{CJK UNIFIED IDEOGRAPH-59CB}) missing from font(s) DejaVu Sans.
+  fig_vmd.savefig("vmd_decomposition.png", dpi=150)
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3035: UserWarning: Glyph 26631 (\N{CJK UNIFIED IDEOGRAPH-6807}) missing from font(s) DejaVu Sans.
+  fig_vmd.savefig("vmd_decomposition.png", dpi=150)
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3035: UserWarning: Glyph 31614 (\N{CJK UNIFIED IDEOGRAPH-7B7E}) missing from font(s) DejaVu Sans.
+  fig_vmd.savefig("vmd_decomposition.png", dpi=150)
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3035: UserWarning: Glyph 24207 (\N{CJK UNIFIED IDEOGRAPH-5E8F}) missing from font(s) DejaVu Sans.
+  fig_vmd.savefig("vmd_decomposition.png", dpi=150)
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3035: UserWarning: Glyph 21015 (\N{CJK UNIFIED IDEOGRAPH-5217}) missing from font(s) DejaVu Sans.
+  fig_vmd.savefig("vmd_decomposition.png", dpi=150)
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3035: UserWarning: Glyph 65288 (\N{FULLWIDTH LEFT PARENTHESIS}) missing from font(s) DejaVu Sans.
+  fig_vmd.savefig("vmd_decomposition.png", dpi=150)
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3035: UserWarning: Glyph 20840 (\N{CJK UNIFIED IDEOGRAPH-5168}) missing from font(s) DejaVu Sans.
+  fig_vmd.savefig("vmd_decomposition.png", dpi=150)
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3035: UserWarning: Glyph 27573 (\N{CJK UNIFIED IDEOGRAPH-6BB5}) missing from font(s) DejaVu Sans.
+  fig_vmd.savefig("vmd_decomposition.png", dpi=150)
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3035: UserWarning: Glyph 65289 (\N{FULLWIDTH RIGHT PARENTHESIS}) missing from font(s) DejaVu Sans.
+  fig_vmd.savefig("vmd_decomposition.png", dpi=150)
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3035: UserWarning: Glyph 20165 (\N{CJK UNIFIED IDEOGRAPH-4EC5}) missing from font(s) DejaVu Sans.
+  fig_vmd.savefig("vmd_decomposition.png", dpi=150)
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3035: UserWarning: Glyph 35757 (\N{CJK UNIFIED IDEOGRAPH-8BAD}) missing from font(s) DejaVu Sans.
+  fig_vmd.savefig("vmd_decomposition.png", dpi=150)
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3035: UserWarning: Glyph 32451 (\N{CJK UNIFIED IDEOGRAPH-7EC3}) missing from font(s) DejaVu Sans.
+  fig_vmd.savefig("vmd_decomposition.png", dpi=150)
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3035: UserWarning: Glyph 21069 (\N{CJK UNIFIED IDEOGRAPH-524D}) missing from font(s) DejaVu Sans.
+  fig_vmd.savefig("vmd_decomposition.png", dpi=150)
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3035: UserWarning: Glyph 32512 (\N{CJK UNIFIED IDEOGRAPH-7F00}) missing from font(s) DejaVu Sans.
+  fig_vmd.savefig("vmd_decomposition.png", dpi=150)
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3035: UserWarning: Glyph 38271 (\N{CJK UNIFIED IDEOGRAPH-957F}) missing from font(s) DejaVu Sans.
+  fig_vmd.savefig("vmd_decomposition.png", dpi=150)
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3035: UserWarning: Glyph 24230 (\N{CJK UNIFIED IDEOGRAPH-5EA6}) missing from font(s) DejaVu Sans.
+  fig_vmd.savefig("vmd_decomposition.png", dpi=150)
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3035: UserWarning: Glyph 26679 (\N{CJK UNIFIED IDEOGRAPH-6837}) missing from font(s) DejaVu Sans.
+  fig_vmd.savefig("vmd_decomposition.png", dpi=150)
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3035: UserWarning: Glyph 26412 (\N{CJK UNIFIED IDEOGRAPH-672C}) missing from font(s) DejaVu Sans.
+  fig_vmd.savefig("vmd_decomposition.png", dpi=150)
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3035: UserWarning: Glyph 32034 (\N{CJK UNIFIED IDEOGRAPH-7D22}) missing from font(s) DejaVu Sans.
+  fig_vmd.savefig("vmd_decomposition.png", dpi=150)
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3035: UserWarning: Glyph 24341 (\N{CJK UNIFIED IDEOGRAPH-5F15}) missing from font(s) DejaVu Sans.
+  fig_vmd.savefig("vmd_decomposition.png", dpi=150)
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3035: UserWarning: Glyph 37325 (\N{CJK UNIFIED IDEOGRAPH-91CD}) missing from font(s) DejaVu Sans.
+  fig_vmd.savefig("vmd_decomposition.png", dpi=150)
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3035: UserWarning: Glyph 26500 (\N{CJK UNIFIED IDEOGRAPH-6784}) missing from font(s) DejaVu Sans.
+  fig_vmd.savefig("vmd_decomposition.png", dpi=150)
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3035: UserWarning: Glyph 29992 (\N{CJK UNIFIED IDEOGRAPH-7528}) missing from font(s) DejaVu Sans.
+  fig_vmd.savefig("vmd_decomposition.png", dpi=150)
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3035: UserWarning: Glyph 20110 (\N{CJK UNIFIED IDEOGRAPH-4E8E}) missing from font(s) DejaVu Sans.
+  fig_vmd.savefig("vmd_decomposition.png", dpi=150)
+VMD 分解图已保存: vmd_decomposition.png
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3097: UserWarning: Glyph 27979 (\N{CJK UNIFIED IDEOGRAPH-6D4B}) missing from font(s) DejaVu Sans.
+  fig.savefig("gru_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3097: UserWarning: Glyph 35797 (\N{CJK UNIFIED IDEOGRAPH-8BD5}) missing from font(s) DejaVu Sans.
+  fig.savefig("gru_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3097: UserWarning: Glyph 31383 (\N{CJK UNIFIED IDEOGRAPH-7A97}) missing from font(s) DejaVu Sans.
+  fig.savefig("gru_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3097: UserWarning: Glyph 32034 (\N{CJK UNIFIED IDEOGRAPH-7D22}) missing from font(s) DejaVu Sans.
+  fig.savefig("gru_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3097: UserWarning: Glyph 24341 (\N{CJK UNIFIED IDEOGRAPH-5F15}) missing from font(s) DejaVu Sans.
+  fig.savefig("gru_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3097: UserWarning: Glyph 25910 (\N{CJK UNIFIED IDEOGRAPH-6536}) missing from font(s) DejaVu Sans.
+  fig.savefig("gru_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3097: UserWarning: Glyph 30410 (\N{CJK UNIFIED IDEOGRAPH-76CA}) missing from font(s) DejaVu Sans.
+  fig.savefig("gru_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3097: UserWarning: Glyph 29575 (\N{CJK UNIFIED IDEOGRAPH-7387}) missing from font(s) DejaVu Sans.
+  fig.savefig("gru_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3097: UserWarning: Glyph 38598 (\N{CJK UNIFIED IDEOGRAPH-96C6}) missing from font(s) DejaVu Sans.
+  fig.savefig("gru_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3097: UserWarning: Glyph 65306 (\N{FULLWIDTH COLON}) missing from font(s) DejaVu Sans.
+  fig.savefig("gru_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3097: UserWarning: Glyph 30495 (\N{CJK UNIFIED IDEOGRAPH-771F}) missing from font(s) DejaVu Sans.
+  fig.savefig("gru_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3097: UserWarning: Glyph 23454 (\N{CJK UNIFIED IDEOGRAPH-5B9E}) missing from font(s) DejaVu Sans.
+  fig.savefig("gru_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3097: UserWarning: Glyph 39044 (\N{CJK UNIFIED IDEOGRAPH-9884}) missing from font(s) DejaVu Sans.
+  fig.savefig("gru_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3097: UserWarning: Glyph 65288 (\N{FULLWIDTH LEFT PARENTHESIS}) missing from font(s) DejaVu Sans.
+  fig.savefig("gru_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3097: UserWarning: Glyph 65292 (\N{FULLWIDTH COMMA}) missing from font(s) DejaVu Sans.
+  fig.savefig("gru_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3097: UserWarning: Glyph 36870 (\N{CJK UNIFIED IDEOGRAPH-9006}) missing from font(s) DejaVu Sans.
+  fig.savefig("gru_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3097: UserWarning: Glyph 21464 (\N{CJK UNIFIED IDEOGRAPH-53D8}) missing from font(s) DejaVu Sans.
+  fig.savefig("gru_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3097: UserWarning: Glyph 25442 (\N{CJK UNIFIED IDEOGRAPH-6362}) missing from font(s) DejaVu Sans.
+  fig.savefig("gru_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3097: UserWarning: Glyph 21518 (\N{CJK UNIFIED IDEOGRAPH-540E}) missing from font(s) DejaVu Sans.
+  fig.savefig("gru_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3097: UserWarning: Glyph 65289 (\N{FULLWIDTH RIGHT PARENTHESIS}) missing from font(s) DejaVu Sans.
+  fig.savefig("gru_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3097: UserWarning: Glyph 35757 (\N{CJK UNIFIED IDEOGRAPH-8BAD}) missing from font(s) DejaVu Sans.
+  fig.savefig("gru_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3097: UserWarning: Glyph 32451 (\N{CJK UNIFIED IDEOGRAPH-7EC3}) missing from font(s) DejaVu Sans.
+  fig.savefig("gru_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3097: UserWarning: Glyph 39564 (\N{CJK UNIFIED IDEOGRAPH-9A8C}) missing from font(s) DejaVu Sans.
+  fig.savefig("gru_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3097: UserWarning: Glyph 35777 (\N{CJK UNIFIED IDEOGRAPH-8BC1}) missing from font(s) DejaVu Sans.
+  fig.savefig("gru_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3097: UserWarning: Glyph 24635 (\N{CJK UNIFIED IDEOGRAPH-603B}) missing from font(s) DejaVu Sans.
+  fig.savefig("gru_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3097: UserWarning: Glyph 25439 (\N{CJK UNIFIED IDEOGRAPH-635F}) missing from font(s) DejaVu Sans.
+  fig.savefig("gru_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3097: UserWarning: Glyph 22833 (\N{CJK UNIFIED IDEOGRAPH-5931}) missing from font(s) DejaVu Sans.
+  fig.savefig("gru_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3097: UserWarning: Glyph 26354 (\N{CJK UNIFIED IDEOGRAPH-66F2}) missing from font(s) DejaVu Sans.
+  fig.savefig("gru_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3097: UserWarning: Glyph 32447 (\N{CJK UNIFIED IDEOGRAPH-7EBF}) missing from font(s) DejaVu Sans.
+  fig.savefig("gru_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3097: UserWarning: Glyph 21452 (\N{CJK UNIFIED IDEOGRAPH-53CC}) missing from font(s) DejaVu Sans.
+  fig.savefig("gru_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3097: UserWarning: Glyph 22836 (\N{CJK UNIFIED IDEOGRAPH-5934}) missing from font(s) DejaVu Sans.
+  fig.savefig("gru_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3097: UserWarning: Glyph 20026 (\N{CJK UNIFIED IDEOGRAPH-4E3A}) missing from font(s) DejaVu Sans.
+  fig.savefig("gru_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3097: UserWarning: Glyph 21152 (\N{CJK UNIFIED IDEOGRAPH-52A0}) missing from font(s) DejaVu Sans.
+  fig.savefig("gru_returns.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3097: UserWarning: Glyph 26435 (\N{CJK UNIFIED IDEOGRAPH-6743}) missing from font(s) DejaVu Sans.
+  fig.savefig("gru_returns.png", dpi=180, bbox_inches="tight")
+收益与训练损失图已保存: gru_returns.png
+训练/验证 loss 图已保存: train_val_loss.png
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3129: UserWarning: Glyph 27979 (\N{CJK UNIFIED IDEOGRAPH-6D4B}) missing from font(s) DejaVu Sans.
+  fig_price.savefig("gru_predictions.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3129: UserWarning: Glyph 35797 (\N{CJK UNIFIED IDEOGRAPH-8BD5}) missing from font(s) DejaVu Sans.
+  fig_price.savefig("gru_predictions.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3129: UserWarning: Glyph 31383 (\N{CJK UNIFIED IDEOGRAPH-7A97}) missing from font(s) DejaVu Sans.
+  fig_price.savefig("gru_predictions.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3129: UserWarning: Glyph 32034 (\N{CJK UNIFIED IDEOGRAPH-7D22}) missing from font(s) DejaVu Sans.
+  fig_price.savefig("gru_predictions.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3129: UserWarning: Glyph 24341 (\N{CJK UNIFIED IDEOGRAPH-5F15}) missing from font(s) DejaVu Sans.
+  fig_price.savefig("gru_predictions.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3129: UserWarning: Glyph 20215 (\N{CJK UNIFIED IDEOGRAPH-4EF7}) missing from font(s) DejaVu Sans.
+  fig_price.savefig("gru_predictions.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3129: UserWarning: Glyph 26684 (\N{CJK UNIFIED IDEOGRAPH-683C}) missing from font(s) DejaVu Sans.
+  fig_price.savefig("gru_predictions.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3129: UserWarning: Glyph 38598 (\N{CJK UNIFIED IDEOGRAPH-96C6}) missing from font(s) DejaVu Sans.
+  fig_price.savefig("gru_predictions.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3129: UserWarning: Glyph 65306 (\N{FULLWIDTH COLON}) missing from font(s) DejaVu Sans.
+  fig_price.savefig("gru_predictions.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3129: UserWarning: Glyph 30495 (\N{CJK UNIFIED IDEOGRAPH-771F}) missing from font(s) DejaVu Sans.
+  fig_price.savefig("gru_predictions.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3129: UserWarning: Glyph 23454 (\N{CJK UNIFIED IDEOGRAPH-5B9E}) missing from font(s) DejaVu Sans.
+  fig_price.savefig("gru_predictions.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3129: UserWarning: Glyph 39044 (\N{CJK UNIFIED IDEOGRAPH-9884}) missing from font(s) DejaVu Sans.
+  fig_price.savefig("gru_predictions.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3129: UserWarning: Glyph 65288 (\N{FULLWIDTH LEFT PARENTHESIS}) missing from font(s) DejaVu Sans.
+  fig_price.savefig("gru_predictions.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3129: UserWarning: Glyph 65289 (\N{FULLWIDTH RIGHT PARENTHESIS}) missing from font(s) DejaVu Sans.
+  fig_price.savefig("gru_predictions.png", dpi=180, bbox_inches="tight")
+价格预测图已保存: gru_predictions.png
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3140: UserWarning: Glyph 27531 (\N{CJK UNIFIED IDEOGRAPH-6B8B}) missing from font(s) DejaVu Sans.
+  fig_res.savefig("residual_distribution.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3140: UserWarning: Glyph 24046 (\N{CJK UNIFIED IDEOGRAPH-5DEE}) missing from font(s) DejaVu Sans.
+  fig_res.savefig("residual_distribution.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3140: UserWarning: Glyph 39057 (\N{CJK UNIFIED IDEOGRAPH-9891}) missing from font(s) DejaVu Sans.
+  fig_res.savefig("residual_distribution.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3140: UserWarning: Glyph 27425 (\N{CJK UNIFIED IDEOGRAPH-6B21}) missing from font(s) DejaVu Sans.
+  fig_res.savefig("residual_distribution.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3140: UserWarning: Glyph 25910 (\N{CJK UNIFIED IDEOGRAPH-6536}) missing from font(s) DejaVu Sans.
+  fig_res.savefig("residual_distribution.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3140: UserWarning: Glyph 30410 (\N{CJK UNIFIED IDEOGRAPH-76CA}) missing from font(s) DejaVu Sans.
+  fig_res.savefig("residual_distribution.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3140: UserWarning: Glyph 39044 (\N{CJK UNIFIED IDEOGRAPH-9884}) missing from font(s) DejaVu Sans.
+  fig_res.savefig("residual_distribution.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3140: UserWarning: Glyph 27979 (\N{CJK UNIFIED IDEOGRAPH-6D4B}) missing from font(s) DejaVu Sans.
+  fig_res.savefig("residual_distribution.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3140: UserWarning: Glyph 20998 (\N{CJK UNIFIED IDEOGRAPH-5206}) missing from font(s) DejaVu Sans.
+  fig_res.savefig("residual_distribution.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3140: UserWarning: Glyph 24067 (\N{CJK UNIFIED IDEOGRAPH-5E03}) missing from font(s) DejaVu Sans.
+  fig_res.savefig("residual_distribution.png", dpi=180, bbox_inches="tight")
+残差分布图已保存: residual_distribution.png
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3152: UserWarning: Glyph 30495 (\N{CJK UNIFIED IDEOGRAPH-771F}) missing from font(s) DejaVu Sans.
+  fig_sc.savefig("return_scatter.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3152: UserWarning: Glyph 23454 (\N{CJK UNIFIED IDEOGRAPH-5B9E}) missing from font(s) DejaVu Sans.
+  fig_sc.savefig("return_scatter.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3152: UserWarning: Glyph 25910 (\N{CJK UNIFIED IDEOGRAPH-6536}) missing from font(s) DejaVu Sans.
+  fig_sc.savefig("return_scatter.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3152: UserWarning: Glyph 30410 (\N{CJK UNIFIED IDEOGRAPH-76CA}) missing from font(s) DejaVu Sans.
+  fig_sc.savefig("return_scatter.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3152: UserWarning: Glyph 39044 (\N{CJK UNIFIED IDEOGRAPH-9884}) missing from font(s) DejaVu Sans.
+  fig_sc.savefig("return_scatter.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3152: UserWarning: Glyph 27979 (\N{CJK UNIFIED IDEOGRAPH-6D4B}) missing from font(s) DejaVu Sans.
+  fig_sc.savefig("return_scatter.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3152: UserWarning: Glyph 20540 (\N{CJK UNIFIED IDEOGRAPH-503C}) missing from font(s) DejaVu Sans.
+  fig_sc.savefig("return_scatter.png", dpi=180, bbox_inches="tight")
+收益散点图已保存: return_scatter.png
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3165: UserWarning: Glyph 27979 (\N{CJK UNIFIED IDEOGRAPH-6D4B}) missing from font(s) DejaVu Sans.
+  fig_dir.savefig("direction_prediction.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3165: UserWarning: Glyph 35797 (\N{CJK UNIFIED IDEOGRAPH-8BD5}) missing from font(s) DejaVu Sans.
+  fig_dir.savefig("direction_prediction.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3165: UserWarning: Glyph 31383 (\N{CJK UNIFIED IDEOGRAPH-7A97}) missing from font(s) DejaVu Sans.
+  fig_dir.savefig("direction_prediction.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3165: UserWarning: Glyph 32034 (\N{CJK UNIFIED IDEOGRAPH-7D22}) missing from font(s) DejaVu Sans.
+  fig_dir.savefig("direction_prediction.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3165: UserWarning: Glyph 24341 (\N{CJK UNIFIED IDEOGRAPH-5F15}) missing from font(s) DejaVu Sans.
+  fig_dir.savefig("direction_prediction.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3165: UserWarning: Glyph 26041 (\N{CJK UNIFIED IDEOGRAPH-65B9}) missing from font(s) DejaVu Sans.
+  fig_dir.savefig("direction_prediction.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3165: UserWarning: Glyph 21521 (\N{CJK UNIFIED IDEOGRAPH-5411}) missing from font(s) DejaVu Sans.
+  fig_dir.savefig("direction_prediction.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3165: UserWarning: Glyph 39044 (\N{CJK UNIFIED IDEOGRAPH-9884}) missing from font(s) DejaVu Sans.
+  fig_dir.savefig("direction_prediction.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3165: UserWarning: Glyph 23545 (\N{CJK UNIFIED IDEOGRAPH-5BF9}) missing from font(s) DejaVu Sans.
+  fig_dir.savefig("direction_prediction.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3165: UserWarning: Glyph 27604 (\N{CJK UNIFIED IDEOGRAPH-6BD4}) missing from font(s) DejaVu Sans.
+  fig_dir.savefig("direction_prediction.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3165: UserWarning: Glyph 30495 (\N{CJK UNIFIED IDEOGRAPH-771F}) missing from font(s) DejaVu Sans.
+  fig_dir.savefig("direction_prediction.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3165: UserWarning: Glyph 23454 (\N{CJK UNIFIED IDEOGRAPH-5B9E}) missing from font(s) DejaVu Sans.
+  fig_dir.savefig("direction_prediction.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3165: UserWarning: Glyph 28072 (\N{CJK UNIFIED IDEOGRAPH-6DA8}) missing from font(s) DejaVu Sans.
+  fig_dir.savefig("direction_prediction.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3165: UserWarning: Glyph 36300 (\N{CJK UNIFIED IDEOGRAPH-8DCC}) missing from font(s) DejaVu Sans.
+  fig_dir.savefig("direction_prediction.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3165: UserWarning: Glyph 38408 (\N{CJK UNIFIED IDEOGRAPH-9608}) missing from font(s) DejaVu Sans.
+  fig_dir.savefig("direction_prediction.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3165: UserWarning: Glyph 20540 (\N{CJK UNIFIED IDEOGRAPH-503C}) missing from font(s) DejaVu Sans.
+  fig_dir.savefig("direction_prediction.png", dpi=180, bbox_inches="tight")
+方向预测图已保存: direction_prediction.png
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3180: UserWarning: Glyph 26041 (\N{CJK UNIFIED IDEOGRAPH-65B9}) missing from font(s) DejaVu Sans.
+  fig_cm.savefig("direction_confusion_matrix.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3180: UserWarning: Glyph 21521 (\N{CJK UNIFIED IDEOGRAPH-5411}) missing from font(s) DejaVu Sans.
+  fig_cm.savefig("direction_confusion_matrix.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3180: UserWarning: Glyph 28151 (\N{CJK UNIFIED IDEOGRAPH-6DF7}) missing from font(s) DejaVu Sans.
+  fig_cm.savefig("direction_confusion_matrix.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3180: UserWarning: Glyph 28102 (\N{CJK UNIFIED IDEOGRAPH-6DC6}) missing from font(s) DejaVu Sans.
+  fig_cm.savefig("direction_confusion_matrix.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3180: UserWarning: Glyph 30697 (\N{CJK UNIFIED IDEOGRAPH-77E9}) missing from font(s) DejaVu Sans.
+  fig_cm.savefig("direction_confusion_matrix.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3180: UserWarning: Glyph 38453 (\N{CJK UNIFIED IDEOGRAPH-9635}) missing from font(s) DejaVu Sans.
+  fig_cm.savefig("direction_confusion_matrix.png", dpi=180, bbox_inches="tight")
+方向混淆矩阵图已保存: direction_confusion_matrix.png
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3191: UserWarning: Glyph 39057 (\N{CJK UNIFIED IDEOGRAPH-9891}) missing from font(s) DejaVu Sans.
+  fig_prob.savefig("direction_prob_distribution.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3191: UserWarning: Glyph 27425 (\N{CJK UNIFIED IDEOGRAPH-6B21}) missing from font(s) DejaVu Sans.
+  fig_prob.savefig("direction_prob_distribution.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3191: UserWarning: Glyph 26041 (\N{CJK UNIFIED IDEOGRAPH-65B9}) missing from font(s) DejaVu Sans.
+  fig_prob.savefig("direction_prob_distribution.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3191: UserWarning: Glyph 21521 (\N{CJK UNIFIED IDEOGRAPH-5411}) missing from font(s) DejaVu Sans.
+  fig_prob.savefig("direction_prob_distribution.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3191: UserWarning: Glyph 22836 (\N{CJK UNIFIED IDEOGRAPH-5934}) missing from font(s) DejaVu Sans.
+  fig_prob.savefig("direction_prob_distribution.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3191: UserWarning: Glyph 36755 (\N{CJK UNIFIED IDEOGRAPH-8F93}) missing from font(s) DejaVu Sans.
+  fig_prob.savefig("direction_prob_distribution.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3191: UserWarning: Glyph 20986 (\N{CJK UNIFIED IDEOGRAPH-51FA}) missing from font(s) DejaVu Sans.
+  fig_prob.savefig("direction_prob_distribution.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3191: UserWarning: Glyph 27010 (\N{CJK UNIFIED IDEOGRAPH-6982}) missing from font(s) DejaVu Sans.
+  fig_prob.savefig("direction_prob_distribution.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3191: UserWarning: Glyph 29575 (\N{CJK UNIFIED IDEOGRAPH-7387}) missing from font(s) DejaVu Sans.
+  fig_prob.savefig("direction_prob_distribution.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3191: UserWarning: Glyph 20998 (\N{CJK UNIFIED IDEOGRAPH-5206}) missing from font(s) DejaVu Sans.
+  fig_prob.savefig("direction_prob_distribution.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3191: UserWarning: Glyph 24067 (\N{CJK UNIFIED IDEOGRAPH-5E03}) missing from font(s) DejaVu Sans.
+  fig_prob.savefig("direction_prob_distribution.png", dpi=180, bbox_inches="tight")
+方向概率分布图已保存: direction_prob_distribution.png
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3202: UserWarning: Glyph 27979 (\N{CJK UNIFIED IDEOGRAPH-6D4B}) missing from font(s) DejaVu Sans.
+  fig_nav.savefig("backtest_nav_curve.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3202: UserWarning: Glyph 35797 (\N{CJK UNIFIED IDEOGRAPH-8BD5}) missing from font(s) DejaVu Sans.
+  fig_nav.savefig("backtest_nav_curve.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3202: UserWarning: Glyph 31383 (\N{CJK UNIFIED IDEOGRAPH-7A97}) missing from font(s) DejaVu Sans.
+  fig_nav.savefig("backtest_nav_curve.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3202: UserWarning: Glyph 32034 (\N{CJK UNIFIED IDEOGRAPH-7D22}) missing from font(s) DejaVu Sans.
+  fig_nav.savefig("backtest_nav_curve.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3202: UserWarning: Glyph 24341 (\N{CJK UNIFIED IDEOGRAPH-5F15}) missing from font(s) DejaVu Sans.
+  fig_nav.savefig("backtest_nav_curve.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3202: UserWarning: Glyph 20928 (\N{CJK UNIFIED IDEOGRAPH-51C0}) missing from font(s) DejaVu Sans.
+  fig_nav.savefig("backtest_nav_curve.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3202: UserWarning: Glyph 20540 (\N{CJK UNIFIED IDEOGRAPH-503C}) missing from font(s) DejaVu Sans.
+  fig_nav.savefig("backtest_nav_curve.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3202: UserWarning: Glyph 31574 (\N{CJK UNIFIED IDEOGRAPH-7B56}) missing from font(s) DejaVu Sans.
+  fig_nav.savefig("backtest_nav_curve.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3202: UserWarning: Glyph 30053 (\N{CJK UNIFIED IDEOGRAPH-7565}) missing from font(s) DejaVu Sans.
+  fig_nav.savefig("backtest_nav_curve.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3202: UserWarning: Glyph 20080 (\N{CJK UNIFIED IDEOGRAPH-4E70}) missing from font(s) DejaVu Sans.
+  fig_nav.savefig("backtest_nav_curve.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3202: UserWarning: Glyph 20837 (\N{CJK UNIFIED IDEOGRAPH-5165}) missing from font(s) DejaVu Sans.
+  fig_nav.savefig("backtest_nav_curve.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3202: UserWarning: Glyph 25345 (\N{CJK UNIFIED IDEOGRAPH-6301}) missing from font(s) DejaVu Sans.
+  fig_nav.savefig("backtest_nav_curve.png", dpi=180, bbox_inches="tight")
+C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\wti_gru_sequence.py:3202: UserWarning: Glyph 26377 (\N{CJK UNIFIED IDEOGRAPH-6709}) missing from font(s) DejaVu Sans.
+  fig_nav.savefig("backtest_nav_curve.png", dpi=180, bbox_inches="tight")
+回测净值图已保存: backtest_nav_curve.png
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 39044 (\N{CJK UNIFIED IDEOGRAPH-9884}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 22788 (\N{CJK UNIFIED IDEOGRAPH-5904}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 29702 (\N{CJK UNIFIED IDEOGRAPH-7406}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 21069 (\N{CJK UNIFIED IDEOGRAPH-524D}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 65306 (\N{FULLWIDTH COLON}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 21407 (\N{CJK UNIFIED IDEOGRAPH-539F}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 22987 (\N{CJK UNIFIED IDEOGRAPH-59CB}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 25910 (\N{CJK UNIFIED IDEOGRAPH-6536}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 30410 (\N{CJK UNIFIED IDEOGRAPH-76CA}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 24207 (\N{CJK UNIFIED IDEOGRAPH-5E8F}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 21015 (\N{CJK UNIFIED IDEOGRAPH-5217}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 21518 (\N{CJK UNIFIED IDEOGRAPH-540E}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 29992 (\N{CJK UNIFIED IDEOGRAPH-7528}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 20110 (\N{CJK UNIFIED IDEOGRAPH-4E8E}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 35757 (\N{CJK UNIFIED IDEOGRAPH-8BAD}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 32451 (\N{CJK UNIFIED IDEOGRAPH-7EC3}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 30340 (\N{CJK UNIFIED IDEOGRAPH-7684}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 65288 (\N{FULLWIDTH LEFT PARENTHESIS}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 21547 (\N{CJK UNIFIED IDEOGRAPH-542B}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 23545 (\N{CJK UNIFIED IDEOGRAPH-5BF9}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 40784 (\N{CJK UNIFIED IDEOGRAPH-9F50}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 65289 (\N{FULLWIDTH RIGHT PARENTHESIS}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 26679 (\N{CJK UNIFIED IDEOGRAPH-6837}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 26412 (\N{CJK UNIFIED IDEOGRAPH-672C}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 32034 (\N{CJK UNIFIED IDEOGRAPH-7D22}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 24341 (\N{CJK UNIFIED IDEOGRAPH-5F15}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 26631 (\N{CJK UNIFIED IDEOGRAPH-6807}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 20934 (\N{CJK UNIFIED IDEOGRAPH-51C6}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 21270 (\N{CJK UNIFIED IDEOGRAPH-5316}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 36755 (\N{CJK UNIFIED IDEOGRAPH-8F93}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 20986 (\N{CJK UNIFIED IDEOGRAPH-51FA}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 25968 (\N{CJK UNIFIED IDEOGRAPH-6570}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 20540 (\N{CJK UNIFIED IDEOGRAPH-503C}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 39057 (\N{CJK UNIFIED IDEOGRAPH-9891}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 27425 (\N{CJK UNIFIED IDEOGRAPH-6B21}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 20998 (\N{CJK UNIFIED IDEOGRAPH-5206}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 24067 (\N{CJK UNIFIED IDEOGRAPH-5E03}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 27604 (\N{CJK UNIFIED IDEOGRAPH-6BD4}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 29305 (\N{CJK UNIFIED IDEOGRAPH-7279}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 24449 (\N{CJK UNIFIED IDEOGRAPH-5F81}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 31532 (\N{CJK UNIFIED IDEOGRAPH-7B2C}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 20010 (\N{CJK UNIFIED IDEOGRAPH-4E2A}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 31614 (\N{CJK UNIFIED IDEOGRAPH-7B7E}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 37325 (\N{CJK UNIFIED IDEOGRAPH-91CD}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 26500 (\N{CJK UNIFIED IDEOGRAPH-6784}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 35299 (\N{CJK UNIFIED IDEOGRAPH-89E3}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 20840 (\N{CJK UNIFIED IDEOGRAPH-5168}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 27573 (\N{CJK UNIFIED IDEOGRAPH-6BB5}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 20165 (\N{CJK UNIFIED IDEOGRAPH-4EC5}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 32512 (\N{CJK UNIFIED IDEOGRAPH-7F00}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 38271 (\N{CJK UNIFIED IDEOGRAPH-957F}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 24230 (\N{CJK UNIFIED IDEOGRAPH-5EA6}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 27979 (\N{CJK UNIFIED IDEOGRAPH-6D4B}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 35797 (\N{CJK UNIFIED IDEOGRAPH-8BD5}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 31383 (\N{CJK UNIFIED IDEOGRAPH-7A97}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 29575 (\N{CJK UNIFIED IDEOGRAPH-7387}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 38598 (\N{CJK UNIFIED IDEOGRAPH-96C6}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 30495 (\N{CJK UNIFIED IDEOGRAPH-771F}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 23454 (\N{CJK UNIFIED IDEOGRAPH-5B9E}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 65292 (\N{FULLWIDTH COMMA}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 36870 (\N{CJK UNIFIED IDEOGRAPH-9006}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 21464 (\N{CJK UNIFIED IDEOGRAPH-53D8}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 25442 (\N{CJK UNIFIED IDEOGRAPH-6362}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 39564 (\N{CJK UNIFIED IDEOGRAPH-9A8C}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 35777 (\N{CJK UNIFIED IDEOGRAPH-8BC1}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 24635 (\N{CJK UNIFIED IDEOGRAPH-603B}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 25439 (\N{CJK UNIFIED IDEOGRAPH-635F}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 22833 (\N{CJK UNIFIED IDEOGRAPH-5931}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 26354 (\N{CJK UNIFIED IDEOGRAPH-66F2}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 32447 (\N{CJK UNIFIED IDEOGRAPH-7EBF}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 21452 (\N{CJK UNIFIED IDEOGRAPH-53CC}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 22836 (\N{CJK UNIFIED IDEOGRAPH-5934}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 20026 (\N{CJK UNIFIED IDEOGRAPH-4E3A}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 21152 (\N{CJK UNIFIED IDEOGRAPH-52A0}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 26435 (\N{CJK UNIFIED IDEOGRAPH-6743}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 20215 (\N{CJK UNIFIED IDEOGRAPH-4EF7}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 26684 (\N{CJK UNIFIED IDEOGRAPH-683C}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 27531 (\N{CJK UNIFIED IDEOGRAPH-6B8B}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 24046 (\N{CJK UNIFIED IDEOGRAPH-5DEE}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 26041 (\N{CJK UNIFIED IDEOGRAPH-65B9}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 21521 (\N{CJK UNIFIED IDEOGRAPH-5411}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 28072 (\N{CJK UNIFIED IDEOGRAPH-6DA8}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 36300 (\N{CJK UNIFIED IDEOGRAPH-8DCC}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 38408 (\N{CJK UNIFIED IDEOGRAPH-9608}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 28151 (\N{CJK UNIFIED IDEOGRAPH-6DF7}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 28102 (\N{CJK UNIFIED IDEOGRAPH-6DC6}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 30697 (\N{CJK UNIFIED IDEOGRAPH-77E9}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 38453 (\N{CJK UNIFIED IDEOGRAPH-9635}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 27010 (\N{CJK UNIFIED IDEOGRAPH-6982}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 20928 (\N{CJK UNIFIED IDEOGRAPH-51C0}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 31574 (\N{CJK UNIFIED IDEOGRAPH-7B56}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 30053 (\N{CJK UNIFIED IDEOGRAPH-7565}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 20080 (\N{CJK UNIFIED IDEOGRAPH-4E70}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 20837 (\N{CJK UNIFIED IDEOGRAPH-5165}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 25345 (\N{CJK UNIFIED IDEOGRAPH-6301}) missing from font(s) DejaVu Sans.
+  func(*args)
+F:\ProgramData\anaconda3\envs\oilprice\lib\tkinter\__init__.py:839: UserWarning: Glyph 26377 (\N{CJK UNIFIED IDEOGRAPH-6709}) missing from font(s) DejaVu Sans.
+  func(*args)

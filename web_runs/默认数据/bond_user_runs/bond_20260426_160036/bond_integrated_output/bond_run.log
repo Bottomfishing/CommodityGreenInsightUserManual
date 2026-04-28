@@ -1,0 +1,12 @@
+[backend:bond] started_at=2026-04-26T16:00:38.623668 pid=43880
+[info] 可用特征: ['date', 'treasury_10y', 'fed_rate_exp', 'ecb_rate_exp', 'greenium', 'esg_flow', 'oil_volatility', 'green_bond_yield']
+[warning] 缺失特征: []
+[info] 核心特征完整
+[info] 已合并 oil_pred.csv，行数: 374
+[debug] oil_price_pred 缺失比例: 80.30%
+Traceback (most recent call last):
+  File "C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\predict_bond_from_gru.py", line 992, in <module>
+    main()
+  File "C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\predict_bond_from_gru.py", line 539, in main
+    raise ValueError("oil_pred.csv 与 bond 数据日期对不上，超过50%缺失")
+ValueError: oil_pred.csv 与 bond 数据日期对不上，超过50%缺失

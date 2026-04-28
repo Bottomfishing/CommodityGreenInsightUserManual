@@ -1,0 +1,6 @@
+started_at=2026-04-28 13:43:06
+top_n=5
+epochs=20
+forecast_steps=15
+cutoff_date=
+model_name=

@@ -1,0 +1,20 @@
+[backend:bond] started_at=2026-04-28T12:46:38.309634 pid=46816
+[info] 可用特征: ['date', 'treasury_10y', 'fed_rate_exp', 'ecb_rate_exp', 'greenium', 'esg_flow', 'oil_volatility', 'green_bond_yield']
+[warning] 缺失特征: []
+[info] 核心特征完整
+[info] 已合并 oil_pred.csv，行数: 374
+[debug] oil_price_pred 缺失比例: 80.30%
+[warning] oil_pred.csv 与 bond 数据日期对齐较差（缺失>50%），将尝试用前向/后向填充并以 0 兜底继续运行。
+[info] 用于缺失值过滤的核心列: ['treasury_10y', 'green_bond_yield']
+[info] 实际用于建模的特征: ['oil_price_pred', 'treasury_10y', 'policy_rate_avg', 'greenium_lag1', 'esg_flow_lag1', 'oil_volatility', 'y_lag1', 'y_lag2']
+[warning] 有效样本过少: 0（建议 ≥ 30）。将使用兜底预测并输出 CSV，避免前端无结果。
+[info] 可用特征: ['date', 'treasury_10y', 'fed_rate_exp', 'ecb_rate_exp', 'greenium', 'esg_flow', 'oil_volatility', 'green_bond_yield']
+[warning] 缺失特征: []
+Traceback (most recent call last):
+  File "C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\predict_bond_from_gru.py", line 1044, in <module>
+    main()
+  File "C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\predict_bond_from_gru.py", line 666, in main
+    "Date_target": pd.to_datetime(demo_dates).strftime("%Y-%m-%d"),
+  File "F:\ProgramData\anaconda3\envs\oilprice\lib\site-packages\pandas\core\generic.py", line 6321, in __getattr__
+    return object.__getattribute__(self, name)
+AttributeError: 'Series' object has no attribute 'strftime'. Did you mean: 'at_time'?

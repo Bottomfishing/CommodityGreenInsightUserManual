@@ -1,0 +1,10 @@
+[backend:bond] started_at=2026-04-26T15:42:34.676778 pid=45348
+[info] 可用特征: ['date', 'treasury_10y', 'fed_rate_exp', 'ecb_rate_exp', 'greenium', 'esg_flow', 'oil_volatility', 'green_bond_yield']
+[warning] 缺失特征: []
+[info] 核心特征完整
+Traceback (most recent call last):
+  File "C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\predict_bond_from_gru.py", line 975, in <module>
+    main()
+  File "C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\predict_bond_from_gru.py", line 499, in main
+    raise ValueError(f"oil_pred.csv 缺少 Date_target，实际列: {oil_df.columns}")
+ValueError: oil_pred.csv 缺少 Date_target，实际列: Index(['Date', 'Oil_Pred'], dtype='object')

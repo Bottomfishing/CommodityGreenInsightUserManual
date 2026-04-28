@@ -1,0 +1,671 @@
+[backend] started_at=2026-04-29T01:21:55.481603 pid=32092
+[输出目录] C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\web_runs\run_我的模型C_20260429_012154_top5
+  已加载地缘事件：事件日=20, 净冲击和=9.000
+已按 main_0309 风格加载多源数据: C:\Users\12725\Desktop\大宗绿测_基于油价因子的绿色金融产品预测与风险分析 - 副本\技术文档\源代码\OilData
+最终生效训练参数: epochs=40, batch_size=64, time_steps=60, cell=lstm, loss=huber, lr=0.001
+特征筛选开关: rf_select_enable=True, shap_refine_enable=True, shap_top_n=30
+滑动窗口长度 time_steps = 60：每个 x 为过去 60 个点，形状 (60, 1)；单点预测 horizon=1（下一天）。
+当前 RNN 单元: LSTM，双向
+原始收益统计: std=2.44266123e-02
+样本行数（有效数值）: 2764
+2496
+选用的训练截止 length = 2496
+VMD IMF 调试统计（用于检查是否删错分量）:
+idx	std	energy	zcr	peak_freq_norm
+1	0.006718	4.512560e-05	0.1024	0.052098
+2	0.006620	4.383074e-05	0.3970	0.201158
+3	0.006710	4.501750e-05	0.5910	0.297033
+VMD 删除规则（drop_mode=freq）: 丢弃 IMF 索引 [3]，保留 [1, 2]
+VMD 已启用: K=3, drop_high_freq=1；全局 VMD 已应用到整条收益标签后再做滑窗。
+VMD 后收益统计: std=9.56757476e-03
+目标: 收益率（simple），压缩: none（固定）
+数据集划分：时间序列先后 — 窗终点行下标 i ∈ [60, 2494] 为训练窗；i ∈ [2495, 2762] 为测试窗（再截断到 --max-test 并对齐 batch）。 仅说明划分区间；实际 scaler 是否全量 fit 由 scaler_fit 控制。
+Scaler: fit=仅训练段（严格评估，避免泄露）
+Scaler 类型: StandardScaler
+已加载本文件内置完整特征工程（full）。
+RF 拟合目标统计: n=2496, std=0.00978666
+RF 重要性统计: max=6.70345962e-02, sum=1.00000000e+00
+RF 特征筛选已启用：Top-40 / 317
+RF 选中特征（前 30 展示）: ['SP500_Momentum_20', 'mom1', 'ret1', 'VIX_Lag20', 'macd_signal', 'US10Y_Momentum_20', 'ret5', 'rsi14', 'VIX_MA_20', 'Volatility_Change_20d', 'VIX_Std_60', 'mom5', 'bb_width', 'Volatility_Change_10d', 'OVX_Lag5', 'mom3', 'US10Y_Return', 'VIX_Lag10', 'macd', 'Volatility_Change_60d', 'OVX_Lag3', 'OVX_MA_10', 'SP500_Momentum_5', 'Basis_Change', 'OVX_VIX_Ratio_Change', 'US10Y_Momentum_5', 'Volatility_Annualized_5d', 'SP500_Momentum_10', 'ret2', 'OVX_Change']
+SHAP 精炼：自 RF Top-40 保留 30 列 (shap_top_n=30)
+SHAP 最终特征（前 30 展示）: ['mom1', 'ret1', 'ret5', 'rsi14', 'mom5', 'mom3', 'macd_signal', 'US10Y_Momentum_20', 'SP500_Momentum_20', 'Volatility_Change_20d', 'macd', 'VIX_Lag20', 'SP500_Momentum_5', 'bb_width', 'Volatility_Change_10d', 'Basis_Change', 'OVX_Lag3', 'OVX_MA_10', 'Volatility_Change_60d', 'ret2', 'OVX_VIX_Spread', 'OVX_Lag5', 'VIX_Std_60', 'DXY_Std_5', 'US10Y_Momentum_10', 'Oil_Dollar_Correlation_20', 'VIX_MA_20', 'US10Y_Return', 'US10Y_Momentum_60', 'SP500_Std_60']
+最终训练特征总数: 30
+最终训练特征列表（完整）:
+[001] mom1
+[002] ret1
+[003] ret5
+[004] rsi14
+[005] mom5
+[006] mom3
+[007] macd_signal
+[008] US10Y_Momentum_20
+[009] SP500_Momentum_20
+[010] Volatility_Change_20d
+[011] macd
+[012] VIX_Lag20
+[013] SP500_Momentum_5
+[014] bb_width
+[015] Volatility_Change_10d
+[016] Basis_Change
+[017] OVX_Lag3
+[018] OVX_MA_10
+[019] Volatility_Change_60d
+[020] ret2
+[021] OVX_VIX_Spread
+[022] OVX_Lag5
+[023] VIX_Std_60
+[024] DXY_Std_5
+[025] US10Y_Momentum_10
+[026] Oil_Dollar_Correlation_20
+[027] VIX_MA_20
+[028] US10Y_Return
+[029] US10Y_Momentum_60
+[030] SP500_Std_60
+已启用 rework 特征工程输入，特征维度=30
+xtrain (2432, 60, 30) ytrain (2432, 1)
+xtest (256, 60, 30) ytest (256, 1)
+ydir_train (2432, 1) （方向头：1=涨,0=跌）
+验证集切分完成：train=1984, val=448 (val_ratio=0.20)
+EarlyStopping 已启用: monitor=val_loss, patience=12, min_delta=1e-05
+2026-04-29 01:30:43.519383: I tensorflow/core/platform/cpu_feature_guard.cc:182] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: SSE SSE2 SSE3 SSE4.1 SSE4.2 AVX AVX2 AVX_VNNI FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+双头模型：收益回归 + 方向二分类；loss_weights return=1.0, dir=5.0（方向权更大）
+Model: "model"
+__________________________________________________________________________________________________
+ Layer (type)                Output Shape                 Param #   Connected to                  
+==================================================================================================
+ input_1 (InputLayer)        [(None, 60, 30)]             0         []                            
+                                                                                                  
+ bidirectional (Bidirection  (None, 60, 128)              48640     ['input_1[0][0]']             
+ al)                                                                                              
+                                                                                                  
+ bidirectional_1 (Bidirecti  (None, 128)                  98816     ['bidirectional[0][0]']       
+ onal)                                                                                            
+                                                                                                  
+ dropout (Dropout)           (None, 128)                  0         ['bidirectional_1[0][0]']     
+                                                                                                  
+ dense (Dense)               (None, 10)                   1290      ['dropout[0][0]']             
+                                                                                                  
+ dense_1 (Dense)             (None, 16)                   2064      ['dropout[0][0]']             
+                                                                                                  
+ return (Dense)              (None, 1)                    11        ['dense[0][0]']               
+                                                                                                  
+ dir (Dense)                 (None, 1)                    17        ['dense_1[0][0]']             
+                                                                                                  
+==================================================================================================
+Total params: 150838 (589.21 KB)
+Trainable params: 150838 (589.21 KB)
+Non-trainable params: 0 (0.00 Byte)
+__________________________________________________________________________________________________
+Epoch 1/40
+
+ 1/31 [..............................] - ETA: 1:40 - loss: 3.8696 - return_loss: 0.3774 - dir_loss: 0.6984 - dir_dir_acc: 0.5000
+ 2/31 [>.............................] - ETA: 2s - loss: 3.8506 - return_loss: 0.3889 - dir_loss: 0.6923 - dir_dir_acc: 0.5312  
+ 3/31 [=>............................] - ETA: 2s - loss: 3.9202 - return_loss: 0.4404 - dir_loss: 0.6960 - dir_dir_acc: 0.5260
+ 4/31 [==>...........................] - ETA: 2s - loss: 3.9258 - return_loss: 0.4524 - dir_loss: 0.6947 - dir_dir_acc: 0.5195
+ 5/31 [===>..........................] - ETA: 1s - loss: 3.9080 - return_loss: 0.4360 - dir_loss: 0.6944 - dir_dir_acc: 0.5281
+ 6/31 [====>.........................] - ETA: 1s - loss: 3.8976 - return_loss: 0.4245 - dir_loss: 0.6946 - dir_dir_acc: 0.5182
+ 7/31 [=====>........................] - ETA: 1s - loss: 3.8796 - return_loss: 0.4136 - dir_loss: 0.6932 - dir_dir_acc: 0.5156
+ 8/31 [======>.......................] - ETA: 1s - loss: 3.8754 - return_loss: 0.4103 - dir_loss: 0.6930 - dir_dir_acc: 0.5215
+ 9/31 [=======>......................] - ETA: 1s - loss: 3.8696 - return_loss: 0.3983 - dir_loss: 0.6943 - dir_dir_acc: 0.5122
+10/31 [========>.....................] - ETA: 1s - loss: 3.8579 - return_loss: 0.3936 - dir_loss: 0.6929 - dir_dir_acc: 0.5156
+11/31 [=========>....................] - ETA: 1s - loss: 3.8552 - return_loss: 0.3844 - dir_loss: 0.6942 - dir_dir_acc: 0.5156
+12/31 [==========>...................] - ETA: 1s - loss: 3.8504 - return_loss: 0.3794 - dir_loss: 0.6942 - dir_dir_acc: 0.5143
+13/31 [===========>..................] - ETA: 1s - loss: 3.8638 - return_loss: 0.3849 - dir_loss: 0.6958 - dir_dir_acc: 0.5096
+14/31 [============>.................] - ETA: 1s - loss: 3.8529 - return_loss: 0.3799 - dir_loss: 0.6946 - dir_dir_acc: 0.5145
+15/31 [=============>................] - ETA: 1s - loss: 3.8462 - return_loss: 0.3747 - dir_loss: 0.6943 - dir_dir_acc: 0.5156
+16/31 [==============>...............] - ETA: 1s - loss: 3.8633 - return_loss: 0.3833 - dir_loss: 0.6960 - dir_dir_acc: 0.5078
+17/31 [===============>..............] - ETA: 1s - loss: 3.8543 - return_loss: 0.3839 - dir_loss: 0.6941 - dir_dir_acc: 0.5156
+18/31 [================>.............] - ETA: 0s - loss: 3.8617 - return_loss: 0.3804 - dir_loss: 0.6963 - dir_dir_acc: 0.5061
+19/31 [=================>............] - ETA: 0s - loss: 3.8645 - return_loss: 0.3816 - dir_loss: 0.6966 - dir_dir_acc: 0.5066
+20/31 [==================>...........] - ETA: 0s - loss: 3.8601 - return_loss: 0.3827 - dir_loss: 0.6955 - dir_dir_acc: 0.5086
+21/31 [===================>..........] - ETA: 0s - loss: 3.8597 - return_loss: 0.3799 - dir_loss: 0.6960 - dir_dir_acc: 0.5074
+22/31 [====================>.........] - ETA: 0s - loss: 3.8477 - return_loss: 0.3741 - dir_loss: 0.6947 - dir_dir_acc: 0.5142
+23/31 [=====================>........] - ETA: 0s - loss: 3.8501 - return_loss: 0.3815 - dir_loss: 0.6937 - dir_dir_acc: 0.5183
+24/31 [======================>.......] - ETA: 0s - loss: 3.8508 - return_loss: 0.3789 - dir_loss: 0.6944 - dir_dir_acc: 0.5156
+25/31 [=======================>......] - ETA: 0s - loss: 3.8454 - return_loss: 0.3747 - dir_loss: 0.6941 - dir_dir_acc: 0.5169
+26/31 [========================>.....] - ETA: 0s - loss: 3.8452 - return_loss: 0.3720 - dir_loss: 0.6946 - dir_dir_acc: 0.5156
+27/31 [=========================>....] - ETA: 0s - loss: 3.8424 - return_loss: 0.3700 - dir_loss: 0.6945 - dir_dir_acc: 0.5133
+28/31 [==========================>...] - ETA: 0s - loss: 3.8334 - return_loss: 0.3659 - dir_loss: 0.6935 - dir_dir_acc: 0.5184
+29/31 [===========================>..] - ETA: 0s - loss: 3.8293 - return_loss: 0.3653 - dir_loss: 0.6928 - dir_dir_acc: 0.5216
+30/31 [============================>.] - ETA: 0s - loss: 3.8260 - return_loss: 0.3601 - dir_loss: 0.6932 - dir_dir_acc: 0.5203
+31/31 [==============================] - ETA: 0s - loss: 3.8226 - return_loss: 0.3556 - dir_loss: 0.6934 - dir_dir_acc: 0.5192
+31/31 [==============================] - 6s 101ms/step - loss: 3.8226 - return_loss: 0.3556 - dir_loss: 0.6934 - dir_dir_acc: 0.5192 - val_loss: 3.6561 - val_return_loss: 0.2324 - val_dir_loss: 0.6847 - val_dir_dir_acc: 0.5647
+Epoch 2/40
+
+ 1/31 [..............................] - ETA: 2s - loss: 3.6237 - return_loss: 0.3356 - dir_loss: 0.6576 - dir_dir_acc: 0.7188
+ 2/31 [>.............................] - ETA: 2s - loss: 3.6215 - return_loss: 0.3661 - dir_loss: 0.6511 - dir_dir_acc: 0.7422
+ 3/31 [=>............................] - ETA: 2s - loss: 3.6388 - return_loss: 0.3863 - dir_loss: 0.6505 - dir_dir_acc: 0.7292
+ 4/31 [==>...........................] - ETA: 1s - loss: 3.6533 - return_loss: 0.3699 - dir_loss: 0.6567 - dir_dir_acc: 0.6875
+ 5/31 [===>..........................] - ETA: 1s - loss: 3.6723 - return_loss: 0.3813 - dir_loss: 0.6582 - dir_dir_acc: 0.6750
+ 6/31 [====>.........................] - ETA: 1s - loss: 3.6839 - return_loss: 0.3858 - dir_loss: 0.6596 - dir_dir_acc: 0.6589
+ 7/31 [=====>........................] - ETA: 1s - loss: 3.7018 - return_loss: 0.3831 - dir_loss: 0.6637 - dir_dir_acc: 0.6406
+ 8/31 [======>.......................] - ETA: 1s - loss: 3.6855 - return_loss: 0.3655 - dir_loss: 0.6640 - dir_dir_acc: 0.6367
+ 9/31 [=======>......................] - ETA: 1s - loss: 3.6647 - return_loss: 0.3530 - dir_loss: 0.6623 - dir_dir_acc: 0.6372
+10/31 [========>.....................] - ETA: 1s - loss: 3.6592 - return_loss: 0.3470 - dir_loss: 0.6624 - dir_dir_acc: 0.6344
+11/31 [=========>....................] - ETA: 1s - loss: 3.6793 - return_loss: 0.3525 - dir_loss: 0.6654 - dir_dir_acc: 0.6236
+12/31 [==========>...................] - ETA: 1s - loss: 3.6857 - return_loss: 0.3448 - dir_loss: 0.6682 - dir_dir_acc: 0.6107
+13/31 [===========>..................] - ETA: 1s - loss: 3.7111 - return_loss: 0.3523 - dir_loss: 0.6718 - dir_dir_acc: 0.6022
+14/31 [============>.................] - ETA: 1s - loss: 3.6999 - return_loss: 0.3490 - dir_loss: 0.6702 - dir_dir_acc: 0.6060
+15/31 [=============>................] - ETA: 1s - loss: 3.6813 - return_loss: 0.3385 - dir_loss: 0.6686 - dir_dir_acc: 0.6135
+16/31 [==============>...............] - ETA: 1s - loss: 3.6833 - return_loss: 0.3370 - dir_loss: 0.6693 - dir_dir_acc: 0.6074
+17/31 [===============>..............] - ETA: 1s - loss: 3.6867 - return_loss: 0.3355 - dir_loss: 0.6702 - dir_dir_acc: 0.6020
+18/31 [================>.............] - ETA: 0s - loss: 3.6816 - return_loss: 0.3314 - dir_loss: 0.6700 - dir_dir_acc: 0.6007
+19/31 [=================>............] - ETA: 0s - loss: 3.6802 - return_loss: 0.3323 - dir_loss: 0.6696 - dir_dir_acc: 0.5987
+20/31 [==================>...........] - ETA: 0s - loss: 3.6966 - return_loss: 0.3456 - dir_loss: 0.6702 - dir_dir_acc: 0.5977
+21/31 [===================>..........] - ETA: 0s - loss: 3.6950 - return_loss: 0.3452 - dir_loss: 0.6700 - dir_dir_acc: 0.5975
+22/31 [====================>.........] - ETA: 0s - loss: 3.6972 - return_loss: 0.3476 - dir_loss: 0.6699 - dir_dir_acc: 0.5973
+23/31 [=====================>........] - ETA: 0s - loss: 3.7022 - return_loss: 0.3483 - dir_loss: 0.6708 - dir_dir_acc: 0.5924
+24/31 [======================>.......] - ETA: 0s - loss: 3.7001 - return_loss: 0.3476 - dir_loss: 0.6705 - dir_dir_acc: 0.5951
+25/31 [=======================>......] - ETA: 0s - loss: 3.6952 - return_loss: 0.3455 - dir_loss: 0.6700 - dir_dir_acc: 0.5956
+26/31 [========================>.....] - ETA: 0s - loss: 3.6979 - return_loss: 0.3466 - dir_loss: 0.6702 - dir_dir_acc: 0.5931
+27/31 [=========================>....] - ETA: 0s - loss: 3.6934 - return_loss: 0.3447 - dir_loss: 0.6697 - dir_dir_acc: 0.5966
+28/31 [==========================>...] - ETA: 0s - loss: 3.6947 - return_loss: 0.3483 - dir_loss: 0.6693 - dir_dir_acc: 0.5960
+29/31 [===========================>..] - ETA: 0s - loss: 3.6973 - return_loss: 0.3496 - dir_loss: 0.6695 - dir_dir_acc: 0.5948
+30/31 [============================>.] - ETA: 0s - loss: 3.6920 - return_loss: 0.3484 - dir_loss: 0.6687 - dir_dir_acc: 0.5969
+31/31 [==============================] - ETA: 0s - loss: 3.6923 - return_loss: 0.3486 - dir_loss: 0.6687 - dir_dir_acc: 0.5958
+31/31 [==============================] - 2s 74ms/step - loss: 3.6923 - return_loss: 0.3486 - dir_loss: 0.6687 - dir_dir_acc: 0.5958 - val_loss: 3.6608 - val_return_loss: 0.2295 - val_dir_loss: 0.6863 - val_dir_dir_acc: 0.5491
+Epoch 3/40
+
+ 1/31 [..............................] - ETA: 2s - loss: 3.7384 - return_loss: 0.4496 - dir_loss: 0.6578 - dir_dir_acc: 0.5625
+ 2/31 [>.............................] - ETA: 2s - loss: 3.7423 - return_loss: 0.4436 - dir_loss: 0.6597 - dir_dir_acc: 0.6094
+ 3/31 [=>............................] - ETA: 1s - loss: 3.7219 - return_loss: 0.4307 - dir_loss: 0.6582 - dir_dir_acc: 0.6354
+ 4/31 [==>...........................] - ETA: 1s - loss: 3.7324 - return_loss: 0.4371 - dir_loss: 0.6591 - dir_dir_acc: 0.6289
+ 5/31 [===>..........................] - ETA: 1s - loss: 3.6799 - return_loss: 0.4001 - dir_loss: 0.6560 - dir_dir_acc: 0.6344
+ 6/31 [====>.........................] - ETA: 1s - loss: 3.6441 - return_loss: 0.3737 - dir_loss: 0.6541 - dir_dir_acc: 0.6328
+ 7/31 [=====>........................] - ETA: 1s - loss: 3.6280 - return_loss: 0.3625 - dir_loss: 0.6531 - dir_dir_acc: 0.6250
+ 8/31 [======>.......................] - ETA: 1s - loss: 3.6361 - return_loss: 0.3754 - dir_loss: 0.6521 - dir_dir_acc: 0.6289
+ 9/31 [=======>......................] - ETA: 1s - loss: 3.6168 - return_loss: 0.3586 - dir_loss: 0.6516 - dir_dir_acc: 0.6267
+10/31 [========>.....................] - ETA: 1s - loss: 3.6408 - return_loss: 0.3714 - dir_loss: 0.6539 - dir_dir_acc: 0.6219
+11/31 [=========>....................] - ETA: 1s - loss: 3.6138 - return_loss: 0.3690 - dir_loss: 0.6490 - dir_dir_acc: 0.6349
+12/31 [==========>...................] - ETA: 1s - loss: 3.5934 - return_loss: 0.3683 - dir_loss: 0.6450 - dir_dir_acc: 0.6432
+13/31 [===========>..................] - ETA: 1s - loss: 3.5941 - return_loss: 0.3610 - dir_loss: 0.6466 - dir_dir_acc: 0.6406
+14/31 [============>.................] - ETA: 1s - loss: 3.5769 - return_loss: 0.3536 - dir_loss: 0.6447 - dir_dir_acc: 0.6406
+15/31 [=============>................] - ETA: 1s - loss: 3.5745 - return_loss: 0.3530 - dir_loss: 0.6443 - dir_dir_acc: 0.6385
+16/31 [==============>...............] - ETA: 1s - loss: 3.5645 - return_loss: 0.3486 - dir_loss: 0.6432 - dir_dir_acc: 0.6377
+17/31 [===============>..............] - ETA: 0s - loss: 3.5623 - return_loss: 0.3417 - dir_loss: 0.6441 - dir_dir_acc: 0.6360
+18/31 [================>.............] - ETA: 0s - loss: 3.5657 - return_loss: 0.3401 - dir_loss: 0.6451 - dir_dir_acc: 0.6328
+19/31 [=================>............] - ETA: 0s - loss: 3.5697 - return_loss: 0.3416 - dir_loss: 0.6456 - dir_dir_acc: 0.6308
+20/31 [==================>...........] - ETA: 0s - loss: 3.5665 - return_loss: 0.3393 - dir_loss: 0.6454 - dir_dir_acc: 0.6305
+21/31 [===================>..........] - ETA: 0s - loss: 3.5943 - return_loss: 0.3584 - dir_loss: 0.6472 - dir_dir_acc: 0.6280
+22/31 [====================>.........] - ETA: 0s - loss: 3.6059 - return_loss: 0.3577 - dir_loss: 0.6496 - dir_dir_acc: 0.6257
+23/31 [=====================>........] - ETA: 0s - loss: 3.6046 - return_loss: 0.3547 - dir_loss: 0.6500 - dir_dir_acc: 0.6250
+24/31 [======================>.......] - ETA: 0s - loss: 3.6044 - return_loss: 0.3502 - dir_loss: 0.6508 - dir_dir_acc: 0.6257
+25/31 [=======================>......] - ETA: 0s - loss: 3.6098 - return_loss: 0.3476 - dir_loss: 0.6524 - dir_dir_acc: 0.6231
+26/31 [========================>.....] - ETA: 0s - loss: 3.6105 - return_loss: 0.3473 - dir_loss: 0.6526 - dir_dir_acc: 0.6226
+27/31 [=========================>....] - ETA: 0s - loss: 3.6060 - return_loss: 0.3436 - dir_loss: 0.6525 - dir_dir_acc: 0.6215
+28/31 [==========================>...] - ETA: 0s - loss: 3.6077 - return_loss: 0.3452 - dir_loss: 0.6525 - dir_dir_acc: 0.6233
+29/31 [===========================>..] - ETA: 0s - loss: 3.6055 - return_loss: 0.3445 - dir_loss: 0.6522 - dir_dir_acc: 0.6202
+30/31 [============================>.] - ETA: 0s - loss: 3.6023 - return_loss: 0.3433 - dir_loss: 0.6518 - dir_dir_acc: 0.6219
+31/31 [==============================] - ETA: 0s - loss: 3.6033 - return_loss: 0.3429 - dir_loss: 0.6521 - dir_dir_acc: 0.6220
+31/31 [==============================] - 2s 76ms/step - loss: 3.6033 - return_loss: 0.3429 - dir_loss: 0.6521 - dir_dir_acc: 0.6220 - val_loss: 3.6768 - val_return_loss: 0.2261 - val_dir_loss: 0.6901 - val_dir_dir_acc: 0.5625
+Epoch 4/40
+
+ 1/31 [..............................] - ETA: 2s - loss: 3.4280 - return_loss: 0.2698 - dir_loss: 0.6316 - dir_dir_acc: 0.6250
+ 2/31 [>.............................] - ETA: 1s - loss: 3.3564 - return_loss: 0.3129 - dir_loss: 0.6087 - dir_dir_acc: 0.6797
+ 3/31 [=>............................] - ETA: 1s - loss: 3.4531 - return_loss: 0.3186 - dir_loss: 0.6269 - dir_dir_acc: 0.6615
+ 4/31 [==>...........................] - ETA: 1s - loss: 3.4449 - return_loss: 0.3023 - dir_loss: 0.6285 - dir_dir_acc: 0.6641
+ 5/31 [===>..........................] - ETA: 1s - loss: 3.4943 - return_loss: 0.3083 - dir_loss: 0.6372 - dir_dir_acc: 0.6531
+ 6/31 [====>.........................] - ETA: 1s - loss: 3.4475 - return_loss: 0.3070 - dir_loss: 0.6281 - dir_dir_acc: 0.6589
+ 7/31 [=====>........................] - ETA: 1s - loss: 3.4899 - return_loss: 0.3181 - dir_loss: 0.6344 - dir_dir_acc: 0.6562
+ 8/31 [======>.......................] - ETA: 1s - loss: 3.4926 - return_loss: 0.3310 - dir_loss: 0.6323 - dir_dir_acc: 0.6621
+ 9/31 [=======>......................] - ETA: 1s - loss: 3.5127 - return_loss: 0.3337 - dir_loss: 0.6358 - dir_dir_acc: 0.6528
+10/31 [========>.....................] - ETA: 1s - loss: 3.4976 - return_loss: 0.3249 - dir_loss: 0.6345 - dir_dir_acc: 0.6531
+11/31 [=========>....................] - ETA: 1s - loss: 3.4785 - return_loss: 0.3324 - dir_loss: 0.6292 - dir_dir_acc: 0.6562
+12/31 [==========>...................] - ETA: 1s - loss: 3.4972 - return_loss: 0.3497 - dir_loss: 0.6295 - dir_dir_acc: 0.6484
+13/31 [===========>..................] - ETA: 1s - loss: 3.4693 - return_loss: 0.3402 - dir_loss: 0.6258 - dir_dir_acc: 0.6526
+14/31 [============>.................] - ETA: 1s - loss: 3.4651 - return_loss: 0.3419 - dir_loss: 0.6246 - dir_dir_acc: 0.6518
+15/31 [=============>................] - ETA: 1s - loss: 3.4560 - return_loss: 0.3365 - dir_loss: 0.6239 - dir_dir_acc: 0.6531
+16/31 [==============>...............] - ETA: 1s - loss: 3.4813 - return_loss: 0.3340 - dir_loss: 0.6295 - dir_dir_acc: 0.6465
+17/31 [===============>..............] - ETA: 0s - loss: 3.4771 - return_loss: 0.3324 - dir_loss: 0.6290 - dir_dir_acc: 0.6461
+18/31 [================>.............] - ETA: 0s - loss: 3.4837 - return_loss: 0.3261 - dir_loss: 0.6315 - dir_dir_acc: 0.6432
+19/31 [=================>............] - ETA: 0s - loss: 3.4789 - return_loss: 0.3222 - dir_loss: 0.6313 - dir_dir_acc: 0.6414
+20/31 [==================>...........] - ETA: 0s - loss: 3.4799 - return_loss: 0.3206 - dir_loss: 0.6319 - dir_dir_acc: 0.6414
+21/31 [===================>..........] - ETA: 0s - loss: 3.4967 - return_loss: 0.3267 - dir_loss: 0.6340 - dir_dir_acc: 0.6339
+22/31 [====================>.........] - ETA: 0s - loss: 3.4927 - return_loss: 0.3264 - dir_loss: 0.6333 - dir_dir_acc: 0.6364
+23/31 [=====================>........] - ETA: 0s - loss: 3.4934 - return_loss: 0.3307 - dir_loss: 0.6325 - dir_dir_acc: 0.6399
+24/31 [======================>.......] - ETA: 0s - loss: 3.4948 - return_loss: 0.3309 - dir_loss: 0.6328 - dir_dir_acc: 0.6400
+25/31 [=======================>......] - ETA: 0s - loss: 3.4881 - return_loss: 0.3299 - dir_loss: 0.6317 - dir_dir_acc: 0.6419
+26/31 [========================>.....] - ETA: 0s - loss: 3.4858 - return_loss: 0.3283 - dir_loss: 0.6315 - dir_dir_acc: 0.6412
+27/31 [=========================>....] - ETA: 0s - loss: 3.4928 - return_loss: 0.3315 - dir_loss: 0.6323 - dir_dir_acc: 0.6406
+28/31 [==========================>...] - ETA: 0s - loss: 3.4922 - return_loss: 0.3362 - dir_loss: 0.6312 - dir_dir_acc: 0.6406
+29/31 [===========================>..] - ETA: 0s - loss: 3.4790 - return_loss: 0.3327 - dir_loss: 0.6293 - dir_dir_acc: 0.6439
+30/31 [============================>.] - ETA: 0s - loss: 3.4737 - return_loss: 0.3311 - dir_loss: 0.6285 - dir_dir_acc: 0.6448
+31/31 [==============================] - ETA: 0s - loss: 3.4737 - return_loss: 0.3311 - dir_loss: 0.6285 - dir_dir_acc: 0.6457
+31/31 [==============================] - 2s 78ms/step - loss: 3.4737 - return_loss: 0.3311 - dir_loss: 0.6285 - dir_dir_acc: 0.6457 - val_loss: 3.6524 - val_return_loss: 0.2256 - val_dir_loss: 0.6854 - val_dir_dir_acc: 0.5223
+Epoch 5/40
+
+ 1/31 [..............................] - ETA: 2s - loss: 3.2435 - return_loss: 0.2617 - dir_loss: 0.5963 - dir_dir_acc: 0.7188
+ 2/31 [>.............................] - ETA: 2s - loss: 3.3797 - return_loss: 0.2774 - dir_loss: 0.6205 - dir_dir_acc: 0.6797
+ 3/31 [=>............................] - ETA: 2s - loss: 3.3719 - return_loss: 0.3201 - dir_loss: 0.6104 - dir_dir_acc: 0.6875
+ 4/31 [==>...........................] - ETA: 1s - loss: 3.4171 - return_loss: 0.3280 - dir_loss: 0.6178 - dir_dir_acc: 0.6719
+ 5/31 [===>..........................] - ETA: 1s - loss: 3.3656 - return_loss: 0.3249 - dir_loss: 0.6081 - dir_dir_acc: 0.6687
+ 6/31 [====>.........................] - ETA: 1s - loss: 3.3882 - return_loss: 0.3508 - dir_loss: 0.6075 - dir_dir_acc: 0.6667
+ 7/31 [=====>........................] - ETA: 1s - loss: 3.4171 - return_loss: 0.3400 - dir_loss: 0.6154 - dir_dir_acc: 0.6518
+ 8/31 [======>.......................] - ETA: 1s - loss: 3.4371 - return_loss: 0.3380 - dir_loss: 0.6198 - dir_dir_acc: 0.6406
+ 9/31 [=======>......................] - ETA: 1s - loss: 3.4037 - return_loss: 0.3326 - dir_loss: 0.6142 - dir_dir_acc: 0.6458
+10/31 [========>.....................] - ETA: 1s - loss: 3.4297 - return_loss: 0.3389 - dir_loss: 0.6182 - dir_dir_acc: 0.6359
+11/31 [=========>....................] - ETA: 1s - loss: 3.4098 - return_loss: 0.3459 - dir_loss: 0.6128 - dir_dir_acc: 0.6435
+12/31 [==========>...................] - ETA: 1s - loss: 3.4083 - return_loss: 0.3431 - dir_loss: 0.6130 - dir_dir_acc: 0.6432
+13/31 [===========>..................] - ETA: 1s - loss: 3.4186 - return_loss: 0.3372 - dir_loss: 0.6163 - dir_dir_acc: 0.6394
+14/31 [============>.................] - ETA: 1s - loss: 3.4239 - return_loss: 0.3448 - dir_loss: 0.6158 - dir_dir_acc: 0.6406
+15/31 [=============>................] - ETA: 1s - loss: 3.4159 - return_loss: 0.3493 - dir_loss: 0.6133 - dir_dir_acc: 0.6469
+16/31 [==============>...............] - ETA: 1s - loss: 3.4055 - return_loss: 0.3428 - dir_loss: 0.6125 - dir_dir_acc: 0.6504
+17/31 [===============>..............] - ETA: 0s - loss: 3.3921 - return_loss: 0.3388 - dir_loss: 0.6107 - dir_dir_acc: 0.6507
+18/31 [================>.............] - ETA: 0s - loss: 3.3805 - return_loss: 0.3343 - dir_loss: 0.6092 - dir_dir_acc: 0.6519
+19/31 [=================>............] - ETA: 0s - loss: 3.3797 - return_loss: 0.3270 - dir_loss: 0.6105 - dir_dir_acc: 0.6530
+20/31 [==================>...........] - ETA: 0s - loss: 3.3807 - return_loss: 0.3232 - dir_loss: 0.6115 - dir_dir_acc: 0.6500
+21/31 [===================>..........] - ETA: 0s - loss: 3.3876 - return_loss: 0.3322 - dir_loss: 0.6111 - dir_dir_acc: 0.6496
+22/31 [====================>.........] - ETA: 0s - loss: 3.3969 - return_loss: 0.3356 - dir_loss: 0.6123 - dir_dir_acc: 0.6484
+23/31 [=====================>........] - ETA: 0s - loss: 3.4047 - return_loss: 0.3344 - dir_loss: 0.6141 - dir_dir_acc: 0.6454
+24/31 [======================>.......] - ETA: 0s - loss: 3.4037 - return_loss: 0.3346 - dir_loss: 0.6138 - dir_dir_acc: 0.6471
+25/31 [=======================>......] - ETA: 0s - loss: 3.4090 - return_loss: 0.3333 - dir_loss: 0.6152 - dir_dir_acc: 0.6438
+26/31 [========================>.....] - ETA: 0s - loss: 3.3974 - return_loss: 0.3272 - dir_loss: 0.6140 - dir_dir_acc: 0.6460
+27/31 [=========================>....] - ETA: 0s - loss: 3.3825 - return_loss: 0.3232 - dir_loss: 0.6119 - dir_dir_acc: 0.6493
+28/31 [==========================>...] - ETA: 0s - loss: 3.3848 - return_loss: 0.3205 - dir_loss: 0.6129 - dir_dir_acc: 0.6462
+29/31 [===========================>..] - ETA: 0s - loss: 3.3807 - return_loss: 0.3180 - dir_loss: 0.6125 - dir_dir_acc: 0.6455
+30/31 [============================>.] - ETA: 0s - loss: 3.3879 - return_loss: 0.3199 - dir_loss: 0.6136 - dir_dir_acc: 0.6422
+31/31 [==============================] - ETA: 0s - loss: 3.3826 - return_loss: 0.3175 - dir_loss: 0.6130 - dir_dir_acc: 0.6436
+31/31 [==============================] - 2s 75ms/step - loss: 3.3826 - return_loss: 0.3175 - dir_loss: 0.6130 - dir_dir_acc: 0.6436 - val_loss: 3.6530 - val_return_loss: 0.2256 - val_dir_loss: 0.6855 - val_dir_dir_acc: 0.5781
+Epoch 6/40
+
+ 1/31 [..............................] - ETA: 1s - loss: 2.9975 - return_loss: 0.3384 - dir_loss: 0.5318 - dir_dir_acc: 0.7344
+ 2/31 [>.............................] - ETA: 1s - loss: 2.9999 - return_loss: 0.3626 - dir_loss: 0.5275 - dir_dir_acc: 0.7734
+ 3/31 [=>............................] - ETA: 1s - loss: 3.1424 - return_loss: 0.3602 - dir_loss: 0.5564 - dir_dir_acc: 0.7500
+ 4/31 [==>...........................] - ETA: 1s - loss: 3.1467 - return_loss: 0.3726 - dir_loss: 0.5548 - dir_dir_acc: 0.7539
+ 5/31 [===>..........................] - ETA: 1s - loss: 3.1638 - return_loss: 0.3765 - dir_loss: 0.5575 - dir_dir_acc: 0.7406
+ 6/31 [====>.........................] - ETA: 1s - loss: 3.1943 - return_loss: 0.3394 - dir_loss: 0.5710 - dir_dir_acc: 0.7240
+ 7/31 [=====>........................] - ETA: 1s - loss: 3.1911 - return_loss: 0.3602 - dir_loss: 0.5662 - dir_dir_acc: 0.7254
+ 8/31 [======>.......................] - ETA: 1s - loss: 3.2200 - return_loss: 0.3559 - dir_loss: 0.5728 - dir_dir_acc: 0.7188
+ 9/31 [=======>......................] - ETA: 1s - loss: 3.2266 - return_loss: 0.3554 - dir_loss: 0.5742 - dir_dir_acc: 0.7118
+10/31 [========>.....................] - ETA: 1s - loss: 3.2438 - return_loss: 0.3630 - dir_loss: 0.5762 - dir_dir_acc: 0.7094
+11/31 [=========>....................] - ETA: 1s - loss: 3.2312 - return_loss: 0.3570 - dir_loss: 0.5748 - dir_dir_acc: 0.7131
+12/31 [==========>...................] - ETA: 1s - loss: 3.2397 - return_loss: 0.3476 - dir_loss: 0.5784 - dir_dir_acc: 0.7044
+13/31 [===========>..................] - ETA: 1s - loss: 3.2164 - return_loss: 0.3433 - dir_loss: 0.5746 - dir_dir_acc: 0.7091
+14/31 [============>.................] - ETA: 1s - loss: 3.2297 - return_loss: 0.3412 - dir_loss: 0.5777 - dir_dir_acc: 0.7009
+15/31 [=============>................] - ETA: 1s - loss: 3.2564 - return_loss: 0.3385 - dir_loss: 0.5836 - dir_dir_acc: 0.6917
+16/31 [==============>...............] - ETA: 0s - loss: 3.2663 - return_loss: 0.3376 - dir_loss: 0.5857 - dir_dir_acc: 0.6904
+17/31 [===============>..............] - ETA: 0s - loss: 3.2835 - return_loss: 0.3345 - dir_loss: 0.5898 - dir_dir_acc: 0.6847
+18/31 [================>.............] - ETA: 0s - loss: 3.2928 - return_loss: 0.3264 - dir_loss: 0.5933 - dir_dir_acc: 0.6814
+19/31 [=================>............] - ETA: 0s - loss: 3.2856 - return_loss: 0.3196 - dir_loss: 0.5932 - dir_dir_acc: 0.6834
+20/31 [==================>...........] - ETA: 0s - loss: 3.2768 - return_loss: 0.3126 - dir_loss: 0.5928 - dir_dir_acc: 0.6789
+21/31 [===================>..........] - ETA: 0s - loss: 3.2701 - return_loss: 0.3068 - dir_loss: 0.5927 - dir_dir_acc: 0.6801
+22/31 [====================>.........] - ETA: 0s - loss: 3.2753 - return_loss: 0.3014 - dir_loss: 0.5948 - dir_dir_acc: 0.6761
+23/31 [=====================>........] - ETA: 0s - loss: 3.2716 - return_loss: 0.2969 - dir_loss: 0.5950 - dir_dir_acc: 0.6766
+24/31 [======================>.......] - ETA: 0s - loss: 3.2623 - return_loss: 0.3012 - dir_loss: 0.5922 - dir_dir_acc: 0.6771
+25/31 [=======================>......] - ETA: 0s - loss: 3.2680 - return_loss: 0.3005 - dir_loss: 0.5935 - dir_dir_acc: 0.6781
+26/31 [========================>.....] - ETA: 0s - loss: 3.2759 - return_loss: 0.2994 - dir_loss: 0.5953 - dir_dir_acc: 0.6719
+27/31 [=========================>....] - ETA: 0s - loss: 3.2764 - return_loss: 0.2981 - dir_loss: 0.5957 - dir_dir_acc: 0.6690
+28/31 [==========================>...] - ETA: 0s - loss: 3.2814 - return_loss: 0.2966 - dir_loss: 0.5970 - dir_dir_acc: 0.6652
+29/31 [===========================>..] - ETA: 0s - loss: 3.2906 - return_loss: 0.3043 - dir_loss: 0.5973 - dir_dir_acc: 0.6643
+30/31 [============================>.] - ETA: 0s - loss: 3.2994 - return_loss: 0.3076 - dir_loss: 0.5984 - dir_dir_acc: 0.6625
+31/31 [==============================] - ETA: 0s - loss: 3.2973 - return_loss: 0.3041 - dir_loss: 0.5987 - dir_dir_acc: 0.6633
+31/31 [==============================] - 2s 72ms/step - loss: 3.2973 - return_loss: 0.3041 - dir_loss: 0.5987 - dir_dir_acc: 0.6633 - val_loss: 3.6770 - val_return_loss: 0.2284 - val_dir_loss: 0.6897 - val_dir_dir_acc: 0.5714
+Epoch 7/40
+
+ 1/31 [..............................] - ETA: 2s - loss: 2.9383 - return_loss: 0.2460 - dir_loss: 0.5385 - dir_dir_acc: 0.7344
+ 2/31 [>.............................] - ETA: 1s - loss: 2.7598 - return_loss: 0.2321 - dir_loss: 0.5055 - dir_dir_acc: 0.7734
+ 3/31 [=>............................] - ETA: 1s - loss: 2.8206 - return_loss: 0.2396 - dir_loss: 0.5162 - dir_dir_acc: 0.7500
+ 4/31 [==>...........................] - ETA: 1s - loss: 2.8749 - return_loss: 0.2480 - dir_loss: 0.5254 - dir_dir_acc: 0.7422
+ 5/31 [===>..........................] - ETA: 1s - loss: 2.8999 - return_loss: 0.2451 - dir_loss: 0.5310 - dir_dir_acc: 0.7312
+ 6/31 [====>.........................] - ETA: 1s - loss: 2.9134 - return_loss: 0.2678 - dir_loss: 0.5291 - dir_dir_acc: 0.7370
+ 7/31 [=====>........................] - ETA: 1s - loss: 2.9374 - return_loss: 0.2828 - dir_loss: 0.5309 - dir_dir_acc: 0.7366
+ 8/31 [======>.......................] - ETA: 1s - loss: 2.9787 - return_loss: 0.2743 - dir_loss: 0.5409 - dir_dir_acc: 0.7246
+ 9/31 [=======>......................] - ETA: 1s - loss: 2.9643 - return_loss: 0.2700 - dir_loss: 0.5388 - dir_dir_acc: 0.7222
+10/31 [========>.....................] - ETA: 1s - loss: 2.9534 - return_loss: 0.2681 - dir_loss: 0.5370 - dir_dir_acc: 0.7188
+11/31 [=========>....................] - ETA: 1s - loss: 2.9969 - return_loss: 0.2683 - dir_loss: 0.5457 - dir_dir_acc: 0.7145
+12/31 [==========>...................] - ETA: 1s - loss: 3.0003 - return_loss: 0.2651 - dir_loss: 0.5470 - dir_dir_acc: 0.7135
+13/31 [===========>..................] - ETA: 1s - loss: 2.9982 - return_loss: 0.2753 - dir_loss: 0.5446 - dir_dir_acc: 0.7175
+14/31 [============>.................] - ETA: 1s - loss: 2.9986 - return_loss: 0.2763 - dir_loss: 0.5445 - dir_dir_acc: 0.7165
+15/31 [=============>................] - ETA: 1s - loss: 2.9981 - return_loss: 0.2814 - dir_loss: 0.5433 - dir_dir_acc: 0.7198
+16/31 [==============>...............] - ETA: 0s - loss: 3.0167 - return_loss: 0.2829 - dir_loss: 0.5468 - dir_dir_acc: 0.7158
+17/31 [===============>..............] - ETA: 0s - loss: 3.0381 - return_loss: 0.2813 - dir_loss: 0.5514 - dir_dir_acc: 0.7123
+18/31 [================>.............] - ETA: 0s - loss: 3.0335 - return_loss: 0.2803 - dir_loss: 0.5507 - dir_dir_acc: 0.7127
+19/31 [=================>............] - ETA: 0s - loss: 3.0516 - return_loss: 0.2813 - dir_loss: 0.5541 - dir_dir_acc: 0.7056
+20/31 [==================>...........] - ETA: 0s - loss: 3.0526 - return_loss: 0.2858 - dir_loss: 0.5534 - dir_dir_acc: 0.7047
+21/31 [===================>..........] - ETA: 0s - loss: 3.0668 - return_loss: 0.2835 - dir_loss: 0.5567 - dir_dir_acc: 0.7009
+22/31 [====================>.........] - ETA: 0s - loss: 3.0727 - return_loss: 0.2878 - dir_loss: 0.5570 - dir_dir_acc: 0.6982
+23/31 [=====================>........] - ETA: 0s - loss: 3.0732 - return_loss: 0.2855 - dir_loss: 0.5575 - dir_dir_acc: 0.6963
+24/31 [======================>.......] - ETA: 0s - loss: 3.0851 - return_loss: 0.2878 - dir_loss: 0.5595 - dir_dir_acc: 0.6914
+25/31 [=======================>......] - ETA: 0s - loss: 3.0712 - return_loss: 0.2870 - dir_loss: 0.5568 - dir_dir_acc: 0.6969
+26/31 [========================>.....] - ETA: 0s - loss: 3.0876 - return_loss: 0.2842 - dir_loss: 0.5607 - dir_dir_acc: 0.6947
+27/31 [=========================>....] - ETA: 0s - loss: 3.0912 - return_loss: 0.2817 - dir_loss: 0.5619 - dir_dir_acc: 0.6933
+28/31 [==========================>...] - ETA: 0s - loss: 3.0991 - return_loss: 0.2843 - dir_loss: 0.5630 - dir_dir_acc: 0.6931
+29/31 [===========================>..] - ETA: 0s - loss: 3.0963 - return_loss: 0.2840 - dir_loss: 0.5625 - dir_dir_acc: 0.6934
+30/31 [============================>.] - ETA: 0s - loss: 3.0969 - return_loss: 0.2827 - dir_loss: 0.5628 - dir_dir_acc: 0.6932
+31/31 [==============================] - ETA: 0s - loss: 3.1024 - return_loss: 0.2871 - dir_loss: 0.5631 - dir_dir_acc: 0.6930
+31/31 [==============================] - 2s 72ms/step - loss: 3.1024 - return_loss: 0.2871 - dir_loss: 0.5631 - dir_dir_acc: 0.6930 - val_loss: 3.7396 - val_return_loss: 0.2297 - val_dir_loss: 0.7020 - val_dir_dir_acc: 0.5670
+Epoch 8/40
+
+ 1/31 [..............................] - ETA: 1s - loss: 3.0544 - return_loss: 0.2120 - dir_loss: 0.5685 - dir_dir_acc: 0.7656
+ 2/31 [>.............................] - ETA: 1s - loss: 2.9869 - return_loss: 0.2447 - dir_loss: 0.5484 - dir_dir_acc: 0.7422
+ 3/31 [=>............................] - ETA: 1s - loss: 2.9848 - return_loss: 0.2758 - dir_loss: 0.5418 - dir_dir_acc: 0.7552
+ 4/31 [==>...........................] - ETA: 1s - loss: 3.0551 - return_loss: 0.2616 - dir_loss: 0.5587 - dir_dir_acc: 0.7305
+ 5/31 [===>..........................] - ETA: 1s - loss: 3.0171 - return_loss: 0.2669 - dir_loss: 0.5501 - dir_dir_acc: 0.7375
+ 6/31 [====>.........................] - ETA: 1s - loss: 2.9802 - return_loss: 0.2618 - dir_loss: 0.5437 - dir_dir_acc: 0.7422
+ 7/31 [=====>........................] - ETA: 1s - loss: 2.9802 - return_loss: 0.2629 - dir_loss: 0.5435 - dir_dir_acc: 0.7299
+ 8/31 [======>.......................] - ETA: 1s - loss: 3.0026 - return_loss: 0.2740 - dir_loss: 0.5457 - dir_dir_acc: 0.7266
+ 9/31 [=======>......................] - ETA: 1s - loss: 3.0055 - return_loss: 0.2714 - dir_loss: 0.5468 - dir_dir_acc: 0.7188
+10/31 [========>.....................] - ETA: 1s - loss: 3.0155 - return_loss: 0.2653 - dir_loss: 0.5500 - dir_dir_acc: 0.7094
+11/31 [=========>....................] - ETA: 1s - loss: 2.9710 - return_loss: 0.2649 - dir_loss: 0.5412 - dir_dir_acc: 0.7216
+12/31 [==========>...................] - ETA: 1s - loss: 2.9718 - return_loss: 0.2713 - dir_loss: 0.5401 - dir_dir_acc: 0.7279
+13/31 [===========>..................] - ETA: 1s - loss: 2.9743 - return_loss: 0.2936 - dir_loss: 0.5361 - dir_dir_acc: 0.7344
+14/31 [============>.................] - ETA: 1s - loss: 2.9500 - return_loss: 0.2874 - dir_loss: 0.5325 - dir_dir_acc: 0.7344
+15/31 [=============>................] - ETA: 1s - loss: 2.9349 - return_loss: 0.2803 - dir_loss: 0.5309 - dir_dir_acc: 0.7375
+16/31 [==============>...............] - ETA: 0s - loss: 2.9192 - return_loss: 0.2761 - dir_loss: 0.5286 - dir_dir_acc: 0.7344
+17/31 [===============>..............] - ETA: 0s - loss: 2.9385 - return_loss: 0.2775 - dir_loss: 0.5322 - dir_dir_acc: 0.7316
+18/31 [================>.............] - ETA: 0s - loss: 2.9377 - return_loss: 0.2730 - dir_loss: 0.5329 - dir_dir_acc: 0.7292
+19/31 [=================>............] - ETA: 0s - loss: 2.9686 - return_loss: 0.2796 - dir_loss: 0.5378 - dir_dir_acc: 0.7220
+20/31 [==================>...........] - ETA: 0s - loss: 2.9801 - return_loss: 0.2750 - dir_loss: 0.5410 - dir_dir_acc: 0.7188
+21/31 [===================>..........] - ETA: 0s - loss: 3.0031 - return_loss: 0.2776 - dir_loss: 0.5451 - dir_dir_acc: 0.7158
+22/31 [====================>.........] - ETA: 0s - loss: 2.9991 - return_loss: 0.2792 - dir_loss: 0.5440 - dir_dir_acc: 0.7166
+23/31 [=====================>........] - ETA: 0s - loss: 2.9976 - return_loss: 0.2861 - dir_loss: 0.5423 - dir_dir_acc: 0.7167
+24/31 [======================>.......] - ETA: 0s - loss: 3.0137 - return_loss: 0.2896 - dir_loss: 0.5448 - dir_dir_acc: 0.7161
+25/31 [=======================>......] - ETA: 0s - loss: 2.9943 - return_loss: 0.2880 - dir_loss: 0.5413 - dir_dir_acc: 0.7175
+26/31 [========================>.....] - ETA: 0s - loss: 2.9875 - return_loss: 0.2850 - dir_loss: 0.5405 - dir_dir_acc: 0.7175
+27/31 [=========================>....] - ETA: 0s - loss: 2.9763 - return_loss: 0.2822 - dir_loss: 0.5388 - dir_dir_acc: 0.7205
+28/31 [==========================>...] - ETA: 0s - loss: 2.9688 - return_loss: 0.2811 - dir_loss: 0.5375 - dir_dir_acc: 0.7193
+29/31 [===========================>..] - ETA: 0s - loss: 2.9724 - return_loss: 0.2802 - dir_loss: 0.5384 - dir_dir_acc: 0.7188
+30/31 [============================>.] - ETA: 0s - loss: 2.9834 - return_loss: 0.2774 - dir_loss: 0.5412 - dir_dir_acc: 0.7172
+31/31 [==============================] - ETA: 0s - loss: 2.9740 - return_loss: 0.2730 - dir_loss: 0.5402 - dir_dir_acc: 0.7193
+31/31 [==============================] - 2s 71ms/step - loss: 2.9740 - return_loss: 0.2730 - dir_loss: 0.5402 - dir_dir_acc: 0.7193 - val_loss: 3.8406 - val_return_loss: 0.2357 - val_dir_loss: 0.7210 - val_dir_dir_acc: 0.5893
+Epoch 9/40
+
+ 1/31 [..............................] - ETA: 1s - loss: 2.3477 - return_loss: 0.2498 - dir_loss: 0.4196 - dir_dir_acc: 0.7500
+ 2/31 [>.............................] - ETA: 1s - loss: 2.4079 - return_loss: 0.2277 - dir_loss: 0.4361 - dir_dir_acc: 0.7656
+ 3/31 [=>............................] - ETA: 1s - loss: 2.4366 - return_loss: 0.2283 - dir_loss: 0.4417 - dir_dir_acc: 0.7865
+ 4/31 [==>...........................] - ETA: 1s - loss: 2.4869 - return_loss: 0.2220 - dir_loss: 0.4530 - dir_dir_acc: 0.7773
+ 5/31 [===>..........................] - ETA: 1s - loss: 2.4843 - return_loss: 0.2182 - dir_loss: 0.4532 - dir_dir_acc: 0.7781
+ 6/31 [====>.........................] - ETA: 1s - loss: 2.5421 - return_loss: 0.2282 - dir_loss: 0.4628 - dir_dir_acc: 0.7760
+ 7/31 [=====>........................] - ETA: 1s - loss: 2.6604 - return_loss: 0.2488 - dir_loss: 0.4823 - dir_dir_acc: 0.7612
+ 8/31 [======>.......................] - ETA: 1s - loss: 2.6679 - return_loss: 0.2559 - dir_loss: 0.4824 - dir_dir_acc: 0.7676
+ 9/31 [=======>......................] - ETA: 1s - loss: 2.6642 - return_loss: 0.2484 - dir_loss: 0.4831 - dir_dir_acc: 0.7656
+10/31 [========>.....................] - ETA: 1s - loss: 2.6877 - return_loss: 0.2579 - dir_loss: 0.4860 - dir_dir_acc: 0.7656
+11/31 [=========>....................] - ETA: 1s - loss: 2.7057 - return_loss: 0.2568 - dir_loss: 0.4898 - dir_dir_acc: 0.7585
+12/31 [==========>...................] - ETA: 1s - loss: 2.6827 - return_loss: 0.2527 - dir_loss: 0.4860 - dir_dir_acc: 0.7630
+13/31 [===========>..................] - ETA: 1s - loss: 2.6956 - return_loss: 0.2648 - dir_loss: 0.4861 - dir_dir_acc: 0.7620
+14/31 [============>.................] - ETA: 1s - loss: 2.6872 - return_loss: 0.2597 - dir_loss: 0.4855 - dir_dir_acc: 0.7612
+15/31 [=============>................] - ETA: 1s - loss: 2.6910 - return_loss: 0.2589 - dir_loss: 0.4864 - dir_dir_acc: 0.7583
+16/31 [==============>...............] - ETA: 0s - loss: 2.6947 - return_loss: 0.2597 - dir_loss: 0.4870 - dir_dir_acc: 0.7607
+17/31 [===============>..............] - ETA: 0s - loss: 2.7043 - return_loss: 0.2579 - dir_loss: 0.4893 - dir_dir_acc: 0.7555
+18/31 [================>.............] - ETA: 0s - loss: 2.6930 - return_loss: 0.2542 - dir_loss: 0.4878 - dir_dir_acc: 0.7569
+19/31 [=================>............] - ETA: 0s - loss: 2.7082 - return_loss: 0.2520 - dir_loss: 0.4912 - dir_dir_acc: 0.7574
+20/31 [==================>...........] - ETA: 0s - loss: 2.7181 - return_loss: 0.2517 - dir_loss: 0.4933 - dir_dir_acc: 0.7531
+21/31 [===================>..........] - ETA: 0s - loss: 2.7042 - return_loss: 0.2517 - dir_loss: 0.4905 - dir_dir_acc: 0.7560
+22/31 [====================>.........] - ETA: 0s - loss: 2.7007 - return_loss: 0.2496 - dir_loss: 0.4902 - dir_dir_acc: 0.7571
+23/31 [=====================>........] - ETA: 0s - loss: 2.7326 - return_loss: 0.2481 - dir_loss: 0.4969 - dir_dir_acc: 0.7534
+24/31 [======================>.......] - ETA: 0s - loss: 2.7298 - return_loss: 0.2463 - dir_loss: 0.4967 - dir_dir_acc: 0.7520
+25/31 [=======================>......] - ETA: 0s - loss: 2.7420 - return_loss: 0.2443 - dir_loss: 0.4995 - dir_dir_acc: 0.7475
+26/31 [========================>.....] - ETA: 0s - loss: 2.7717 - return_loss: 0.2469 - dir_loss: 0.5050 - dir_dir_acc: 0.7428
+27/31 [=========================>....] - ETA: 0s - loss: 2.7915 - return_loss: 0.2490 - dir_loss: 0.5085 - dir_dir_acc: 0.7378
+28/31 [==========================>...] - ETA: 0s - loss: 2.8190 - return_loss: 0.2549 - dir_loss: 0.5128 - dir_dir_acc: 0.7338
+29/31 [===========================>..] - ETA: 0s - loss: 2.8218 - return_loss: 0.2542 - dir_loss: 0.5135 - dir_dir_acc: 0.7322
+30/31 [============================>.] - ETA: 0s - loss: 2.8232 - return_loss: 0.2585 - dir_loss: 0.5129 - dir_dir_acc: 0.7323
+31/31 [==============================] - ETA: 0s - loss: 2.8301 - return_loss: 0.2588 - dir_loss: 0.5143 - dir_dir_acc: 0.7308
+31/31 [==============================] - 2s 70ms/step - loss: 2.8301 - return_loss: 0.2588 - dir_loss: 0.5143 - dir_dir_acc: 0.7308 - val_loss: 3.8009 - val_return_loss: 0.2410 - val_dir_loss: 0.7120 - val_dir_dir_acc: 0.5737
+Epoch 10/40
+
+ 1/31 [..............................] - ETA: 1s - loss: 2.9315 - return_loss: 0.2331 - dir_loss: 0.5397 - dir_dir_acc: 0.6875
+ 2/31 [>.............................] - ETA: 1s - loss: 2.6140 - return_loss: 0.3299 - dir_loss: 0.4568 - dir_dir_acc: 0.7891
+ 3/31 [=>............................] - ETA: 1s - loss: 2.6062 - return_loss: 0.3024 - dir_loss: 0.4608 - dir_dir_acc: 0.7865
+ 4/31 [==>...........................] - ETA: 1s - loss: 2.6033 - return_loss: 0.2790 - dir_loss: 0.4649 - dir_dir_acc: 0.7812
+ 5/31 [===>..........................] - ETA: 1s - loss: 2.6239 - return_loss: 0.3061 - dir_loss: 0.4636 - dir_dir_acc: 0.7781
+ 6/31 [====>.........................] - ETA: 1s - loss: 2.6206 - return_loss: 0.2851 - dir_loss: 0.4671 - dir_dir_acc: 0.7734
+ 7/31 [=====>........................] - ETA: 1s - loss: 2.6610 - return_loss: 0.2802 - dir_loss: 0.4762 - dir_dir_acc: 0.7634
+ 8/31 [======>.......................] - ETA: 1s - loss: 2.6392 - return_loss: 0.2720 - dir_loss: 0.4734 - dir_dir_acc: 0.7656
+ 9/31 [=======>......................] - ETA: 1s - loss: 2.6407 - return_loss: 0.2752 - dir_loss: 0.4731 - dir_dir_acc: 0.7674
+10/31 [========>.....................] - ETA: 1s - loss: 2.6500 - return_loss: 0.2731 - dir_loss: 0.4754 - dir_dir_acc: 0.7672
+11/31 [=========>....................] - ETA: 1s - loss: 2.6316 - return_loss: 0.2762 - dir_loss: 0.4711 - dir_dir_acc: 0.7685
+12/31 [==========>...................] - ETA: 1s - loss: 2.6190 - return_loss: 0.2719 - dir_loss: 0.4694 - dir_dir_acc: 0.7682
+13/31 [===========>..................] - ETA: 1s - loss: 2.6273 - return_loss: 0.2655 - dir_loss: 0.4724 - dir_dir_acc: 0.7644
+14/31 [============>.................] - ETA: 1s - loss: 2.6430 - return_loss: 0.2623 - dir_loss: 0.4762 - dir_dir_acc: 0.7600
+15/31 [=============>................] - ETA: 1s - loss: 2.6057 - return_loss: 0.2552 - dir_loss: 0.4701 - dir_dir_acc: 0.7656
+16/31 [==============>...............] - ETA: 0s - loss: 2.6223 - return_loss: 0.2514 - dir_loss: 0.4742 - dir_dir_acc: 0.7637
+17/31 [===============>..............] - ETA: 0s - loss: 2.6402 - return_loss: 0.2493 - dir_loss: 0.4782 - dir_dir_acc: 0.7619
+18/31 [================>.............] - ETA: 0s - loss: 2.6730 - return_loss: 0.2540 - dir_loss: 0.4838 - dir_dir_acc: 0.7569
+19/31 [=================>............] - ETA: 0s - loss: 2.6745 - return_loss: 0.2528 - dir_loss: 0.4843 - dir_dir_acc: 0.7574
+20/31 [==================>...........] - ETA: 0s - loss: 2.7007 - return_loss: 0.2577 - dir_loss: 0.4886 - dir_dir_acc: 0.7539
+21/31 [===================>..........] - ETA: 0s - loss: 2.7246 - return_loss: 0.2545 - dir_loss: 0.4940 - dir_dir_acc: 0.7500
+22/31 [====================>.........] - ETA: 0s - loss: 2.7440 - return_loss: 0.2523 - dir_loss: 0.4983 - dir_dir_acc: 0.7436
+23/31 [=====================>........] - ETA: 0s - loss: 2.7397 - return_loss: 0.2584 - dir_loss: 0.4963 - dir_dir_acc: 0.7452
+24/31 [======================>.......] - ETA: 0s - loss: 2.7548 - return_loss: 0.2563 - dir_loss: 0.4997 - dir_dir_acc: 0.7415
+25/31 [=======================>......] - ETA: 0s - loss: 2.7507 - return_loss: 0.2548 - dir_loss: 0.4992 - dir_dir_acc: 0.7412
+26/31 [========================>.....] - ETA: 0s - loss: 2.7561 - return_loss: 0.2555 - dir_loss: 0.5001 - dir_dir_acc: 0.7392
+27/31 [=========================>....] - ETA: 0s - loss: 2.7509 - return_loss: 0.2535 - dir_loss: 0.4995 - dir_dir_acc: 0.7390
+28/31 [==========================>...] - ETA: 0s - loss: 2.7597 - return_loss: 0.2521 - dir_loss: 0.5015 - dir_dir_acc: 0.7377
+29/31 [===========================>..] - ETA: 0s - loss: 2.7738 - return_loss: 0.2511 - dir_loss: 0.5045 - dir_dir_acc: 0.7376
+30/31 [============================>.] - ETA: 0s - loss: 2.7849 - return_loss: 0.2552 - dir_loss: 0.5059 - dir_dir_acc: 0.7359
+31/31 [==============================] - ETA: 0s - loss: 2.7714 - return_loss: 0.2530 - dir_loss: 0.5037 - dir_dir_acc: 0.7379
+31/31 [==============================] - 2s 70ms/step - loss: 2.7714 - return_loss: 0.2530 - dir_loss: 0.5037 - dir_dir_acc: 0.7379 - val_loss: 3.8819 - val_return_loss: 0.2400 - val_dir_loss: 0.7284 - val_dir_dir_acc: 0.5670
+Epoch 11/40
+
+ 1/31 [..............................] - ETA: 1s - loss: 2.4922 - return_loss: 0.3061 - dir_loss: 0.4372 - dir_dir_acc: 0.8125
+ 2/31 [>.............................] - ETA: 1s - loss: 2.4959 - return_loss: 0.2653 - dir_loss: 0.4461 - dir_dir_acc: 0.7969
+ 3/31 [=>............................] - ETA: 1s - loss: 2.4226 - return_loss: 0.2428 - dir_loss: 0.4360 - dir_dir_acc: 0.8021
+ 4/31 [==>...........................] - ETA: 1s - loss: 2.4587 - return_loss: 0.2526 - dir_loss: 0.4412 - dir_dir_acc: 0.8086
+ 5/31 [===>..........................] - ETA: 1s - loss: 2.4349 - return_loss: 0.2528 - dir_loss: 0.4364 - dir_dir_acc: 0.8031
+ 6/31 [====>.........................] - ETA: 1s - loss: 2.4373 - return_loss: 0.2477 - dir_loss: 0.4379 - dir_dir_acc: 0.8047
+ 7/31 [=====>........................] - ETA: 1s - loss: 2.4400 - return_loss: 0.2586 - dir_loss: 0.4363 - dir_dir_acc: 0.8036
+ 8/31 [======>.......................] - ETA: 1s - loss: 2.4903 - return_loss: 0.2463 - dir_loss: 0.4488 - dir_dir_acc: 0.7930
+ 9/31 [=======>......................] - ETA: 1s - loss: 2.5097 - return_loss: 0.2390 - dir_loss: 0.4541 - dir_dir_acc: 0.7951
+10/31 [========>.....................] - ETA: 1s - loss: 2.4654 - return_loss: 0.2342 - dir_loss: 0.4462 - dir_dir_acc: 0.8000
+11/31 [=========>....................] - ETA: 1s - loss: 2.4882 - return_loss: 0.2359 - dir_loss: 0.4505 - dir_dir_acc: 0.7969
+12/31 [==========>...................] - ETA: 1s - loss: 2.5117 - return_loss: 0.2317 - dir_loss: 0.4560 - dir_dir_acc: 0.7930
+13/31 [===========>..................] - ETA: 1s - loss: 2.5404 - return_loss: 0.2411 - dir_loss: 0.4599 - dir_dir_acc: 0.7909
+14/31 [============>.................] - ETA: 1s - loss: 2.5378 - return_loss: 0.2425 - dir_loss: 0.4591 - dir_dir_acc: 0.7902
+15/31 [=============>................] - ETA: 1s - loss: 2.5313 - return_loss: 0.2363 - dir_loss: 0.4590 - dir_dir_acc: 0.7896
+16/31 [==============>...............] - ETA: 0s - loss: 2.5408 - return_loss: 0.2354 - dir_loss: 0.4611 - dir_dir_acc: 0.7861
+17/31 [===============>..............] - ETA: 0s - loss: 2.5601 - return_loss: 0.2339 - dir_loss: 0.4652 - dir_dir_acc: 0.7822
+18/31 [================>.............] - ETA: 0s - loss: 2.5734 - return_loss: 0.2362 - dir_loss: 0.4674 - dir_dir_acc: 0.7778
+19/31 [=================>............] - ETA: 0s - loss: 2.6078 - return_loss: 0.2335 - dir_loss: 0.4748 - dir_dir_acc: 0.7714
+20/31 [==================>...........] - ETA: 0s - loss: 2.5941 - return_loss: 0.2338 - dir_loss: 0.4721 - dir_dir_acc: 0.7742
+21/31 [===================>..........] - ETA: 0s - loss: 2.6027 - return_loss: 0.2358 - dir_loss: 0.4734 - dir_dir_acc: 0.7716
+22/31 [====================>.........] - ETA: 0s - loss: 2.5966 - return_loss: 0.2358 - dir_loss: 0.4722 - dir_dir_acc: 0.7720
+23/31 [=====================>........] - ETA: 0s - loss: 2.5964 - return_loss: 0.2337 - dir_loss: 0.4725 - dir_dir_acc: 0.7704
+24/31 [======================>.......] - ETA: 0s - loss: 2.5877 - return_loss: 0.2303 - dir_loss: 0.4715 - dir_dir_acc: 0.7708
+25/31 [=======================>......] - ETA: 0s - loss: 2.6009 - return_loss: 0.2315 - dir_loss: 0.4739 - dir_dir_acc: 0.7656
+26/31 [========================>.....] - ETA: 0s - loss: 2.6133 - return_loss: 0.2384 - dir_loss: 0.4750 - dir_dir_acc: 0.7638
+27/31 [=========================>....] - ETA: 0s - loss: 2.6139 - return_loss: 0.2415 - dir_loss: 0.4745 - dir_dir_acc: 0.7639
+28/31 [==========================>...] - ETA: 0s - loss: 2.6407 - return_loss: 0.2444 - dir_loss: 0.4793 - dir_dir_acc: 0.7617
+29/31 [===========================>..] - ETA: 0s - loss: 2.6371 - return_loss: 0.2426 - dir_loss: 0.4789 - dir_dir_acc: 0.7629
+30/31 [============================>.] - ETA: 0s - loss: 2.6229 - return_loss: 0.2414 - dir_loss: 0.4763 - dir_dir_acc: 0.7641
+31/31 [==============================] - ETA: 0s - loss: 2.6403 - return_loss: 0.2447 - dir_loss: 0.4791 - dir_dir_acc: 0.7601
+31/31 [==============================] - 2s 72ms/step - loss: 2.6403 - return_loss: 0.2447 - dir_loss: 0.4791 - dir_dir_acc: 0.7601 - val_loss: 4.1771 - val_return_loss: 0.2527 - val_dir_loss: 0.7849 - val_dir_dir_acc: 0.5469
+Epoch 12/40
+
+ 1/31 [..............................] - ETA: 1s - loss: 2.4393 - return_loss: 0.3738 - dir_loss: 0.4131 - dir_dir_acc: 0.8281
+ 2/31 [>.............................] - ETA: 1s - loss: 2.3289 - return_loss: 0.2339 - dir_loss: 0.4190 - dir_dir_acc: 0.7891
+ 3/31 [=>............................] - ETA: 1s - loss: 2.2836 - return_loss: 0.2054 - dir_loss: 0.4156 - dir_dir_acc: 0.8125
+ 4/31 [==>...........................] - ETA: 1s - loss: 2.3479 - return_loss: 0.2342 - dir_loss: 0.4228 - dir_dir_acc: 0.7969
+ 5/31 [===>..........................] - ETA: 1s - loss: 2.3516 - return_loss: 0.2205 - dir_loss: 0.4262 - dir_dir_acc: 0.7969
+ 6/31 [====>.........................] - ETA: 1s - loss: 2.3682 - return_loss: 0.2090 - dir_loss: 0.4318 - dir_dir_acc: 0.7943
+ 7/31 [=====>........................] - ETA: 1s - loss: 2.4642 - return_loss: 0.2073 - dir_loss: 0.4514 - dir_dir_acc: 0.7768
+ 8/31 [======>.......................] - ETA: 1s - loss: 2.4387 - return_loss: 0.2097 - dir_loss: 0.4458 - dir_dir_acc: 0.7852
+ 9/31 [=======>......................] - ETA: 1s - loss: 2.4744 - return_loss: 0.2324 - dir_loss: 0.4484 - dir_dir_acc: 0.7812
+10/31 [========>.....................] - ETA: 1s - loss: 2.4891 - return_loss: 0.2290 - dir_loss: 0.4520 - dir_dir_acc: 0.7828
+11/31 [=========>....................] - ETA: 1s - loss: 2.4258 - return_loss: 0.2219 - dir_loss: 0.4408 - dir_dir_acc: 0.7940
+12/31 [==========>...................] - ETA: 1s - loss: 2.4619 - return_loss: 0.2281 - dir_loss: 0.4467 - dir_dir_acc: 0.7891
+13/31 [===========>..................] - ETA: 1s - loss: 2.4992 - return_loss: 0.2299 - dir_loss: 0.4539 - dir_dir_acc: 0.7788
+14/31 [============>.................] - ETA: 1s - loss: 2.5506 - return_loss: 0.2297 - dir_loss: 0.4642 - dir_dir_acc: 0.7734
+15/31 [=============>................] - ETA: 1s - loss: 2.5255 - return_loss: 0.2238 - dir_loss: 0.4603 - dir_dir_acc: 0.7750
+16/31 [==============>...............] - ETA: 0s - loss: 2.5485 - return_loss: 0.2211 - dir_loss: 0.4655 - dir_dir_acc: 0.7695
+17/31 [===============>..............] - ETA: 0s - loss: 2.5155 - return_loss: 0.2225 - dir_loss: 0.4586 - dir_dir_acc: 0.7739
+18/31 [================>.............] - ETA: 0s - loss: 2.4985 - return_loss: 0.2246 - dir_loss: 0.4548 - dir_dir_acc: 0.7778
+19/31 [=================>............] - ETA: 0s - loss: 2.4993 - return_loss: 0.2248 - dir_loss: 0.4549 - dir_dir_acc: 0.7747
+20/31 [==================>...........] - ETA: 0s - loss: 2.5159 - return_loss: 0.2207 - dir_loss: 0.4591 - dir_dir_acc: 0.7727
+21/31 [===================>..........] - ETA: 0s - loss: 2.5290 - return_loss: 0.2274 - dir_loss: 0.4603 - dir_dir_acc: 0.7731
+22/31 [====================>.........] - ETA: 0s - loss: 2.5677 - return_loss: 0.2266 - dir_loss: 0.4682 - dir_dir_acc: 0.7663
+23/31 [=====================>........] - ETA: 0s - loss: 2.5510 - return_loss: 0.2252 - dir_loss: 0.4652 - dir_dir_acc: 0.7670
+24/31 [======================>.......] - ETA: 0s - loss: 2.5522 - return_loss: 0.2310 - dir_loss: 0.4642 - dir_dir_acc: 0.7676
+25/31 [=======================>......] - ETA: 0s - loss: 2.5595 - return_loss: 0.2293 - dir_loss: 0.4661 - dir_dir_acc: 0.7644
+26/31 [========================>.....] - ETA: 0s - loss: 2.5715 - return_loss: 0.2279 - dir_loss: 0.4687 - dir_dir_acc: 0.7620
+27/31 [=========================>....] - ETA: 0s - loss: 2.5873 - return_loss: 0.2396 - dir_loss: 0.4695 - dir_dir_acc: 0.7610
+28/31 [==========================>...] - ETA: 0s - loss: 2.5835 - return_loss: 0.2394 - dir_loss: 0.4688 - dir_dir_acc: 0.7623
+29/31 [===========================>..] - ETA: 0s - loss: 2.5858 - return_loss: 0.2401 - dir_loss: 0.4691 - dir_dir_acc: 0.7608
+30/31 [============================>.] - ETA: 0s - loss: 2.5818 - return_loss: 0.2385 - dir_loss: 0.4687 - dir_dir_acc: 0.7609
+31/31 [==============================] - ETA: 0s - loss: 2.5806 - return_loss: 0.2407 - dir_loss: 0.4680 - dir_dir_acc: 0.7621
+31/31 [==============================] - 2s 70ms/step - loss: 2.5806 - return_loss: 0.2407 - dir_loss: 0.4680 - dir_dir_acc: 0.7621 - val_loss: 4.1381 - val_return_loss: 0.2432 - val_dir_loss: 0.7790 - val_dir_dir_acc: 0.5603
+Epoch 13/40
+
+ 1/31 [..............................] - ETA: 1s - loss: 2.1258 - return_loss: 0.1785 - dir_loss: 0.3895 - dir_dir_acc: 0.8594
+ 2/31 [>.............................] - ETA: 1s - loss: 2.4554 - return_loss: 0.2293 - dir_loss: 0.4452 - dir_dir_acc: 0.7656
+ 3/31 [=>............................] - ETA: 1s - loss: 2.3838 - return_loss: 0.3070 - dir_loss: 0.4154 - dir_dir_acc: 0.7969
+ 4/31 [==>...........................] - ETA: 1s - loss: 2.3037 - return_loss: 0.2738 - dir_loss: 0.4060 - dir_dir_acc: 0.8242
+ 5/31 [===>..........................] - ETA: 1s - loss: 2.2003 - return_loss: 0.2512 - dir_loss: 0.3898 - dir_dir_acc: 0.8250
+ 6/31 [====>.........................] - ETA: 1s - loss: 2.2014 - return_loss: 0.2414 - dir_loss: 0.3920 - dir_dir_acc: 0.8203
+ 7/31 [=====>........................] - ETA: 1s - loss: 2.2634 - return_loss: 0.2313 - dir_loss: 0.4064 - dir_dir_acc: 0.8058
+ 8/31 [======>.......................] - ETA: 1s - loss: 2.2705 - return_loss: 0.2298 - dir_loss: 0.4082 - dir_dir_acc: 0.8027
+ 9/31 [=======>......................] - ETA: 1s - loss: 2.2502 - return_loss: 0.2258 - dir_loss: 0.4049 - dir_dir_acc: 0.8021
+10/31 [========>.....................] - ETA: 1s - loss: 2.1961 - return_loss: 0.2192 - dir_loss: 0.3954 - dir_dir_acc: 0.8109
+11/31 [=========>....................] - ETA: 1s - loss: 2.2019 - return_loss: 0.2275 - dir_loss: 0.3949 - dir_dir_acc: 0.8125
+12/31 [==========>...................] - ETA: 1s - loss: 2.2573 - return_loss: 0.2256 - dir_loss: 0.4063 - dir_dir_acc: 0.8073
+13/31 [===========>..................] - ETA: 1s - loss: 2.2290 - return_loss: 0.2199 - dir_loss: 0.4018 - dir_dir_acc: 0.8125
+14/31 [============>.................] - ETA: 1s - loss: 2.2451 - return_loss: 0.2295 - dir_loss: 0.4031 - dir_dir_acc: 0.8103
+15/31 [=============>................] - ETA: 0s - loss: 2.2552 - return_loss: 0.2263 - dir_loss: 0.4058 - dir_dir_acc: 0.8062
+16/31 [==============>...............] - ETA: 0s - loss: 2.3105 - return_loss: 0.2295 - dir_loss: 0.4162 - dir_dir_acc: 0.8008
+17/31 [===============>..............] - ETA: 0s - loss: 2.3288 - return_loss: 0.2262 - dir_loss: 0.4205 - dir_dir_acc: 0.7987
+18/31 [================>.............] - ETA: 0s - loss: 2.3342 - return_loss: 0.2285 - dir_loss: 0.4211 - dir_dir_acc: 0.7995
+19/31 [=================>............] - ETA: 0s - loss: 2.3248 - return_loss: 0.2245 - dir_loss: 0.4201 - dir_dir_acc: 0.8002
+20/31 [==================>...........] - ETA: 0s - loss: 2.3452 - return_loss: 0.2293 - dir_loss: 0.4232 - dir_dir_acc: 0.7969
+21/31 [===================>..........] - ETA: 0s - loss: 2.3796 - return_loss: 0.2266 - dir_loss: 0.4306 - dir_dir_acc: 0.7917
+22/31 [====================>.........] - ETA: 0s - loss: 2.3944 - return_loss: 0.2266 - dir_loss: 0.4335 - dir_dir_acc: 0.7884
+23/31 [=====================>........] - ETA: 0s - loss: 2.4010 - return_loss: 0.2277 - dir_loss: 0.4346 - dir_dir_acc: 0.7867
+24/31 [======================>.......] - ETA: 0s - loss: 2.4022 - return_loss: 0.2266 - dir_loss: 0.4351 - dir_dir_acc: 0.7858
+25/31 [=======================>......] - ETA: 0s - loss: 2.4191 - return_loss: 0.2296 - dir_loss: 0.4379 - dir_dir_acc: 0.7850
+26/31 [========================>.....] - ETA: 0s - loss: 2.4161 - return_loss: 0.2280 - dir_loss: 0.4376 - dir_dir_acc: 0.7843
+27/31 [=========================>....] - ETA: 0s - loss: 2.4233 - return_loss: 0.2284 - dir_loss: 0.4390 - dir_dir_acc: 0.7807
+28/31 [==========================>...] - ETA: 0s - loss: 2.4262 - return_loss: 0.2325 - dir_loss: 0.4387 - dir_dir_acc: 0.7807
+29/31 [===========================>..] - ETA: 0s - loss: 2.4251 - return_loss: 0.2303 - dir_loss: 0.4390 - dir_dir_acc: 0.7791
+30/31 [============================>.] - ETA: 0s - loss: 2.4252 - return_loss: 0.2293 - dir_loss: 0.4392 - dir_dir_acc: 0.7792
+31/31 [==============================] - ETA: 0s - loss: 2.4286 - return_loss: 0.2294 - dir_loss: 0.4398 - dir_dir_acc: 0.7797
+31/31 [==============================] - 2s 70ms/step - loss: 2.4286 - return_loss: 0.2294 - dir_loss: 0.4398 - dir_dir_acc: 0.7797 - val_loss: 4.4766 - val_return_loss: 0.2646 - val_dir_loss: 0.8424 - val_dir_dir_acc: 0.5469
+Epoch 14/40
+
+ 1/31 [..............................] - ETA: 1s - loss: 2.3820 - return_loss: 0.2584 - dir_loss: 0.4247 - dir_dir_acc: 0.8125
+ 2/31 [>.............................] - ETA: 1s - loss: 2.4972 - return_loss: 0.2586 - dir_loss: 0.4477 - dir_dir_acc: 0.7891
+ 3/31 [=>............................] - ETA: 1s - loss: 2.4167 - return_loss: 0.2563 - dir_loss: 0.4321 - dir_dir_acc: 0.8073
+ 4/31 [==>...........................] - ETA: 1s - loss: 2.3878 - return_loss: 0.2354 - dir_loss: 0.4305 - dir_dir_acc: 0.7969
+ 5/31 [===>..........................] - ETA: 1s - loss: 2.3691 - return_loss: 0.2349 - dir_loss: 0.4269 - dir_dir_acc: 0.7969
+ 6/31 [====>.........................] - ETA: 1s - loss: 2.3811 - return_loss: 0.2166 - dir_loss: 0.4329 - dir_dir_acc: 0.7891
+ 7/31 [=====>........................] - ETA: 1s - loss: 2.3375 - return_loss: 0.2191 - dir_loss: 0.4237 - dir_dir_acc: 0.7946
+ 8/31 [======>.......................] - ETA: 1s - loss: 2.3674 - return_loss: 0.2212 - dir_loss: 0.4293 - dir_dir_acc: 0.7930
+ 9/31 [=======>......................] - ETA: 1s - loss: 2.3841 - return_loss: 0.2172 - dir_loss: 0.4334 - dir_dir_acc: 0.7865
+10/31 [========>.....................] - ETA: 1s - loss: 2.4106 - return_loss: 0.2351 - dir_loss: 0.4351 - dir_dir_acc: 0.7797
+11/31 [=========>....................] - ETA: 1s - loss: 2.3881 - return_loss: 0.2485 - dir_loss: 0.4279 - dir_dir_acc: 0.7869
+12/31 [==========>...................] - ETA: 1s - loss: 2.3787 - return_loss: 0.2523 - dir_loss: 0.4253 - dir_dir_acc: 0.7878
+13/31 [===========>..................] - ETA: 1s - loss: 2.3786 - return_loss: 0.2438 - dir_loss: 0.4270 - dir_dir_acc: 0.7825
+14/31 [============>.................] - ETA: 1s - loss: 2.3618 - return_loss: 0.2422 - dir_loss: 0.4239 - dir_dir_acc: 0.7868
+15/31 [=============>................] - ETA: 1s - loss: 2.3701 - return_loss: 0.2366 - dir_loss: 0.4267 - dir_dir_acc: 0.7844
+16/31 [==============>...............] - ETA: 0s - loss: 2.3429 - return_loss: 0.2293 - dir_loss: 0.4227 - dir_dir_acc: 0.7891
+17/31 [===============>..............] - ETA: 0s - loss: 2.3656 - return_loss: 0.2282 - dir_loss: 0.4275 - dir_dir_acc: 0.7904
+18/31 [================>.............] - ETA: 0s - loss: 2.3634 - return_loss: 0.2261 - dir_loss: 0.4275 - dir_dir_acc: 0.7917
+19/31 [=================>............] - ETA: 0s - loss: 2.3579 - return_loss: 0.2208 - dir_loss: 0.4274 - dir_dir_acc: 0.7911
+20/31 [==================>...........] - ETA: 0s - loss: 2.3470 - return_loss: 0.2172 - dir_loss: 0.4259 - dir_dir_acc: 0.7891
+21/31 [===================>..........] - ETA: 0s - loss: 2.3601 - return_loss: 0.2195 - dir_loss: 0.4281 - dir_dir_acc: 0.7850
+22/31 [====================>.........] - ETA: 0s - loss: 2.3406 - return_loss: 0.2160 - dir_loss: 0.4249 - dir_dir_acc: 0.7869
+23/31 [=====================>........] - ETA: 0s - loss: 2.3468 - return_loss: 0.2126 - dir_loss: 0.4268 - dir_dir_acc: 0.7860
+24/31 [======================>.......] - ETA: 0s - loss: 2.3547 - return_loss: 0.2141 - dir_loss: 0.4281 - dir_dir_acc: 0.7845
+25/31 [=======================>......] - ETA: 0s - loss: 2.3445 - return_loss: 0.2163 - dir_loss: 0.4256 - dir_dir_acc: 0.7869
+26/31 [========================>.....] - ETA: 0s - loss: 2.3717 - return_loss: 0.2155 - dir_loss: 0.4312 - dir_dir_acc: 0.7831
+27/31 [=========================>....] - ETA: 0s - loss: 2.3562 - return_loss: 0.2190 - dir_loss: 0.4274 - dir_dir_acc: 0.7865
+28/31 [==========================>...] - ETA: 0s - loss: 2.3567 - return_loss: 0.2174 - dir_loss: 0.4279 - dir_dir_acc: 0.7874
+29/31 [===========================>..] - ETA: 0s - loss: 2.3552 - return_loss: 0.2158 - dir_loss: 0.4279 - dir_dir_acc: 0.7872
+30/31 [============================>.] - ETA: 0s - loss: 2.3722 - return_loss: 0.2193 - dir_loss: 0.4306 - dir_dir_acc: 0.7865
+31/31 [==============================] - ETA: 0s - loss: 2.3843 - return_loss: 0.2221 - dir_loss: 0.4324 - dir_dir_acc: 0.7843
+31/31 [==============================] - 2s 71ms/step - loss: 2.3843 - return_loss: 0.2221 - dir_loss: 0.4324 - dir_dir_acc: 0.7843 - val_loss: 4.4895 - val_return_loss: 0.2641 - val_dir_loss: 0.8451 - val_dir_dir_acc: 0.5603
+Epoch 15/40
+
+ 1/31 [..............................] - ETA: 1s - loss: 2.0335 - return_loss: 0.1335 - dir_loss: 0.3800 - dir_dir_acc: 0.8438
+ 2/31 [>.............................] - ETA: 1s - loss: 2.2095 - return_loss: 0.2195 - dir_loss: 0.3980 - dir_dir_acc: 0.8047
+ 3/31 [=>............................] - ETA: 1s - loss: 2.2350 - return_loss: 0.2592 - dir_loss: 0.3951 - dir_dir_acc: 0.8125
+ 4/31 [==>...........................] - ETA: 1s - loss: 2.2013 - return_loss: 0.2307 - dir_loss: 0.3941 - dir_dir_acc: 0.8047
+ 5/31 [===>..........................] - ETA: 1s - loss: 2.1115 - return_loss: 0.2428 - dir_loss: 0.3737 - dir_dir_acc: 0.8281
+ 6/31 [====>.........................] - ETA: 1s - loss: 2.0828 - return_loss: 0.2234 - dir_loss: 0.3719 - dir_dir_acc: 0.8411
+ 7/31 [=====>........................] - ETA: 1s - loss: 2.1608 - return_loss: 0.2357 - dir_loss: 0.3850 - dir_dir_acc: 0.8281
+ 8/31 [======>.......................] - ETA: 1s - loss: 2.1910 - return_loss: 0.2274 - dir_loss: 0.3927 - dir_dir_acc: 0.8184
+ 9/31 [=======>......................] - ETA: 1s - loss: 2.1554 - return_loss: 0.2224 - dir_loss: 0.3866 - dir_dir_acc: 0.8247
+10/31 [========>.....................] - ETA: 1s - loss: 2.1822 - return_loss: 0.2320 - dir_loss: 0.3900 - dir_dir_acc: 0.8266
+11/31 [=========>....................] - ETA: 1s - loss: 2.1389 - return_loss: 0.2267 - dir_loss: 0.3824 - dir_dir_acc: 0.8324
+12/31 [==========>...................] - ETA: 1s - loss: 2.1827 - return_loss: 0.2217 - dir_loss: 0.3922 - dir_dir_acc: 0.8255
+13/31 [===========>..................] - ETA: 1s - loss: 2.1854 - return_loss: 0.2260 - dir_loss: 0.3919 - dir_dir_acc: 0.8245
+14/31 [============>.................] - ETA: 1s - loss: 2.2549 - return_loss: 0.2317 - dir_loss: 0.4047 - dir_dir_acc: 0.8170
+15/31 [=============>................] - ETA: 1s - loss: 2.2526 - return_loss: 0.2333 - dir_loss: 0.4039 - dir_dir_acc: 0.8146
+16/31 [==============>...............] - ETA: 0s - loss: 2.2741 - return_loss: 0.2306 - dir_loss: 0.4087 - dir_dir_acc: 0.8105
+17/31 [===============>..............] - ETA: 0s - loss: 2.2768 - return_loss: 0.2275 - dir_loss: 0.4099 - dir_dir_acc: 0.8088
+18/31 [================>.............] - ETA: 0s - loss: 2.3039 - return_loss: 0.2346 - dir_loss: 0.4139 - dir_dir_acc: 0.8056
+19/31 [=================>............] - ETA: 0s - loss: 2.3043 - return_loss: 0.2319 - dir_loss: 0.4145 - dir_dir_acc: 0.8035
+20/31 [==================>...........] - ETA: 0s - loss: 2.2983 - return_loss: 0.2336 - dir_loss: 0.4129 - dir_dir_acc: 0.8070
+21/31 [===================>..........] - ETA: 0s - loss: 2.3120 - return_loss: 0.2330 - dir_loss: 0.4158 - dir_dir_acc: 0.8058
+22/31 [====================>.........] - ETA: 0s - loss: 2.3336 - return_loss: 0.2307 - dir_loss: 0.4206 - dir_dir_acc: 0.8011
+23/31 [=====================>........] - ETA: 0s - loss: 2.3244 - return_loss: 0.2276 - dir_loss: 0.4194 - dir_dir_acc: 0.8016
+24/31 [======================>.......] - ETA: 0s - loss: 2.3448 - return_loss: 0.2285 - dir_loss: 0.4232 - dir_dir_acc: 0.7969
+25/31 [=======================>......] - ETA: 0s - loss: 2.3348 - return_loss: 0.2238 - dir_loss: 0.4222 - dir_dir_acc: 0.7975
+26/31 [========================>.....] - ETA: 0s - loss: 2.3490 - return_loss: 0.2275 - dir_loss: 0.4243 - dir_dir_acc: 0.7957
+27/31 [=========================>....] - ETA: 0s - loss: 2.3659 - return_loss: 0.2272 - dir_loss: 0.4277 - dir_dir_acc: 0.7940
+28/31 [==========================>...] - ETA: 0s - loss: 2.3626 - return_loss: 0.2236 - dir_loss: 0.4278 - dir_dir_acc: 0.7935
+29/31 [===========================>..] - ETA: 0s - loss: 2.3697 - return_loss: 0.2227 - dir_loss: 0.4294 - dir_dir_acc: 0.7942
+30/31 [============================>.] - ETA: 0s - loss: 2.3698 - return_loss: 0.2231 - dir_loss: 0.4293 - dir_dir_acc: 0.7958
+31/31 [==============================] - ETA: 0s - loss: 2.3554 - return_loss: 0.2229 - dir_loss: 0.4265 - dir_dir_acc: 0.7989
+31/31 [==============================] - 2s 70ms/step - loss: 2.3554 - return_loss: 0.2229 - dir_loss: 0.4265 - dir_dir_acc: 0.7989 - val_loss: 4.2556 - val_return_loss: 0.2613 - val_dir_loss: 0.7989 - val_dir_dir_acc: 0.5781
+Epoch 16/40
+
+ 1/31 [..............................] - ETA: 1s - loss: 2.1933 - return_loss: 0.1672 - dir_loss: 0.4052 - dir_dir_acc: 0.7500
+ 2/31 [>.............................] - ETA: 1s - loss: 2.1553 - return_loss: 0.1761 - dir_loss: 0.3958 - dir_dir_acc: 0.7656
+ 3/31 [=>............................] - ETA: 1s - loss: 2.2092 - return_loss: 0.1655 - dir_loss: 0.4087 - dir_dir_acc: 0.7865
+ 4/31 [==>...........................] - ETA: 1s - loss: 2.1699 - return_loss: 0.1615 - dir_loss: 0.4017 - dir_dir_acc: 0.7852
+ 5/31 [===>..........................] - ETA: 1s - loss: 2.2289 - return_loss: 0.1604 - dir_loss: 0.4137 - dir_dir_acc: 0.7875
+ 6/31 [====>.........................] - ETA: 1s - loss: 2.3126 - return_loss: 0.1779 - dir_loss: 0.4269 - dir_dir_acc: 0.7760
+ 7/31 [=====>........................] - ETA: 1s - loss: 2.2979 - return_loss: 0.1823 - dir_loss: 0.4231 - dir_dir_acc: 0.7746
+ 8/31 [======>.......................] - ETA: 1s - loss: 2.2459 - return_loss: 0.1758 - dir_loss: 0.4140 - dir_dir_acc: 0.7832
+ 9/31 [=======>......................] - ETA: 1s - loss: 2.2187 - return_loss: 0.1829 - dir_loss: 0.4072 - dir_dir_acc: 0.7917
+10/31 [========>.....................] - ETA: 1s - loss: 2.1918 - return_loss: 0.1873 - dir_loss: 0.4009 - dir_dir_acc: 0.7984
+11/31 [=========>....................] - ETA: 1s - loss: 2.2032 - return_loss: 0.1946 - dir_loss: 0.4017 - dir_dir_acc: 0.8040
+12/31 [==========>...................] - ETA: 1s - loss: 2.1860 - return_loss: 0.1939 - dir_loss: 0.3984 - dir_dir_acc: 0.8073
+13/31 [===========>..................] - ETA: 1s - loss: 2.2068 - return_loss: 0.1902 - dir_loss: 0.4033 - dir_dir_acc: 0.8053
+14/31 [============>.................] - ETA: 1s - loss: 2.1807 - return_loss: 0.1862 - dir_loss: 0.3989 - dir_dir_acc: 0.8080
+15/31 [=============>................] - ETA: 1s - loss: 2.1818 - return_loss: 0.1914 - dir_loss: 0.3981 - dir_dir_acc: 0.8094
+16/31 [==============>...............] - ETA: 0s - loss: 2.1700 - return_loss: 0.1916 - dir_loss: 0.3957 - dir_dir_acc: 0.8105
+17/31 [===============>..............] - ETA: 0s - loss: 2.1634 - return_loss: 0.1924 - dir_loss: 0.3942 - dir_dir_acc: 0.8097
+18/31 [================>.............] - ETA: 0s - loss: 2.2059 - return_loss: 0.1918 - dir_loss: 0.4028 - dir_dir_acc: 0.8030
+19/31 [=================>............] - ETA: 0s - loss: 2.1966 - return_loss: 0.1933 - dir_loss: 0.4006 - dir_dir_acc: 0.8051
+20/31 [==================>...........] - ETA: 0s - loss: 2.2005 - return_loss: 0.1916 - dir_loss: 0.4018 - dir_dir_acc: 0.8062
+21/31 [===================>..........] - ETA: 0s - loss: 2.2109 - return_loss: 0.1988 - dir_loss: 0.4024 - dir_dir_acc: 0.8073
+22/31 [====================>.........] - ETA: 0s - loss: 2.2293 - return_loss: 0.2027 - dir_loss: 0.4053 - dir_dir_acc: 0.8026
+23/31 [=====================>........] - ETA: 0s - loss: 2.2406 - return_loss: 0.2000 - dir_loss: 0.4081 - dir_dir_acc: 0.7989
+24/31 [======================>.......] - ETA: 0s - loss: 2.2684 - return_loss: 0.1990 - dir_loss: 0.4139 - dir_dir_acc: 0.7949
+25/31 [=======================>......] - ETA: 0s - loss: 2.2629 - return_loss: 0.2060 - dir_loss: 0.4114 - dir_dir_acc: 0.7969
+26/31 [========================>.....] - ETA: 0s - loss: 2.2709 - return_loss: 0.2060 - dir_loss: 0.4130 - dir_dir_acc: 0.7945
+27/31 [=========================>....] - ETA: 0s - loss: 2.2552 - return_loss: 0.2045 - dir_loss: 0.4101 - dir_dir_acc: 0.7957
+28/31 [==========================>...] - ETA: 0s - loss: 2.2697 - return_loss: 0.2087 - dir_loss: 0.4122 - dir_dir_acc: 0.7952
+29/31 [===========================>..] - ETA: 0s - loss: 2.2919 - return_loss: 0.2101 - dir_loss: 0.4164 - dir_dir_acc: 0.7926
+30/31 [============================>.] - ETA: 0s - loss: 2.2881 - return_loss: 0.2130 - dir_loss: 0.4150 - dir_dir_acc: 0.7927
+31/31 [==============================] - ETA: 0s - loss: 2.2950 - return_loss: 0.2140 - dir_loss: 0.4162 - dir_dir_acc: 0.7923Restoring model weights from the end of the best epoch: 4.
+
+31/31 [==============================] - 2s 69ms/step - loss: 2.2950 - return_loss: 0.2140 - dir_loss: 0.4162 - dir_dir_acc: 0.7923 - val_loss: 4.6513 - val_return_loss: 0.2705 - val_dir_loss: 0.8762 - val_dir_dir_acc: 0.5647
+Epoch 16: early stopping
+模型权重已保存: 我的模型C.weights.h5
+测试集 MAE（horizon=1）: 0.005374
+测试集 RMSE（horizon=1）: 0.007088
+测试集 R²（horizon=1）: 0.0599
+测试集 方向一致性（收益正负符号一致率，排除真实=0）: 0.5255（含真实=0: 0.5255）
+测试集 方向头分类准确率（sigmoid≥0.5）: 0.5586
+方向头分类指标: Precision=0.5763, Recall=0.5191, F1=0.5462
+方向头 ROC-AUC（测试集）: 0.5359
+方向头混淆矩阵 [[TN, FP], [FN, TP]]: [[75, 50], [63, 68]]
+测试集 R²（收益还原为价格后，horizon=1）: 0.982978
+测试集 价格指标: MAE=0.3935, RMSE=0.5189, MAPE=0.54%
+Baseline(远期对数收益=0，随机游走) 在收益上的 R2: -0.0000
+Baseline(AR(1) on returns) R2_ret: 0.5324  (phi=0.634)
+Baseline(收益均值) R2_ret: -0.0000  (mu=-0.000001)
+结果图表CSV已保存: chart_test_predictions.csv
+结果图表CSV已保存: chart_train_val_loss.csv
+结果图表CSV已保存: chart_residual_distribution.csv
+结果图表CSV已保存: chart_return_scatter.csv
+结果图表CSV已保存: chart_backtest_nav_curve.csv
+结果图表CSV已保存: chart_direction_prediction.csv
+结果图表CSV已保存: chart_direction_confusion_matrix.csv
+结果图表CSV已保存: chart_direction_prob_distribution.csv
+结果图表CSV已保存: chart_preprocess_before_after_returns.csv
+结果图表CSV已保存: chart_preprocess_feature_compare.csv
+结果图表CSV已保存: chart_vmd_before_after.csv
+下一天预测：last_date=2025-12-30 00:00:00，pred_return=0.000718，last_price=69.7400，pred_price=69.7901，pred_prob_up=0.5361
